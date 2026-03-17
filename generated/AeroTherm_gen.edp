@@ -1,0 +1,338 @@
+
+int S = 99, S1=100;
+
+// Константы из формы
+real Chord = 1.0;
+real Chord2 = 0.5;
+real delyOffset = 0.0;
+
+// Параметры аэродинамики
+real Tgas = 673.0;
+real Tcool = 1223.0;
+real Tblade = 1223.0;
+real Press0 = 1500000.0;
+real U0 = 1.0;
+real beta = -10.0;
+real houter = 15000.0;
+real hinner = 15.0;
+
+// Физические свойства газа
+real Rgas = 287.0;
+real cpgas = 1005.0;
+real kgas = 0.026;
+
+// Свойства материала (Никелевый сплав)
+real rhosteel = 7800.0;
+real cpsteel = 500.0;
+real ksteel = 25.0;
+
+// ... далее остальной неизменяемый код из AeroTherm.edp ...
+
+real RC=1.0*Chord;
+
+// Внешняя граница с меткой 3
+border C(t=0, 2*pi){x=Chord/2.+RC*cos(t); y=RC*sin(t); label=3;} 
+real rhogas = Press0 / (Rgas * (Tgas + 273.15)); 
+
+
+//Расположение маленькой лопатки по отношению к X
+real xOffset = (Chord - Chord2) / 10;
+
+real theta = 15*pi/180; // angle of rotation in radians
+real [int,int] R = [[cos(theta), -sin(theta)], [sin(theta), cos(theta)]]; // rotation matrix
+
+// Функции поворота
+func real rotateX(real x, real y, real xCenter, real yCenter) {
+    return xCenter + (x - xCenter) * R(0,0) + (y - yCenter) * R(0,1);
+}
+
+func real rotateY(real x, real y, real xCenter, real yCenter) {
+    return yCenter + (x - xCenter) * R(1,0) + (y - yCenter) * R(1,1);
+}
+
+// Считывание коэффициентов профиля
+real[int] coeffsUp(10);
+real[int] coeffsLow(10);
+real[int] coeffsUp2(10);
+real[int] coeffsLow2(10);
+
+ifstream fl("out_L.csv");
+for(int i=0; i<coeffsUp.n; i++) fl >> coeffsUp(i);
+for(int i=0; i<coeffsLow.n; i++) fl >> coeffsLow(i);
+for(int i=0; i<coeffsUp2.n; i++) fl >> coeffsUp2(i);
+for(int i=0; i<coeffsLow2.n; i++) fl >> coeffsLow2(i);
+
+// Функция для полиномов Лежандра
+func real Lezh(real[int] L,real t){
+    real[int] y(10);
+    y(0)=1.; y(1)=t; y(2)=(3.*t^2-1.)/2.;
+    y(3)=(5.*t^3-3.*t)/2.; y(4)=(35.*t^4-30.*t^2+3.)/8.;
+    y(5)=(63.*t^5-70.*t^3+15.*t)/8.;
+    y(6)=231./16.*t^6-315./16.*t^4+105./16.*t^2-5./16.;
+    y(7)=429./16.*t^7-693./16.*t^5+315./16.*t^3-35./16.*t;
+    y(8)=6435./128.*t^8-3003./32.*t^6+3465./64.*t^4-315./32.*t^2+35./128.;
+    y(9)=12155./128.*t^9-6435./32.*t^7+9009./64.*t^5-1155./32.*t^3+315./128.*t;
+    return L'*y;
+}
+
+// Функции для вычисления смещенных координат
+func real[int] ContUp(real delt, real t, real dt){
+    real[int] x0(2),x1(2);
+    real norm;
+    x0(0)=Chord*dt;
+    x0(1)= Chord*(Lezh(coeffsUp,t+dt)-Lezh(coeffsUp,t));
+    norm=sqrt(x0(0)^2+x0(1)^2);
+    x0=x0/norm;
+    x1(0)=x0(1)*delt;
+    x1(1)=-x0(0)*delt;
+    x1(0)+=Chord*t;
+    x1(1)+=Chord*Lezh(coeffsUp,t);
+    return x1;
+}
+
+func real[int] ContLw(real delt, real t, real dt){
+    real[int] x0(2), x1(2);
+    real norm;
+    x0(0)=Chord*dt;
+    x0(1)= Chord*(Lezh(coeffsLow,t+dt)-Lezh(coeffsLow,t));
+    norm=sqrt(x0(0)^2+x0(1)^2);
+    x0=x0/norm;
+    x1(0)=x0(1)*delt;
+    x1(1)=-x0(0)*delt;
+    x1(0)+=Chord*t;
+    x1(1)+=Chord*Lezh(coeffsLow,t);
+    return x1;
+}
+
+real xblade=Chord*0.25, yblade1=Chord*(Lezh(coeffsUp,0.5)+Lezh(coeffsLow,0.5))/2;
+
+// Середина верхней и нижней части большой лопатки
+real yUp = Chord * Lezh(coeffsUp, 0.5); 
+real yLow = Chord * Lezh(coeffsLow, 0.5); 
+real yblade = (yUp + yLow) / 2.0; ///yUPLow
+
+// Cреднее значение по Y для маленькой лопатки
+real ySmallUp = Chord2 * Lezh(coeffsUp2, 0.5);
+real ySmallLow = Chord2 * Lezh(coeffsLow2, 0.5);
+real ySmallUpLow = (ySmallUp + ySmallLow) / 2.0;
+
+// Cмещение по Y для маленькой лопатки так, чтобы её середина совпадала с серединой большой лопатки
+real yOffset = yblade - ySmallUpLow;
+yOffset = yOffset + delyOffset;
+
+// Определение центра вращения для маленькой лопатки
+real xCenterSmall = xOffset + Chord2 / 2;
+real yCenterSmall = yOffset;
+
+// Определение границ
+border Splus(t=1., 0.){x=Chord*t; y=Chord*Lezh(coeffsUp,t); label=S;}
+border Sminus(t=0., 1.){x=Chord*t; y=Chord*Lezh(coeffsLow,t); label=S;}
+border Spm(t=1.,0.){x=0;y=Chord*Lezh(coeffsLow,0)+t*Chord*(Lezh(coeffsUp,0)-Lezh(coeffsLow,0)); label=S;}
+border Smp(t=0.,1.){x=Chord;y=Chord*Lezh(coeffsLow,1)+t*Chord*(Lezh(coeffsUp,1)-Lezh(coeffsLow,1)); label=S;}
+
+border Splus2(t=1., 0.){
+    real xLocal = xOffset + Chord2 * t; 
+    real yLocal = yOffset + Chord2 * Lezh(coeffsUp2,t); 
+    x = rotateX(xLocal, yLocal, xCenterSmall, yCenterSmall); 
+    y = rotateY(xLocal, yLocal, xCenterSmall, yCenterSmall); 
+    label=S1;
+}
+
+border Sminus2(t=0., 1.){
+    real xLocal = xOffset + Chord2 * t; 
+    real yLocal = yOffset + Chord2 * Lezh(coeffsLow2,t); 
+    x = rotateX(xLocal, yLocal, xCenterSmall, yCenterSmall); 
+    y = rotateY(xLocal, yLocal, xCenterSmall, yCenterSmall); 
+    label=S1;
+}
+
+border Spm2(t=1.,0.){
+    real xLocal = xOffset; 
+    real yLocal = yOffset + Chord2 * Lezh(coeffsLow2,0) + t * Chord2 * (Lezh(coeffsUp2,0) - Lezh(coeffsLow2,0)); 
+    x = rotateX(xLocal, yLocal, xCenterSmall, yCenterSmall); 
+    y = rotateY(xLocal, yLocal, xCenterSmall, yCenterSmall); 
+    label=S1;
+}
+
+border Smp2(t=0.,1.){
+    real xLocal = xOffset + Chord2; 
+    real yLocal = yOffset + Chord2 * Lezh(coeffsLow2,1) + t * Chord2 * (Lezh(coeffsUp2,1) - Lezh(coeffsLow2,1)); 
+    x = rotateX(xLocal, yLocal, xCenterSmall, yCenterSmall); 
+    y = rotateY(xLocal, yLocal, xCenterSmall, yCenterSmall); 
+    label=S1;
+}
+
+// Построение сетки
+int NC=100;
+int NSp = 200;
+int NSm = 200;
+int NSpm = 10;
+mesh Th = buildmesh(C(NC)+Splus(NSp) + Spm(NSpm) + Sminus(NSm) + Smp(NSpm) + Splus2(-NSp) + Spm2(-NSpm) + Sminus2(-NSm) + Smp2(-NSpm));
+plot(Th, wait=1,ps="./plots/Mesh.eps");
+
+int steel = Th(xblade, yblade1).region, air = Th(-RC/2., -RC/2.).region;
+cout<<steel<<" "<<air<<endl;
+// Аэродинамическое решение
+fespace Vh2(Th, P2);
+Vh2 psi, w;
+real cost = cos(beta*pi/180.), sint=sin(beta*pi/180.);
+solve potential(psi, w) 
+    = int2d(Th)( dx(psi)*dx(w) + dy(psi)*dy(w) )
+    + on(3, psi = U0*(cost*y - sint*x)) 
+    + on(S, psi=0.0)
+    + on(S1, psi=0.0);
+
+Vh2 vx, vy;
+vx = dy(psi); 
+vy = -dx(psi); 
+
+// Теплофизические параметры
+func real rho() { 
+    if (Th(x,y).region == steel) return rhosteel;
+    else return rhogas;
+}
+func real cp() {
+    if (Th(x,y).region == steel) return cpsteel;
+    else return cpgas;
+}
+func real k() {
+    if (Th(x,y).region == steel) return ksteel;
+    else return kgas;
+}
+
+// Начальная температура
+
+func real T0() {
+    if (Th(x,y).region == steel) return Tblade;
+    else return Tgas;
+}
+
+// Пространство для температуры
+fespace VhT(Th, P2);
+VhT T, v, Told, T00;
+T = T0();
+T00 = T;
+Told = T;
+
+// Параметры временного моделирования
+real Time = 2.0;  // Общее время моделирования
+real dt = 0.1;   // Шаг по времени
+real t=0; //Текущее время
+int Niter = int(Time/dt);
+int Nplot = 10;
+int dNplot = Niter/Nplot;
+
+// Уравнение теплопроводности с конвекцией и граничными условиями
+problem thermic(T, v)
+    = int2d(Th)(
+        rho()*cp()*T*v/dt
+        + k()*(dx(T)*dx(v) + dy(T)*dy(v))
+    )
+    - int2d(Th)(
+        rho()*cp()*Told*v/dt
+    )
+    + int2d(Th)( 
+        (region == air) * rho()*cp() * (vx*dx(T) + vy*dy(T)) * v 
+    )
+
+    + int1d(Th, S)( 
+        houter * T * v
+    )
+    - int1d(Th, S)(
+        houter * Tgas * v
+    )
+    + int1d(Th, S1)( 
+        hinner * T * v
+    )
+    - int1d(Th, S1)(
+        hinner * Tcool * v
+    )
+    + on(3, T = Tgas);
+
+
+real delt=0.0004; //Смещение от поверхности
+
+real Npt=180.; //Число точек 
+real dt1=1/Npt; //шаг
+ofstream ffBC("tlT.csv");
+
+
+
+
+// Временной цикл
+for(int it = 0; it < Niter; it++){
+    t=t+dt;
+    Told = T;
+    thermic;
+
+    // Массивы для хранения данных
+    real[int] xin(Npt), yin(Npt), Tmetal(Npt), Tout(Npt);
+    real[int] xext(Npt), yext(Npt);
+    real[int] pt(2);
+    real xprev, yprev, l;
+
+
+    xprev = ContUp(0, 1, dt1)(0);
+    yprev = ContUp(0, 1, dt1)(1);
+    l = 0;
+
+    for(int i = 1; i < Npt; ++i) {
+        real tt = 1.0 - i*dt1;
+        real[int] pt = ContUp(0, tt, dt1);
+        real currx = pt(0);
+        real curry = pt(1);
+        real ds = sqrt((currx - xprev)^2 + (curry - yprev)^2);
+        l += ds;
+        xprev = currx;
+        yprev = curry;
+        pt = ContUp(delt, tt, dt1);
+        xin(i) = pt(0);
+        yin(i) = pt(1);
+        Tmetal(i) = T(xin(i),yin(i));
+        pt = ContUp(-delt, tt, dt1);
+        xext(i) = pt(0);
+        yext(i) = pt(1);
+        Tout(i) = T(xext(i),yext(i));
+        ffBC << t << "," << l << "," << Tmetal(i) << "," << Tout(i) << endl;
+    }
+    for(int i = 0; i < Npt; ++i) {
+        real tt = 0.0 + i*dt1;
+        pt = ContUp(0, tt, dt1);
+        real currx = pt(0);
+        real curry = pt(1);
+        real ds = sqrt((currx - xprev)^2 + (curry - yprev)^2);
+        l += ds;
+        xprev = currx;
+        yprev = curry;
+        pt = ContLw(-delt, tt, dt1);
+        xin(i) = pt(0);
+        yin(i) = pt(1);
+        Tmetal(i) = T(xin(i),yin(i));
+        pt = ContLw(delt, tt, dt1);
+        xext(i) = pt(0);
+        yext(i) = pt(1);
+        Tout(i) = T(xext(i),yext(i));
+        ffBC << t << "," << l << "," << Tmetal(i) << "," << Tout(i) << endl;
+        
+    }
+    
+
+    if (it%dNplot == 0){
+        string fileplotName = "./plots/ThermalDistrib_" + t + "_.eps";
+        plot(T, value=true, fill=true, ps=fileplotName, wait=0,cmm=t);
+    }   
+}
+plot(T, value=true, fill=true, ps="./plots/ThermalDistrib.eps", wait=0);
+
+
+
+
+ofstream ff1("LT.csv");
+for(real tt = 1; tt >=0; tt -= dt1) {
+    real xdc=ContUp(delt,tt,dt1)(0);
+    real ydUp=ContUp(delt,tt,dt1)(1);
+    real ydLw=ContLw(-delt,tt,dt1)(1);
+    if (ydUp>ydLw){
+        ff1 << xdc<< " "<< ydUp<<" "<< T(xdc,ydUp)<<" "<< ydLw<< " "<< T(xdc,ydLw)<<" "<< endl;
+    }
+}

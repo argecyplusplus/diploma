@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FreeFEM++ Generator</title>
+    <style>
+        body { font-family: sans-serif; margin: 40px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 600px; }
+        label { font-weight: bold; }
+        input { padding: 5px; }
+        button { margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>Настройка параметров моделирования</h2>
+    <form method="POST">
+        <div class="grid">
+            {% for key, val in defaults.items() %}
+            <label for="{{ key }}">{{ key }}:</label>
+            <input type="number" step="any" name="{{ key }}" value="{{ val }}" required>
+            {% endfor %}
+        </div>
+        <button type="submit">Сгенерировать .edp файл</button>
+    </form>
+</body>
+</html>
