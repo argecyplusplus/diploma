@@ -261,6 +261,9 @@ ofstream ffBC("tlT.csv");
 
 // Временной цикл
 for(int it = 0; it < Niter; it++){
+
+    cout << "PROG: Iteration " << it + 1 << " of " << Niter << endl;
+
     t=t+dt;
     Told = T;
     thermic;

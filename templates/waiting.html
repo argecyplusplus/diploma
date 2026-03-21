@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Выполнение расчета</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .step { padding: 15px; border-bottom: 1px solid #eee; display: flex; align-items: center; }
+        .step-icon { width: 30px; font-weight: bold; }
+        .waiting { color: #ccc; }
+        .running { color: #0d6efd; font-weight: bold; }
+        .done { color: #198754; }
+        .error { color: #dc3545; }
+        .details { font-size: 0.85em; color: #666; margin-left: 30px; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6 card shadow p-4">
+                <h3 class="mb-4 text-center">Процесс моделирования</h3>
+                
+                <div id="steps-container">
+                    <div id="step-geometry" class="step waiting">
+                        <div class="step-icon">○</div> <span class="label">Запуск геометрии</span>
+                    </div>
+                    <div id="step-edp" class="step waiting">
+                        <div class="step-icon">○</div> <span class="label">Подготовка расчетного файла</span>
+                    </div>
+                    <div id="step-simulation" class="step waiting">
+                        <div>
+                            <div class="step-icon">○</div> <span class="label">Моделирование FreeFem++</span>
+                            <div id="sim-details" class="details"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="error-box" class="alert alert-danger mt-3 d-none"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateProgress() {
+            fetch('/progress')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        const err = document.getElementById('error-box');
+                        err.classList.remove('d-none');
+                        err.innerText = "Ошибка: " + data.error;
+                        return;
+                    }
+
+                    updateStep('step-geometry', data.geometry.status);
+                    updateStep('step-edp', data.edp_prep.status);
+                    updateStep('step-simulation', data.simulation.status);
+                    document.getElementById('sim-details').innerText = data.simulation.details;
+
+                    if (data.complete) {
+                        setTimeout(() => window.location.href = '/result', 1000);
+                    } else {
+                        setTimeout(updateProgress, 1000);
+                    }
+                });
+        }
+
+        function updateStep(id, status) {
+            const el = document.getElementById(id);
+            const icon = el.querySelector('.step-icon');
+            el.className = 'step ' + status;
+            
+            if (status === 'running') icon.innerText = '●';
+            else if (status === 'done') icon.innerText = '✓';
+            else icon.innerText = '○';
+        }
+
+        updateProgress();
+    </script>
+</body>
+</html>
