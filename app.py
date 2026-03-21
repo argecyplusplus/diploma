@@ -89,22 +89,31 @@ def run_calculation(params, base_dir, gen_dir, fast_mode=False):
         # В вашем случае файл статичен или уже должен быть в gen_dir / scripts
         progress_tracker['processing']['status'] = 'done'
 
-        # --- ШАГ 5: ТЕПЛОВОЙ РАСЧЕТ (Запускается всегда) ---
+        # --- ШАГ 5: ТЕПЛОВОЙ РАСЧЕТ И ГРАФИКИ ---
         progress_tracker['thermal']['status'] = 'running'
         script_v1_dir = os.path.join(base_dir, 'scripts', 'v_001')
         
-        # Запуск расчета
-        calc_res = subprocess.run(
-            [sys.executable, os.path.join(script_v1_dir, 'thermal_simulation_from_Gaussfile_v001.py')],
-            cwd=gen_dir, capture_output=True, text=True
-        )
-        if calc_res.returncode != 0: raise Exception(f"Ошибка в расчете: {calc_res.stderr}")
+        # Путь к скрипту отрисовки
+        plot_script_path = os.path.join(script_v1_dir, 'plot_npz.py')
 
-        # Запуск графиков
-        subprocess.run(
+        # Запуск графиков с ПОЛНЫМ захватом вывода
+        plot_res = subprocess.run(
             [sys.executable, os.path.join(script_v1_dir, 'plot_npz.py')],
-            cwd=gen_dir, capture_output=True
+            cwd=gen_dir,
+            capture_output=True,
+            text=True,
+            encoding='cp1251', # СТАВИМ CP1251 вместо UTF-8
+            errors='replace'   # Если встретится совсем странный символ - не падать
         )
+        
+        # Печатаем в консоль Flask (сервера), что ответил скрипт
+        print("=== PLOT_NPZ DEBUG OUT ===")
+        print("STDOUT:", plot_res.stdout)
+        print("STDERR:", plot_res.stderr) 
+        print("RETURN CODE:", plot_res.returncode)
+
+        if plot_res.returncode != 0:
+            raise Exception(f"Графики не созданы. Ошибка: {plot_res.stderr}")
 
         progress_tracker['thermal']['status'] = 'done'
         progress_tracker['complete'] = True
@@ -135,7 +144,7 @@ def index():
         # Ищем все PNG файлы в папке generated
         images = [f for f in os.listdir(gen_dir) if f.endswith('.png')]
         # Ищем файл данных
-        data_file = 'stable_results_from_gauss.npz'
+        data_file = 'stable_results_from_gauss_v001.npz'
         
         if images and os.path.exists(os.path.join(gen_dir, data_file)):
             # Получаем время изменения самого свежего файла
