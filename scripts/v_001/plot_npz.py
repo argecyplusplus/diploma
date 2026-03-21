@@ -84,12 +84,15 @@ def plot_from_npz(filename, output_dir='.'):
     return True
 
 if __name__ == "__main__":
-    # Основное имя файла, которое генерирует ваш расчетный скрипт
-    target_file = 'stable_results_from_gauss_v001.npz'
+    # Вычисляем корень проекта (на 2 уровня выше от scripts/v_001/)
+    current_script_path = os.path.abspath(__file__)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_script_path)))
     
-    # Проверка: если файла нет в текущей директории (generated)
+    target_dir = os.path.join(project_root, 'results', 'v001')
+    target_file = os.path.join(target_dir, 'stable_results_from_gauss_v001.npz')
+
     if not os.path.exists(target_file):
-        print(f"ERROR: Не нашел файл {target_file}")
-        print(f"Содержимое папки {os.getcwd()}: {os.listdir('.')}")
+        print(f"ERROR: Не нашел файл в корне: {target_file}")
     else:
-        plot_from_npz(target_file)
+        # Сохраняем PNG в ту же папку results/v001 в корне
+        plot_from_npz(target_file, output_dir=target_dir)

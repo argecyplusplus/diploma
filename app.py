@@ -93,24 +93,40 @@ def run_calculation(params, base_dir, gen_dir, fast_mode=False):
         progress_tracker['thermal']['status'] = 'running'
         script_v1_dir = os.path.join(base_dir, 'scripts', 'v_001')
         
-        # Путь к скрипту отрисовки
-        plot_script_path = os.path.join(script_v1_dir, 'plot_npz.py')
+        # 5.1. Сначала запускаем РАСЧЕТ (создает .npz в папке /results/v001 в корне)
+        calc_script = os.path.join(script_v1_dir, 'thermal_simulation_from_Gaussfile_v001.py')
+        calc_res = subprocess.run(
+            [sys.executable, calc_script], 
+            cwd=gen_dir, 
+            capture_output=True, 
+            text=True, 
+            encoding='cp1251',
+            errors='replace'
+        )
+        
+        # Вывод отладки для расчета
+        print("=== THERMAL CALC DEBUG OUT ===")
+        print("STDOUT:", calc_res.stdout)
+        print("STDERR:", calc_res.stderr)
+        
+        if calc_res.returncode != 0:
+            raise Exception(f"Ошибка в расчете теплового слоя: {calc_res.stderr}")
 
-        # Запуск графиков с ПОЛНЫМ захватом вывода
+        # 5.2. Затем запускаем ГРАФИКИ (ищут .npz и создают .png в той же папке)
+        plot_script = os.path.join(script_v1_dir, 'plot_npz.py')
         plot_res = subprocess.run(
-            [sys.executable, os.path.join(script_v1_dir, 'plot_npz.py')],
+            [sys.executable, plot_script],
             cwd=gen_dir,
             capture_output=True,
             text=True,
-            encoding='cp1251', # СТАВИМ CP1251 вместо UTF-8
-            errors='replace'   # Если встретится совсем странный символ - не падать
+            encoding='cp1251',
+            errors='replace'
         )
         
-        # Печатаем в консоль Flask (сервера), что ответил скрипт
+        # Вывод отладки для графиков
         print("=== PLOT_NPZ DEBUG OUT ===")
         print("STDOUT:", plot_res.stdout)
-        print("STDERR:", plot_res.stderr) 
-        print("RETURN CODE:", plot_res.returncode)
+        print("STDERR:", plot_res.stderr)
 
         if plot_res.returncode != 0:
             raise Exception(f"Графики не созданы. Ошибка: {plot_res.stderr}")
@@ -138,21 +154,21 @@ def index():
         threading.Thread(target=run_calculation, args=(params, base_dir, gen_dir, fast_mode)).start()
         return render_template('waiting.html')
     
-    # --- ЛОГИКА ВЫВОДА ПОСЛЕДНИХ РЕЗУЛЬТАТОВ ---
+    # --- ЛОГИКА ВЫВОДА ПОСЛЕДНИХ РЕЗУЛЬТАТОВ (в корне) ---
     last_results = None
-    if os.path.exists(gen_dir):
-        # Ищем все PNG файлы в папке generated
-        images = [f for f in os.listdir(gen_dir) if f.endswith('.png')]
-        # Ищем файл данных
+    res_full_path = os.path.join(base_dir, 'results', 'v001') # Ищем в корне!
+
+    if os.path.exists(res_full_path):
+        images = [f for f in os.listdir(res_full_path) if f.endswith('.png')]
         data_file = 'stable_results_from_gauss_v001.npz'
-        
-        if images and os.path.exists(os.path.join(gen_dir, data_file)):
-            # Получаем время изменения самого свежего файла
-            mtime = os.path.getmtime(os.path.join(gen_dir, data_file))
+
+        if images and os.path.exists(os.path.join(res_full_path, data_file)):
+            mtime = os.path.getmtime(os.path.join(res_full_path, data_file))
             import datetime
             last_results = {
                 'time': datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S'),
-                'images': images
+                # Путь для url_for или прямой ссылки
+                'images': [os.path.join('v001', img).replace('\\', '/') for img in images]
             }
 
     return render_template('index.html', defaults=DEFAULTS, last_results=last_results)
@@ -161,6 +177,14 @@ def index():
 @app.route('/generated/<path:filename>')
 def custom_static(filename):
     return send_from_directory(os.path.join(os.getcwd(), 'generated'), filename)
+
+@app.route('/results_files/<path:filename>')
+def serve_results(filename):
+    # Находим папку results строго в корне, где лежит app.py
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    results_root = os.path.join(current_dir, 'results')
+    return send_from_directory(results_root, filename)
+
 
 @app.route('/progress')
 def get_progress():

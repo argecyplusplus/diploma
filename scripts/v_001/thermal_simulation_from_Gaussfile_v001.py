@@ -206,20 +206,29 @@ if __name__ == "__main__":
         l_grid, t_array, T_initial, Tmetal_func, Tout_func, params
     )
 
+
     # --- ФИНАЛИЗАЦИЯ И СОХРАНЕНИЕ ---
     print("Расчёт завершён успешно")
-    print(f"Температурный диапазон центра: {A.min():.1f} - {A.max():.1f} K")
     
-    # Сохраняем результат в NPZ. 
-    # Добавляем 'h', чтобы скрипт отрисовки знал толщину покрытия.
+    # 1. Находим корень проекта: этот скрипт в /scripts/v_001/, значит корень на 2 уровня выше
+    current_script_path = os.path.abspath(__file__)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_script_path)))
+    
+    # 2. Формируем путь к результатам в корне
+    output_dir = os.path.join(project_root, 'results', 'v001')
+    
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+        print(f"DEBUG: Создана папка в корне: {output_dir}")
+
+    save_path = os.path.join(output_dir, 'stable_results_from_gauss_v001.npz')
+
     np.savez_compressed(
-        'stable_results_from_gauss_v001.npz', 
+        save_path, 
         l_grid=l_grid, 
         t_array=t_array, 
         A=A, 
         B=B, 
         h=params['h']
     )
-    
-    print("Файл stable_results_from_gauss_v001.npz успешно сохранен.")
-    # plt.show() удалены, чтобы процесс завершался автоматически и не вешал Flask.
+    print(f"Файл успешно сохранен: {save_path}")
