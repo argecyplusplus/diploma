@@ -93,8 +93,8 @@ def run_calculation(params, base_dir, gen_dir, fast_mode=False):
         progress_tracker['thermal']['status'] = 'running'
         
         versions = [
-            {'name': 'v_001', 'calc': 'thermal_simulation_from_Gaussfile_v001.py'},
-            {'name': 'v_1',   'calc': 'thermal_simulation_from_Gaussfile_v1.py'}
+            {'name': 'v001', 'calc': 'thermal_simulation_from_Gaussfile_v001.py'},
+            {'name': 'v1',   'calc': 'thermal_simulation_from_Gaussfile_v1.py'}
         ]
 
         for ver in versions:

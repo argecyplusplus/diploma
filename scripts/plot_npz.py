@@ -8,7 +8,7 @@ import argparse
 
 def plot_from_npz(filename, output_dir, version_label):
     print(f"--- Отрисовка графиков для {version_label} ---")
-    print(f"Файл данных: {filename}")
+    print(f"Файл данных: {os.path.abspath(filename)}")
     
     if not os.path.exists(filename):
         print(f"ERROR: Файл {filename} не найден.")
@@ -39,8 +39,7 @@ def plot_from_npz(filename, output_dir, version_label):
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    # Сохраняем с уникальным именем версии
-    plt.savefig(os.path.join(output_dir, f'plot_time_{version_label}.png'), dpi=150)
+    plt.savefig(os.path.join(output_dir, f'plot_evolution_{version_label}.png'), dpi=150)
     plt.close()
 
     # 2. По профилю
@@ -48,7 +47,7 @@ def plot_from_npz(filename, output_dir, version_label):
     steps = [0, len(t_array)//4, len(t_array)//2, -1]
     for t_idx in steps:
         plt.plot(l_grid, A[:, t_idx], label=f't = {t_array[t_idx]:.2f} с')
-    plt.xlabel('Координата вдоль профиля (S), м')
+    plt.xlabel('S, м')
     plt.ylabel('Температура, К')
     plt.title(f'Распределение температуры ({version_label})')
     plt.legend()
@@ -63,7 +62,7 @@ def plot_from_npz(filename, output_dir, version_label):
                      origin='lower', cmap='magma')
     plt.colorbar(img, label='Температура, К')
     plt.xlabel('Время, с')
-    plt.ylabel('Координата по профилю, м')
+    plt.ylabel('S, м')
     plt.title(f'Карта температур ({version_label})')
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, f'plot_heatmap_{version_label}.png'), dpi=150)
@@ -73,21 +72,24 @@ def plot_from_npz(filename, output_dir, version_label):
     return True
 
 if __name__ == "__main__":
-    # Настройка парсера аргументов
     parser = argparse.ArgumentParser(description="Универсальный отрисовщик NPZ")
     parser.add_argument("--ver", required=True, help="Версия (v001 или v1)")
     args = parser.parse_args()
+    v = args.ver 
+    
+    # --- ИСПРАВЛЕННАЯ ЛОГИКА ПУТЕЙ ---
+    # Получаем путь к папке, где лежит этот скрипт (т.е. .../scripts/)
+    current_script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Корень проекта — это на один уровень выше папки scripts/
+    project_root = os.path.dirname(current_script_dir)
+    
+    # Если скрипт вызван из подпапки (например scripts/v_1/), поднимаемся еще выше
+    if os.path.basename(current_script_dir).startswith('v_'):
+        project_root = os.path.dirname(project_root)
 
-    v = args.ver # Получаем v001 или v1
-    
-    # Определяем пути относительно скрипта
-    script_path = os.path.abspath(__file__)
-    # Если скрипт лежит в scripts/v_1/plot_npz.py, то корень на 3 уровня выше
-    # Если в scripts/plot_npz.py, то на 2 уровня. 
-    # Предлагаю считать, что он в папке версии:
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(script_path)))
-    
     target_dir = os.path.join(project_root, 'results', v)
     target_file = os.path.join(target_dir, f'stable_results_from_gauss_{v}.npz')
 
+    # Запуск отрисовки
     plot_from_npz(target_file, target_dir, v)

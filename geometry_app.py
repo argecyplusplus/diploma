@@ -30,11 +30,11 @@ def run_processing():
     todir = os.path.join(wdir, 'input_files')
     output_file = os.path.join(wdir, 'out_L.csv')
     
-    # Создаем папки, которые требует твой старый код (на всякий случай)
-    for folder in ['out_files', 'tmp']:
-        folder_path = os.path.join(wdir, folder)
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
+    # # Создаем папки, которые требует твой старый код (на всякий случай)
+    # for folder in ['out_files', 'tmp']:
+    #     folder_path = os.path.join(wdir, folder)
+    #     if not os.path.exists(folder_path):
+    #         os.makedirs(folder_path)
 
     if not os.path.exists(todir):
         print(f"Ошибка: Папка {todir} не существует.")
