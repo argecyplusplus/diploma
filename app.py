@@ -98,41 +98,52 @@ def run_calculation(params, base_dir, gen_dir, fast_mode=False):
         ]
 
         for ver in versions:
-            v_name = ver['name']
-            v_script = ver['calc']
+            v_clean = ver['name'] # 'v001' или 'v1'
             
-            progress_tracker['thermal']['details'] = f"Запуск версии {v_name}..."
-            print(f"--- Processing {v_name} ---")
+            progress_tracker['thermal']['details'] = f"Запуск расчета {v_clean}..."
+            print(f"--- Processing {v_clean} ---")
             
-            script_dir = os.path.join(base_dir, 'scripts', v_name)
+            # Путь к универсальному скрипту расчета (лежит в /scripts/)
+            calc_path = os.path.join(base_dir, 'scripts', 'thermal_solver.py')
             
-            # 1. Запуск РАСЧЕТА для текущей версии
-            calc_path = os.path.join(script_dir, v_script)
+            # 1. Запуск РАСЧЕТА с передачей аргумента --ver
+            # Скрипт сам поймет, какой gauss_params.csv взять и куда сохранить результат
             calc_res = subprocess.run(
-                [sys.executable, calc_path],
-                cwd=gen_dir, capture_output=True, text=True, encoding='cp1251', errors='replace'
+                [sys.executable, calc_path, "--ver", v_clean],
+                cwd=gen_dir, 
+                capture_output=True, 
+                text=True, 
+                encoding='cp1251', 
+                errors='replace'
             )
             
             if calc_res.returncode != 0:
-                print(f"ERR in {v_name} calc:", calc_res.stderr)
-                raise Exception(f"Ошибка в расчете {v_name}: {calc_res.stderr}")
+                print(f"Stdout: {calc_res.stdout}")
+                print(f"Stderr: {calc_res.stderr}")
+                raise Exception(f"Ошибка в расчете {v_clean}: {calc_res.stderr}")
 
-            # 2. Запуск ГРАФИКОВ для текущей версии
-            plot_path = os.path.join(script_dir, 'plot_npz.py')
+            # 2. Запуск УНИВЕРСАЛЬНЫХ ГРАФИКОВ
+            # Если plot_npz.py тоже общий и лежит в /scripts/
+            plot_path = os.path.join(base_dir, 'scripts', 'plot_npz.py') 
+            
             plot_res = subprocess.run(
-                [sys.executable, plot_path],
-                cwd=gen_dir, capture_output=True, text=True, encoding='cp1251', errors='replace'
+                [sys.executable, plot_path, "--ver", v_clean],
+                cwd=gen_dir, 
+                capture_output=True, 
+                text=True, 
+                encoding='cp1251', 
+                errors='replace'
             )
 
             if plot_res.returncode != 0:
-                print(f"ERR in {v_name} plots:", plot_res.stderr)
-                raise Exception(f"Ошибка в графиках {v_name}: {plot_res.stderr}")
+                print(f"ERR in {v_clean} plots: {plot_res.stderr}")
+                raise Exception(f"Ошибка в графиках {v_clean}: {plot_res.stderr}")
+
+            print(f"--- {v_clean} успешно завершен ---")
 
         progress_tracker['thermal']['details'] = "Все версии рассчитаны"
         progress_tracker['thermal']['status'] = 'done'
         progress_tracker['complete'] = True
-
-        # ... после цикла for ver in versions ...
         
         # --- ШАГ 6: СРАВНЕНИЕ ВЕРСИЙ ---
         progress_tracker['thermal']['details'] = "Финальное сравнение v001 и v1..."
