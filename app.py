@@ -94,7 +94,7 @@ def run_calculation(params, base_dir, gen_dir, fast_mode=False):
         
         versions = [
             {'name': 'v_001', 'calc': 'thermal_simulation_from_Gaussfile_v001.py'},
-            {'name': 'v_1',   'calc': 'thermal_simulation_from_Gaussfile.py'}
+            {'name': 'v_1',   'calc': 'thermal_simulation_from_Gaussfile_v1.py'}
         ]
 
         for ver in versions:
@@ -131,6 +131,27 @@ def run_calculation(params, base_dir, gen_dir, fast_mode=False):
         progress_tracker['thermal']['details'] = "Все версии рассчитаны"
         progress_tracker['thermal']['status'] = 'done'
         progress_tracker['complete'] = True
+
+        # ... после цикла for ver in versions ...
+        
+        # --- ШАГ 6: СРАВНЕНИЕ ВЕРСИЙ ---
+        progress_tracker['thermal']['details'] = "Финальное сравнение v001 и v1..."
+        compare_script = os.path.join(base_dir, 'scripts', 'compare_v', 'compare_velocities.py')
+        
+        comp_res = subprocess.run(
+            [sys.executable, compare_script],
+            cwd=gen_dir, capture_output=True, text=True, encoding='cp1251', errors='replace'
+        )
+        
+        if comp_res.returncode != 0:
+            print("ERR in comparison:", comp_res.stderr)
+            # Не кидаем Exception, чтобы хотя бы основные графики показались
+        
+        progress_tracker['thermal']['details'] = "Все расчеты и сравнения завершены"
+        progress_tracker['thermal']['status'] = 'done'
+        progress_tracker['complete'] = True
+
+
 
     except Exception as e:
         progress_tracker['error'] = str(e)

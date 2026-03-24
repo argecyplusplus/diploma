@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os, sys
 
 def gauss_extremum(l, A, B, sigma, C, L):
     x = l - L/2
@@ -136,14 +137,35 @@ def solve_transient_curved_layer_with_gauss(l_grid, t_array, T_initial, Tmetal_f
     return l_grid, t_array, A, B
 
 if __name__ == "__main__":
+    # --- ЛОГИКА ПОИСКА ФАЙЛА (УНИВЕРСАЛЬНАЯ) ---
+    
+    # 1. Находим папку, где лежит САМ этот скрипт (т.е. scripts/v_1/)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 2. Формируем ПОЛНЫЙ путь к конфигу
+    params_file = os.path.join(script_dir, 'gauss_params.csv')
+    
+    print(f"DEBUG: Я работаю в папке: {os.getcwd()}")
+    print(f"DEBUG: Ищу статичный конфиг тут: {params_file}")
+
+    if not os.path.exists(params_file):
+        # Проверка на случай запуска напрямую из папки v_1
+        if os.path.exists('gauss_params.csv'):
+            params_file = os.path.abspath('gauss_params.csv')
+            print(f"DEBUG: Найден локальный файл: {params_file}")
+        else:
+            print(f"ОШИБКА: Статичный файл {params_file} не найден!")
+            sys.exit(1)
+    
     # --- Параметры профиля и расчёта ---
     L = 0.51  # длина дуги профиля, м
-    N_l = 80  # число точек по профилю (можно изменить)
+    N_l = 80  # число точек по профилю
     l_grid = np.linspace(0, L, N_l)
 
-    # --- Загрузка параметров гауссовской аппроксимации ---
-    params_file = 'gauss_params.csv'
+    # --- Загрузка параметров (ИСПОЛЬЗУЕМ ВЫЧИСЛЕННЫЙ params_file) ---
+    # ВНИМАНИЕ: Здесь удалена строка params_file = 'gauss_params.csv', которая всё портила
     t_arr, params_metal, params_gas = read_gauss_params(params_file)
+    
     t_unique = np.unique(t_arr)
     dt = np.min(np.diff(t_unique))
     t_final = np.max(t_unique)
@@ -170,50 +192,29 @@ if __name__ == "__main__":
     def Tout_func(t_query):
         return get_profile_from_params(l_grid, t_arr, params_gas, t_query, L)
 
+    # --- ЗАПУСК РАСЧЕТА ---
     l_grid, t_array, A, B = solve_transient_curved_layer_with_gauss(
         l_grid, t_array, T_initial, Tmetal_func, Tout_func, params
     )
-
+    
+    # --- ФИНАЛИЗАЦИЯ И СОХРАНЕНИЕ ---
     print("Расчёт завершён успешно")
-    print(f"Температурный диапазон: {A.min():.1f} - {(A+B*params['h']).max():.1f} K")
-    np.savez_compressed('stable_results_from_gauss.npz', l_grid=l_grid, t_array=t_array, A=A, B=B)
+    
+    # Находим корень проекта: скрипт в /scripts/v_1/, корень на 2 уровня выше
+    project_root = os.path.dirname(os.path.dirname(script_dir))
+    output_dir = os.path.join(project_root, 'results', 'v1')
+    
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
 
-    # --- Визуализация ---
-    # Теперь для всех графиков используем температуру в центре покрытия: A
-    plt.figure(figsize=(10, 6))
-    plt.plot(t_array, A[len(l_grid)//2, :], label='Центр покрытия')
-    plt.xlabel('Время, с')
-    plt.ylabel('Температура, К')
-    plt.title('Температура в центре покрытия (середина профиля)')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+    save_path = os.path.join(output_dir, 'stable_results_from_gauss_v1.npz')
 
-    # График 2: температурное поле вдоль профиля в разные моменты времени (в центре покрытия)
-    plt.figure(figsize=(10, 6))
-    for t_idx in [0, len(t_array)//4, len(t_array)//2, -1]:
-        plt.plot(l_grid, A[:, t_idx], label=f't = {t_array[t_idx]:.2f} с')
-    plt.xlabel('Координата вдоль профиля, м')
-    plt.ylabel('Температура в центре покрытия, К')
-    plt.title('Распределение температуры по профилю (центр покрытия)')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-    # График 3: карта температурного поля (центр покрытия)
-    plt.figure(figsize=(10, 6))
-    plt.imshow(
-        A,
-        aspect='auto',
-        extent=[t_array[0], t_array[-1], l_grid[0], l_grid[-1]],
-        origin='lower',
-        cmap='hot'
+    np.savez_compressed(
+        save_path, 
+        l_grid=l_grid, 
+        t_array=t_array, 
+        A=A, 
+        B=B, 
+        h=params['h']
     )
-    plt.colorbar(label='Температура, К')
-    plt.xlabel('Время, с')
-    plt.ylabel('Координата вдоль профиля, м')
-    plt.title('Карта температурного поля (центр покрытия)')
-    plt.tight_layout()
-    plt.show()
+    print(f"Файл успешно сохранен: {save_path}")

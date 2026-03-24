@@ -1,38 +1,87 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Результат расчета</title>
+    <meta charset="UTF-8">
+    <title>Результаты моделирования: v001 vs v1</title>
     <style>
-        pre { background: #222; color: #0f0; padding: 15px; overflow-x: auto; }
-        .status { font-weight: bold; margin-bottom: 20px; }
+        body { font-family: sans-serif; margin: 20px; background: #f4f4f4; }
+        pre { background: #222; color: #0f0; padding: 15px; overflow-x: auto; border-radius: 5px; font-size: 13px; }
+        .status { font-weight: bold; margin-bottom: 20px; color: #333; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 1200px; margin: auto; }
+        .img-fluid { max-width: 100%; height: auto; border: 1px solid #ddd; margin-bottom: 10px; border-radius: 4px; }
+        h2 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 40px; }
+        h3 { color: #34495e; font-size: 1.1em; }
+        .nav-link { display: inline-block; margin-bottom: 20px; text-decoration: none; color: #007bff; }
+        .version-section { padding: 20px; border: 1px solid #eee; margin-bottom: 30px; border-radius: 10px; background: #fafafa; }
+        .row { display: flex; flex-wrap: wrap; gap: 20px; }
+        .col-6 { flex: 0 0 calc(50% - 10px); }
+        .col-12 { flex: 0 0 100%; }
     </style>
 </head>
 <body>
-    <h2>Статус выполнения FreeFEM++</h2>
-    <div class="status">Файл сохранен в: {{ file_path }}</div>
-    
-    <h3>Лог терминала:</h3>
-    <pre>{{ output }}</pre>
-    
-    <a href="/">Вернуться к настройкам</a>
+    <div class="container">
+        <a href="/" class="nav-link">← Вернуться к настройкам</a>
 
-    <h2>Результаты моделирования</h2>
-    <div class="container mt-4">
-        <h2>Результаты теплового расчета (v_001)</h2>
+        <h2>Статус последнего запуска</h2>
+        <div class="status">Текущий файл: <code>{{ file_path }}</code></div>
         
-        <div class="row">
-            <div class="col-md-12 mb-4">
-                <img src="/results_files/v001/plot_evolution_v001.png" class="img-fluid" alt="Эволюция">
-            </div>
-            <div class="col-md-6 mb-4">
-                <img src="/results_files/v001/plot_profile_v001.png" class="img-fluid" alt="Профиль">
-            </div>
-            <div class="col-md-6 mb-4">
-                <img src="/results_files/v001/plot_heatmap_v001.png" class="img-fluid" alt="Тепловая карта">
+        <h3>Лог выполнения:</h3>
+        <pre>{{ output }}</pre>
+
+
+        <div class="version-section">
+            <h2>Результаты моделирования (Версия v001 - Базовая)</h2>
+            <div class="row">
+                <div class="col-12">
+                    <h3>Эволюция температуры во времени (v001)</h3>
+                    <img src="/results_files/v001/plot_evolution_v001.png" class="img-fluid" alt="v001 Time">
+                </div>
+                <div class="col-6">
+                    <h3>Профиль (v001)</h3>
+                    <img src="/results_files/v001/plot_profile_v001.png" class="img-fluid" alt="v001 Profile">
+                </div>
+                <div class="col-6">
+                    <h3>Тепловая карта (v001)</h3>
+                    <img src="/results_files/v001/plot_heatmap_v001.png" class="img-fluid" alt="v001 Heatmap">
+                </div>
             </div>
         </div>
+
+        <div class="version-section">
+            <h2>Результаты моделирования (Версия v1 - Текущая)</h2>
+            <div class="row">
+                <div class="col-12">
+                    <h3>Эволюция температуры во времени (v1)</h3>
+                    <img src="/results_files/v1/plot_time_v1.png" class="img-fluid" alt="v1 Time">
+                </div>
+                <div class="col-6">
+                    <h3>Профиль (v1)</h3>
+                    <img src="/results_files/v1/plot_profile_v1.png" class="img-fluid" alt="v1 Profile">
+                </div>
+                <div class="col-6">
+                    <h3>Тепловая карта (v1)</h3>
+                    <img src="/results_files/v1/plot_heatmap_v1.png" class="img-fluid" alt="v1 Heatmap">
+                </div>
+            </div>
+        </div>
+
+        <hr>
+
+        
+        <div class="version-section" style="border: 2px solid #007bff; background: #f0f7ff;">
+            <h2>Анализ: Сравнение v001 и v1</h2>
+            <div class="row">
+                <div class="col-6">
+                    <h3>Сравнение динамики (в центре)</h3>
+                    <img src="/results_files/comparison/compare_time.png" class="img-fluid" alt="Time Comparison">
+                </div>
+                <div class="col-6">
+                    <h3>Разностная тепловая карта</h3>
+                    <img src="/results_files/comparison/compare_diff_map.png" class="img-fluid" alt="Difference Map">
+                </div>
+            </div>
+        </div>
+
     </div>
-
-
 </body>
 </html>
