@@ -89,48 +89,46 @@ def run_calculation(params, base_dir, gen_dir, fast_mode=False):
         # В вашем случае файл статичен или уже должен быть в gen_dir / scripts
         progress_tracker['processing']['status'] = 'done'
 
-        # --- ШАГ 5: ТЕПЛОВОЙ РАСЧЕТ И ГРАФИКИ ---
+        # --- ШАГ 5: ТЕПЛОВОЙ РАСЧЕТ И ГРАФИКИ (ПОСЛЕДОВАТЕЛЬНО v_001 и v_1) ---
         progress_tracker['thermal']['status'] = 'running'
-        script_v1_dir = os.path.join(base_dir, 'scripts', 'v_001')
         
-        # 5.1. Сначала запускаем РАСЧЕТ (создает .npz в папке /results/v001 в корне)
-        calc_script = os.path.join(script_v1_dir, 'thermal_simulation_from_Gaussfile_v001.py')
-        calc_res = subprocess.run(
-            [sys.executable, calc_script], 
-            cwd=gen_dir, 
-            capture_output=True, 
-            text=True, 
-            encoding='cp1251',
-            errors='replace'
-        )
-        
-        # Вывод отладки для расчета
-        print("=== THERMAL CALC DEBUG OUT ===")
-        print("STDOUT:", calc_res.stdout)
-        print("STDERR:", calc_res.stderr)
-        
-        if calc_res.returncode != 0:
-            raise Exception(f"Ошибка в расчете теплового слоя: {calc_res.stderr}")
+        versions = [
+            {'name': 'v_001', 'calc': 'thermal_simulation_from_Gaussfile_v001.py'},
+            {'name': 'v_1',   'calc': 'thermal_simulation_from_Gaussfile.py'}
+        ]
 
-        # 5.2. Затем запускаем ГРАФИКИ (ищут .npz и создают .png в той же папке)
-        plot_script = os.path.join(script_v1_dir, 'plot_npz.py')
-        plot_res = subprocess.run(
-            [sys.executable, plot_script],
-            cwd=gen_dir,
-            capture_output=True,
-            text=True,
-            encoding='cp1251',
-            errors='replace'
-        )
-        
-        # Вывод отладки для графиков
-        print("=== PLOT_NPZ DEBUG OUT ===")
-        print("STDOUT:", plot_res.stdout)
-        print("STDERR:", plot_res.stderr)
+        for ver in versions:
+            v_name = ver['name']
+            v_script = ver['calc']
+            
+            progress_tracker['thermal']['details'] = f"Запуск версии {v_name}..."
+            print(f"--- Processing {v_name} ---")
+            
+            script_dir = os.path.join(base_dir, 'scripts', v_name)
+            
+            # 1. Запуск РАСЧЕТА для текущей версии
+            calc_path = os.path.join(script_dir, v_script)
+            calc_res = subprocess.run(
+                [sys.executable, calc_path],
+                cwd=gen_dir, capture_output=True, text=True, encoding='cp1251', errors='replace'
+            )
+            
+            if calc_res.returncode != 0:
+                print(f"ERR in {v_name} calc:", calc_res.stderr)
+                raise Exception(f"Ошибка в расчете {v_name}: {calc_res.stderr}")
 
-        if plot_res.returncode != 0:
-            raise Exception(f"Графики не созданы. Ошибка: {plot_res.stderr}")
+            # 2. Запуск ГРАФИКОВ для текущей версии
+            plot_path = os.path.join(script_dir, 'plot_npz.py')
+            plot_res = subprocess.run(
+                [sys.executable, plot_path],
+                cwd=gen_dir, capture_output=True, text=True, encoding='cp1251', errors='replace'
+            )
 
+            if plot_res.returncode != 0:
+                print(f"ERR in {v_name} plots:", plot_res.stderr)
+                raise Exception(f"Ошибка в графиках {v_name}: {plot_res.stderr}")
+
+        progress_tracker['thermal']['details'] = "Все версии рассчитаны"
         progress_tracker['thermal']['status'] = 'done'
         progress_tracker['complete'] = True
 
