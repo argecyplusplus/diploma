@@ -5,12 +5,13 @@ import shutil
 import threading
 import re
 from flask import Flask, render_template, request, jsonify, send_from_directory
-
+from dotenv import load_dotenv
 
 app = Flask(__name__)
+load_dotenv()
 
 GEN_DIR_NAME = 'generated'
-FF_PATH = r"C:\Program Files (x86)\FreeFem++\FreeFem++.exe"
+FF_PATH = os.getenv("FREE_FEM_PATH", r"C:\Program Files (x86)\FreeFem++\FreeFem++.exe")
 
 progress_tracker = {
     'geometry': {'status': 'waiting', 'label': 'Запуск геометрии (Python)'},

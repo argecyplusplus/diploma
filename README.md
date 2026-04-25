@@ -21,9 +21,12 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 ### 2. Настройка путей
-Если FreeFem++ установлен в директорию, отличную от стандартной, поправьте переменную FF_PATH в начале файла app.py:
+Если путь к FreeFem++ отличается от стандартного ```C:\Program Files (x86)\FreeFem++\FreeFem++.exe```, необходимо выполнить следующие действия:
+
+1) Добавьте файл .env в корень проекта
+2) Пропишите путь к FreeFem++ по ключу __FREE_FEM_PATH__, например
 ```bash
-FF_PATH = r"C:\Ваш_Путь\FreeFem++.exe"
+FREE_FEM_PATH=C:\Program Files (x86)\FreeFem++\FreeFem++.exe
 ```
 
 ### 3. Запуск приложения
