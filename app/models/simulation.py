@@ -1,7 +1,7 @@
 import datetime
 from sqlalchemy import Column, Integer, Text, Float, ForeignKey
 from sqlalchemy.orm import relationship
-from base import Base
+from .base import Base
 
 
 # Вспомогательная функция для генерации даты в нужном формате
