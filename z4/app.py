@@ -182,7 +182,7 @@ def index():
         if not os.path.exists(gen_dir): os.makedirs(gen_dir)
         
         threading.Thread(target=run_calculation, args=(params, base_dir, gen_dir, fast_mode)).start()
-        return render_template('waiting.html')
+        return render_template('templates/waiting.html')
     
     # --- ЛОГИКА ВЫВОДА ПОСЛЕДНИХ РЕЗУЛЬТАТОВ (в корне) ---
     last_results = None
@@ -201,7 +201,7 @@ def index():
                 'images': [os.path.join('v001', img).replace('\\', '/') for img in images]
             }
 
-    return render_template('index.html', defaults=DEFAULTS, last_results=last_results)
+    return render_template('templates/index.html', defaults=DEFAULTS, last_results=last_results)
 
 # Добавляем специальный роут для раздачи файлов из папки generated
 @app.route('/generated/<path:filename>')
@@ -224,7 +224,7 @@ def get_progress():
 def result():
     # Читаем лог, если нужно вывести его на финальной странице
     # Для упрощения пока просто возвращаем шаблон
-    return render_template('result.html')
+    return render_template('templates/result.html')
 
 if __name__ == '__main__':
     app.run(debug=True)
