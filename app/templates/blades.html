@@ -55,30 +55,49 @@
                 </div>
 
                 <div id="upperTab" class="tab-content active">
-                    <div class="coords-input">
-                        <label>Имя профиля</label>
-                        <input type="text" id="upperProfileName" placeholder="sec_root">
-                    </div>
-                    <div class="coords-list" id="upperCoordsList">
-                        <!-- Точки добавляются динамически -->
-                    </div>
                     <div class="coords-actions" style="display: flex; gap: 8px; margin-bottom: 12px;">
-                        <button type="button" class="btn-secondary" onclick="addCoordPoint('upper')">+ Добавить точку</button>
                         <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput-upper').click()">📥 Загрузить из файла</button>
                         <input type="file" id="fileInput-upper" accept=".csv,.txt" style="display: none;" onchange="loadCoordsFromFile('upper', this)">
+                        <button type="button" class="btn-secondary" onclick="addCoordPointToTable('upper')">+ Добавить точку</button>
+                    </div>
+
+                    <!-- Таблица для редактирования координат -->
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>X</th>
+                                    <th>Y</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="upperCoordsTableBody">
+                                <!-- Точки добавляются динамически -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
                 <div id="lowerTab" class="tab-content">
-                    <div class="coords-input">
-                        <label>Имя профиля</label>
-                        <input type="text" id="lowerProfileName" placeholder="sec_root">
-                    </div>
-                    <div class="coords-list" id="lowerCoordsList"></div>
                     <div class="coords-actions" style="display: flex; gap: 8px; margin-bottom: 12px;">
-                        <button type="button" class="btn-secondary" onclick="addCoordPoint('lower')">+ Добавить точку</button>
                         <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput-lower').click()">📥 Загрузить из файла</button>
                         <input type="file" id="fileInput-lower" accept=".csv,.txt" style="display: none;" onchange="loadCoordsFromFile('lower', this)">
+                        <button type="button" class="btn-secondary" onclick="addCoordPointToTable('lower')">+ Добавить точку</button>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>X</th>
+                                    <th>Y</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lowerCoordsTableBody"></tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -217,6 +236,27 @@
         overflow-y: auto;
         cursor: default;
     }
+
+    /* Стили для таблицы редактирования координат */
+    .coords-table input {
+        width: 100%;
+        padding: 4px 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+    .coords-table .action-btn {
+        padding: 4px 8px;
+        font-size: 12px;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        background: #ef4444;
+        color: #fff;
+    }
+    .coords-table .action-btn:hover {
+        background: #dc2626;
+    }
 </style>
 
 <script>
@@ -225,6 +265,7 @@
     let assembliesData = [];
     let currentCoords = { upper: [], lower: [] };
     let currentViewBladeId = null;
+    let editingCoords = { upper: [], lower: [] }; // Отдельный буфер для редактирования
 
     // ================= ИНИЦИАЛИЗАЦИЯ =================
     document.addEventListener('DOMContentLoaded', () => {
@@ -234,50 +275,50 @@
 
     // ================= ОБРАБОТЧИКИ ЗАКРЫТИЯ МОДАЛОК =================
     function setupModalCloseHandlers() {
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) {
-                closeBladeModal(overlay.id);  // вместо closeModal
-            }
-        });
-    });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            ['bladeModal', 'mergeModal', 'viewCoordsModal'].forEach(id => {
-                const modal = document.getElementById(id);
-                if (modal?.classList.contains('active')) {
-                    closeBladeModal(id);
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    closeBladeModal(overlay.id);
                 }
             });
-        }
-    });
-}
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                ['bladeModal', 'mergeModal', 'viewCoordsModal'].forEach(id => {
+                    const modal = document.getElementById(id);
+                    if (modal?.classList.contains('active')) {
+                        closeBladeModal(id);
+                    }
+                });
+            }
+        });
+    }
 
     // ================= ЗАГРУЗКА ДАННЫХ =================
     async function loadBlades() {
-    showLoading(true);
-    try {
-        const res = await fetch('/api/blades');
-        if (!res.ok) {
-            if (res.status === 403) {
-                // Специальная обработка: БД не выбрана
-                alert('⚠️ База данных не выбрана! Откройте настройки.');
-                if (typeof openBladeModal === 'function') {
-                    openBladeModal('settingsModal');
+        showLoading(true);
+        try {
+            const res = await fetch('/api/blades');
+            if (!res.ok) {
+                if (res.status === 403) {
+                    alert('⚠️ База данных не выбрана! Откройте настройки.');
+                    const settingsModal = document.getElementById('settingsModal');
+                    if (settingsModal) {
+                        settingsModal.classList.add('active');
+                    }
+                    return;
                 }
-                return;
+                throw new Error('Ошибка загрузки: ' + res.status);
             }
-            throw new Error('Ошибка загрузки: ' + res.status);
+            bladesData = await res.json();
+            renderBladesTable();
+        } catch (e) {
+            showError('Не удалось загрузить список лопаток: ' + e.message);
+        } finally {
+            showLoading(false);
         }
-        bladesData = await res.json();
-        renderBladesTable();
-    } catch (e) {
-        showError('Не удалось загрузить список лопаток: ' + e.message);
-    } finally {
-        showLoading(false);
     }
-}
 
     async function loadAssemblies() {
         try {
@@ -319,48 +360,46 @@
 
     // ================= УПРАВЛЕНИЕ МОДАЛКАМИ =================
     function openBladeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.classList.add('active');
-    }
-}
-
-    function closeBladeModal(modalId) {
-    console.log('Закрытие модалки:', modalId); // Отладка
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.classList.remove('active');
-        // Для надёжности: если класс не сработал, явно скрываем
-        if (modal.classList.contains('active') === false) {
-            modal.style.display = 'none';
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('active');
         }
     }
-}
+
+    function closeBladeModal(modalId) {
+        console.log('Закрытие модалки:', modalId);
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('active');
+            if (modal.classList.contains('active') === false) {
+                modal.style.display = 'none';
+            }
+        }
+    }
 
     // ================= CRUD ЛОПАТОК =================
-function openCreateBladeModal() {
-    // === ПРОВЕРКА: выбрана ли база данных ===
-    if (typeof currentDb === 'undefined' || !currentDb) {
-    alert('⚠️ Сначала выберите или создайте базу данных в настройках!');
-    // Прямое открытие модалки настроек через класс
-    const settingsModal = document.getElementById('settingsModal');
-    if (settingsModal) {
-        settingsModal.classList.add('active');
+    function openCreateBladeModal() {
+        if (typeof currentDb === 'undefined' || !currentDb) {
+            alert('⚠️ Сначала выберите или создайте базу данных в настройках!');
+            const settingsModal = document.getElementById('settingsModal');
+            if (settingsModal) {
+                settingsModal.classList.add('active');
+            }
+            return;
+        }
+
+        document.getElementById('bladeModalTitle').textContent = 'Создать лопатку';
+        document.getElementById('bladeId').value = '';
+        document.getElementById('bladeName').value = '';
+        document.getElementById('deleteBladeBtn').style.display = 'none';
+
+        // Сброс координат и буфера редактирования
+        currentCoords = { upper: [], lower: [] };
+        editingCoords = { upper: [], lower: [] };
+
+        renderCoordTables();
+        openBladeModal('bladeModal');
     }
-    return;
-}
-    // ==========================================
-
-    document.getElementById('bladeModalTitle').textContent = 'Создать лопатку';
-    document.getElementById('bladeId').value = '';
-    document.getElementById('bladeName').value = '';
-    document.getElementById('deleteBladeBtn').style.display = 'none';
-
-    currentCoords = { upper: [], lower: [] };
-    renderCoordLists();
-
-    openBladeModal('bladeModal');
-}
 
     async function editBlade(bladeId) {
         const blade = bladesData.find(b => b.blade_id === bladeId);
@@ -372,8 +411,12 @@ function openCreateBladeModal() {
         document.getElementById('deleteBladeBtn').style.display = 'inline-block';
 
         await loadBladeCoordinates(bladeId);
-        renderCoordLists();
 
+        // Копируем текущие координаты в буфер редактирования
+        editingCoords.upper = [...currentCoords.upper];
+        editingCoords.lower = [...currentCoords.lower];
+
+        renderCoordTables();
         openBladeModal('bladeModal');
     }
 
@@ -389,41 +432,109 @@ function openCreateBladeModal() {
         }
     }
 
-    function renderCoordLists() {
-        ['upper', 'lower'].forEach(type => {
-            const list = document.getElementById(`${type}CoordsList`);
-            list.innerHTML = currentCoords[type].map((c, i) => `
-                <div class="coord-item">
-                    <span>${c.x.toFixed(4)}, ${c.y.toFixed(4)}</span>
-                    <span class="remove" onclick="removeCoordPoint('${type}', ${i})">✕</span>
-                </div>
-            `).join('') || '<div style="padding:8px;color:#64748b">Точек нет</div>';
-        });
+    // ================= ТАБЛИЦА РЕДАКТИРОВАНИЯ КООРДИНАТ =================
+
+    // Рендер таблиц редактирования для обоих профилей
+    function renderCoordTables() {
+        renderCoordTable('upper');
+        renderCoordTable('lower');
     }
 
+    // Рендер одной таблицы координат
+    function renderCoordTable(type) {
+        const tbody = document.getElementById(`${type}CoordsTableBody`);
+        const coords = editingCoords[type];
+
+        if (coords.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#64748b;padding:20px">Нет точек. Загрузите файл или добавьте вручную.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = coords.map((coord, index) => `
+            <tr>
+                <td>${index + 1}</td>
+                <td><input type="number" step="any" value="${coord.x}" onchange="updateCoord('${type}', ${index}, 'x', this.value)"></td>
+                <td><input type="number" step="any" value="${coord.y}" onchange="updateCoord('${type}', ${index}, 'y', this.value)"></td>
+                <td><button class="action-btn" onclick="removeCoordFromTable('${type}', ${index})">✕</button></td>
+            </tr>
+        `).join('');
+    }
+
+    // Обновление координаты в буфере редактирования
+    function updateCoord(type, index, field, value) {
+        const numValue = parseFloat(value);
+        if (!isNaN(numValue)) {
+            editingCoords[type][index][field] = numValue;
+        }
+    }
+
+    // Добавление новой точки в таблицу редактирования
+    function addCoordPointToTable(type) {
+        editingCoords[type].push({
+            profile_type: type,
+            x: 0,
+            y: 0
+        });
+        renderCoordTable(type);
+    }
+
+    // Удаление точки из таблицы редактирования
+    function removeCoordFromTable(type, index) {
+        editingCoords[type].splice(index, 1);
+        renderCoordTable(type);
+    }
+
+    // Загрузка координат из файла в буфер редактирования
+    async function loadCoordsFromFile(profileType, fileInput) {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const lines = text.trim().split('\n');
+
+            let loadedCount = 0;
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('#')) continue;
+
+                const parts = trimmed.split(/[\s,;]+/);
+                if (parts.length >= 2) {
+                    const x = parseFloat(parts[0]);
+                    const y = parseFloat(parts[1]);
+                    if (!isNaN(x) && !isNaN(y)) {
+                        editingCoords[profileType].push({
+                            profile_type: profileType,
+                            x: x,
+                            y: y
+                        });
+                        loadedCount++;
+                    }
+                }
+            }
+
+            renderCoordTable(profileType);
+            alert(`✅ Загружено ${loadedCount} точек для ${profileType === 'upper' ? 'верхнего' : 'нижнего'} профиля`);
+
+        } catch (e) {
+            alert(`❌ Ошибка чтения файла: ${e.message}`);
+            console.error(e);
+        } finally {
+            fileInput.value = '';
+        }
+    }
+
+    // Переключение вкладок с обновлением таблиц
     function switchCoordTab(type) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         event.target.classList.add('active');
         document.getElementById(`${type}Tab`).classList.add('active');
+        // Перерендерим таблицу при переключении (на случай, если данные изменились)
+        renderCoordTable(type);
     }
 
-    function addCoordPoint(type) {
-        const profileName = document.getElementById(`${type}ProfileName`).value || `profile_${type}`;
-        currentCoords[type].push({
-            profile_type: type,
-            profile_name: profileName,
-            x: 0,
-            y: 0
-        });
-        renderCoordLists();
-    }
-
-    function removeCoordPoint(type, index) {
-        currentCoords[type].splice(index, 1);
-        renderCoordLists();
-    }
-
+    // ================= СОХРАНЕНИЕ ЛОПАТКИ =================
     async function saveBlade() {
         const bladeId = document.getElementById('bladeId').value;
         const name = document.getElementById('bladeName').value.trim();
@@ -433,12 +544,14 @@ function openCreateBladeModal() {
             return;
         }
 
-        const allCoords = [...currentCoords.upper, ...currentCoords.lower].map(c => ({
-            profile_type: c.profile_type,
-            profile_name: c.profile_name,
-            x: parseFloat(c.x),
-            y: parseFloat(c.y)
-        })).filter(c => !isNaN(c.x) && !isNaN(c.y));
+        // Берём данные из буфера редактирования, валидируем и форматируем
+        const allCoords = [...editingCoords.upper, ...editingCoords.lower]
+            .map(c => ({
+                profile_type: c.profile_type,
+                x: parseFloat(c.x),
+                y: parseFloat(c.y)
+            }))
+            .filter(c => !isNaN(c.x) && !isNaN(c.y));
 
         if (allCoords.length === 0 && !bladeId) {
             if (!confirm('Координаты профиля не добавлены. Продолжить?')) return;
@@ -541,7 +654,10 @@ function openCreateBladeModal() {
         if (!blade) return;
 
         let csv = 'Type,X,Y\n';
-        // Здесь можно добавить логику экспорта
+        const coords = currentCoords.upper.concat(currentCoords.lower);
+        coords.forEach(c => {
+            csv += `${c.profile_type},${c.x},${c.y}\n`;
+        });
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -617,7 +733,7 @@ function openCreateBladeModal() {
         try {
             const res = await fetch(`/api/assemblies/${id}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Ошибка удаления');
-            closeModal('mergeModal');
+            closeBladeModal('mergeModal');
             loadBlades();
             alert('Сборка удалена');
         } catch (e) {
@@ -638,48 +754,6 @@ function openCreateBladeModal() {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
-    }
-
-    // ================= ЗАГРУЗКА КООРДИНАТ ИЗ ФАЙЛА =================
-    async function loadCoordsFromFile(profileType, fileInput) {
-        const file = fileInput.files[0];
-        if (!file) return;
-
-        try {
-            const text = await file.text();
-            const lines = text.trim().split('\n');
-            const profileName = file.name.replace(/\.[^/.]+$/, "");
-
-            document.getElementById(`${profileType}ProfileName`).value = profileName;
-
-            let loadedCount = 0;
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed || trimmed.startsWith('#')) continue;
-                const parts = trimmed.split(/[\s,;]+/);
-                if (parts.length >= 2) {
-                    const x = parseFloat(parts[0]);
-                    const y = parseFloat(parts[1]);
-                    if (!isNaN(x) && !isNaN(y)) {
-                        currentCoords[profileType].push({
-                            profile_type: profileType,
-                            profile_name: profileName,
-                            x: x,
-                            y: y
-                        });
-                        loadedCount++;
-                    }
-                }
-            }
-
-            renderCoordLists();
-            alert(`✅ Загружено ${loadedCount} точек для ${profileType === 'upper' ? 'верхнего' : 'нижнего'} профиля`);
-        } catch (e) {
-            alert(`❌ Ошибка чтения файла: ${e.message}`);
-            console.error(e);
-        } finally {
-            fileInput.value = '';
-        }
     }
 </script>
 {% endblock %}
