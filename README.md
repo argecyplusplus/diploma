@@ -31,7 +31,7 @@ FREE_FEM_PATH=C:\Program Files (x86)\FreeFem++\FreeFem++.exe
 
 ### 3. Запуск приложения
 ```bash
-python app.py
+python run.py
 ```
 
 После запуска откройте браузер и перейдите по адресу: http://127.0.0.1:5000

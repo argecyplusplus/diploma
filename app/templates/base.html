@@ -1,0 +1,130 @@
+<!-- app/templates/base.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WGKM Modeling</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; --sidebar-w: 240px; }
+        body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); display: flex; height: 100vh; }
+
+        /* Header */
+        header { position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: 60px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 10; }
+        .settings-btn { cursor: pointer; padding: 8px; border-radius: 8px; transition: 0.2s; }
+        .settings-btn:hover { background: #e2e8f0; }
+
+        /* Sidebar */
+        aside { width: var(--sidebar-w); background: #1e293b; color: #fff; display: flex; flex-direction: column; padding-top: 20px; }
+        aside h2 { text-align: center; margin-bottom: 30px; font-size: 18px; }
+        aside nav a { display: block; padding: 12px 24px; color: #cbd5e1; text-decoration: none; transition: 0.2s; }
+        aside nav a:hover, aside nav a.active { background: #334155; color: #fff; border-left: 3px solid var(--primary); }
+
+        /* Main Content */
+        main { margin-left: var(--sidebar-w); margin-top: 60px; flex: 1; padding: 24px; overflow-y: auto; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 100; }
+        .modal { background: #fff; padding: 24px; border-radius: 12px; width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .modal h3 { margin-top: 0; }
+        .db-list { max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; margin: 12px 0; }
+        .db-item { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+        .db-item:hover { background: #f8fafc; }
+        .db-item.active { background: #eff6ff; font-weight: 500; }
+        .actions { display: flex; gap: 8px; margin-top: 16px; }
+        button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-danger { background: #ef4444; color: #fff; }
+        .btn-secondary { background: #e2e8f0; }
+        input[type="text"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+    <aside>
+        <h2>WGKM Modeling</h2>
+        <nav>
+            <a href="/" class="active">Главная</a>
+            <a href="/blades">Лопатки</a>
+            <a href="/materials">Материалы</a>
+            <a href="/simulation">Моделирование</a>
+        </nav>
+    </aside>
+
+    <header>
+        <span id="db-status" style="font-size: 14px; color: #64748b;">БД не выбрана</span>
+        <div class="settings-btn" onclick="openModal()">⚙️ Настройки БД</div>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <h3>Управление базами данных</h3>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="newDbName" placeholder="Имя новой базы...">
+                <button class="btn-primary" onclick="createDb()">Создать</button>
+            </div>
+            <div class="db-list" id="dbList"></div>
+            <div class="actions">
+                <button class="btn-secondary" onclick="closeModal()">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentDb = null;
+
+        async function loadConfig() {
+            const res = await fetch('/api/settings/config');
+            const data = await res.json();
+            currentDb = data.current_db;
+            renderDbList(data.databases);
+            document.getElementById('db-status').textContent = currentDb ? `Активна: ${currentDb}` : 'БД не выбрана';
+
+            // Автооткрытие если нет БД
+            if (!currentDb) openModal();
+        }
+
+        function renderDbList(dbs) {
+            const list = document.getElementById('dbList');
+            list.innerHTML = dbs.map(db => `
+                <div class="db-item ${db === currentDb ? 'active' : ''}" onclick="selectDb('${db}')">
+                    <span>${db}</span>
+                    <button class="btn-danger" style="padding: 2px 8px; font-size: 12px;" onclick="event.stopPropagation(); deleteDb('${db}')">✕</button>
+                </div>
+            `).join('');
+        }
+
+        async function createDb() {
+            const name = document.getElementById('newDbName').value.trim();
+            if (!name) return alert('Введите имя');
+            const res = await fetch('/api/settings/create', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
+            const data = await res.json();
+            if (res.ok) { document.getElementById('newDbName').value = ''; loadConfig(); }
+            else alert(data.error);
+        }
+
+        async function selectDb(name) {
+            await fetch('/api/settings/select', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
+            loadConfig();
+        }
+
+        async function deleteDb(name) {
+            if (!confirm(`Удалить ${name}? Это действие необратимо.`)) return;
+            await fetch(`/api/settings/delete/${name}`, { method: 'DELETE' });
+            loadConfig();
+        }
+
+        function openModal() { document.getElementById('settingsModal').style.display = 'flex'; }
+        function closeModal() {
+            if (!currentDb) return alert('Необходимо выбрать или создать базу данных!');
+            document.getElementById('settingsModal').style.display = 'none';
+        }
+
+        loadConfig();
+    </script>
+</body>
+</html>
