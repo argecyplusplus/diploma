@@ -3,6 +3,8 @@ import os
 from flask import Flask, redirect, url_for, request, jsonify, g
 from .controllers.settings_api import settings_api_bp
 from .controllers.main_views import main_bp
+from .controllers.blade_controller import blade_bp, assembly_bp
+from .controllers.page_views import page_views_bp
 from .utils.database import get_db_list
 
 
@@ -11,8 +13,10 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
     # Регистрация Blueprints
+    app.register_blueprint(page_views_bp)  # <-- Добавьте это
+    app.register_blueprint(blade_bp)
+    app.register_blueprint(assembly_bp)
     app.register_blueprint(settings_api_bp, url_prefix='/api/settings')
-    app.register_blueprint(main_bp)
 
     # Middleware: проверка выбора БД
     @app.before_request

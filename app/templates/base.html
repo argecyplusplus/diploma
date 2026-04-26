@@ -56,8 +56,16 @@
     </header>
 
     <main>
-        {% block content %}{% endblock %}
-    </main>
+    {% block content %}
+    <div style="text-align: center; padding: 40px; color: #64748b;">
+        <h2>Добро пожаловать в WGKM Modeling</h2>
+        <p>Выберите раздел в меню слева для начала работы</p>
+        {% if not currentDb %}
+        <p style="color: #ef4444; font-weight: 500;">⚠️ Сначала выберите или создайте базу данных в настройках</p>
+        {% endif %}
+    </div>
+    {% endblock %}
+</main>
 
     <!-- Settings Modal -->
     <div class="modal-overlay" id="settingsModal">

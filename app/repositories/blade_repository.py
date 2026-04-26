@@ -68,6 +68,15 @@ class BladeAssemblyRepository:
     def delete(self, assembly: BladeAssembly):
         self.session.delete(assembly)
 
+    def delete_members(self, assembly_id: int, blade_ids: List[int]):
+        self.session.execute(
+            sql_delete(BladeAssemblyMember).where(
+                BladeAssemblyMember.blade_assembly_id == assembly_id,
+                BladeAssemblyMember.blade_id.in_(blade_ids)
+            )
+        )
+        self.session.flush()
+
 
 class ProfileCoordinateRepository:
     """Репозиторий для работы с геометрией профилей лопаток"""

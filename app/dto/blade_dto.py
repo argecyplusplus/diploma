@@ -1,94 +1,52 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
-
-# --------------------------------------------------------------------------
-# 1. DTO для Лопаток (Blades)
-# --------------------------------------------------------------------------
-
+# --- Blade DTOs ---
 class BladeCreateRequest(BaseModel):
-    """DTO для создания новой лопатки (входящие данные)"""
     name: str = Field(..., min_length=1, max_length=100, description="Название лопатки")
 
+class BladeUpdateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
 
 class BladeResponse(BaseModel):
-    """DTO для ответа на запрос (исходящие данные)"""
     blade_id: int
     name: str
-
-    # Настройка для автоматического преобразования из SQLAlchemy модели в JSON
     model_config = ConfigDict(from_attributes=True)
 
-
-# --------------------------------------------------------------------------
-# 2. DTO для Сборок лопаток (BladeAssemblies)
-# --------------------------------------------------------------------------
-
-class BladeAssemblyCreateRequest(BaseModel):
-    """DTO для создания сборки"""
-    name: str = Field(..., min_length=1, max_length=100, description="Название сборки")
-
-
-class BladeAssemblyResponse(BaseModel):
-    """DTO для ответа со списком сборок"""
-    blade_assembly_id: int
-    name: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# --------------------------------------------------------------------------
-# 3. DTO для Геометрии (Profile Coordinates)
-# --------------------------------------------------------------------------
-
-class CoordinatePointDTO(BaseModel):
-    """DTO для одной точки координат"""
+# --- Coordinate DTOs ---
+# В новой БД верхний/нижний профиль хранится в одной таблице с полем profile_type
+class ProfileCoordinateRequest(BaseModel):
+    profile_type: str = Field(..., description="'upper' или 'lower'")
+    profile_name: str = Field(..., min_length=1)
     x: float
     y: float
-    # profile_name и profile_type могут быть общими для всего списка,
-    # но если они отличаются для каждой точки, можно добавить их сюда.
-    # В текущей архитектуре репозитория bulk_create принимает словарь,
-    # поэтому здесь мы валидируем структуру точек.
 
-
-class ProfileUploadRequest(BaseModel):
-    """DTO для массовой загрузки профиля лопатки"""
+class ProfileCoordinateResponse(BaseModel):
+    profile_coordinates_id: int
     blade_id: int
+    profile_type: str
     profile_name: str
-    profile_type: str
-    # Список точек для массового сохранения
-    points: List[CoordinatePointDTO]
+    x: float
+    y: float
+    model_config = ConfigDict(from_attributes=True)
 
-    def to_repository_format(self) -> List[dict]:
-        """Метод-маппер: преобразует DTO в формат, ожидаемый репозиторием"""
-        return [
-            {
-                "blade_id": self.blade_id,
-                "profile_name": self.profile_name,
-                "profile_type": self.profile_type,
-                "x": point.x,
-                "y": point.y
-            }
-            for point in self.points
-        ]
+# --- Assembly/Merge DTOs ---
+class BladeAssemblyCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, description="Общее наименование сборки")
+    blade_ids: List[int] = Field(..., min_items=1, description="ID лопаток для включения")
 
+class BladeAssemblyUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    add_blade_ids: Optional[List[int]] = None
+    remove_blade_ids: Optional[List[int]] = None
 
-# --------------------------------------------------------------------------
-# 4. DTO для Аппроксимации (Math Results)
-# --------------------------------------------------------------------------
-# Эти DTO используются, когда Сервис вычисляет математику и передает результат в Репозиторий
+class BladeAssemblyResponse(BaseModel):
+    blade_assembly_id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)
 
-class ApproximationResultDTO(BaseModel):
-    """DTO с результатами вычисления аппроксимации"""
-    profile_type: str
-    r_squared: float
-    max_profile_value: float
-    x_coordinate_max: float
-
-    # Коэффициенты Лежандра (верхнее и нижнее значения)
-    legendre_coefficients: List[dict]
-    # Формат: [{"upper_value": 1.2, "lower_value": 0.5}, ...]
-
-    # Преобразованные координаты
-    transformed_coordinates: List[dict]
-    # Формат: [{"profile_type": "root", "x_transformed": 0.1, "y_transformed": 0.2}, ...]
+class BladeAssemblyMemberResponse(BaseModel):
+    blade_assembly_members_id: int
+    blade_id: int
+    description: Optional[str]
+    model_config = ConfigDict(from_attributes=True)

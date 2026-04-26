@@ -1,0 +1,685 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="blades-container">
+    <!-- Заголовок раздела -->
+    <div class="section-header">
+        <h2>Лопатки</h2>
+        <div class="header-actions">
+            <button class="btn-primary" onclick="openCreateBladeModal()">+ Создать лопатку</button>
+            <button class="btn-secondary" onclick="openMergeModal()">🔗 Объединить</button>
+        </div>
+    </div>
+
+    <!-- Таблица лопаток -->
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Наименование</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="bladesTableBody">
+                <!-- Данные загружаются через JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Статус загрузки -->
+    <div id="loadingStatus" class="status-message" style="display: none;">Загрузка...</div>
+</div>
+
+<!-- ================= МОДАЛКИ ================= -->
+
+<!-- Модальное окно: Создание/Редактирование лопатки -->
+<div class="modal-overlay" id="bladeModal">
+    <div class="modal modal-lg" onclick="event.stopPropagation()">
+        <h3 id="bladeModalTitle">Создать лопатку</h3>
+
+        <form id="bladeForm" onsubmit="event.preventDefault()">
+            <input type="hidden" id="bladeId">
+
+            <div class="form-group">
+                <label>Наименование *</label>
+                <input type="text" id="bladeName" required maxlength="100" placeholder="Например: Лопатка_Ступень_1">
+            </div>
+
+            <div class="form-section">
+                <h4>Координаты профиля</h4>
+
+                <div class="tabs">
+                    <button type="button" class="tab-btn active" onclick="switchCoordTab('upper')">Верхний профиль</button>
+                    <button type="button" class="tab-btn" onclick="switchCoordTab('lower')">Нижний профиль</button>
+                </div>
+
+                <div id="upperTab" class="tab-content active">
+                    <div class="coords-input">
+                        <label>Имя профиля</label>
+                        <input type="text" id="upperProfileName" placeholder="sec_root">
+                    </div>
+                    <div class="coords-list" id="upperCoordsList">
+                        <!-- Точки добавляются динамически -->
+                    </div>
+                    <div class="coords-actions" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                        <button type="button" class="btn-secondary" onclick="addCoordPoint('upper')">+ Добавить точку</button>
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput-upper').click()">📥 Загрузить из файла</button>
+                        <input type="file" id="fileInput-upper" accept=".csv,.txt" style="display: none;" onchange="loadCoordsFromFile('upper', this)">
+                    </div>
+                </div>
+
+                <div id="lowerTab" class="tab-content">
+                    <div class="coords-input">
+                        <label>Имя профиля</label>
+                        <input type="text" id="lowerProfileName" placeholder="sec_root">
+                    </div>
+                    <div class="coords-list" id="lowerCoordsList"></div>
+                    <div class="coords-actions" style="display: flex; gap: 8px; margin-bottom: 12px;">
+                        <button type="button" class="btn-secondary" onclick="addCoordPoint('lower')">+ Добавить точку</button>
+                        <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput-lower').click()">📥 Загрузить из файла</button>
+                        <input type="file" id="fileInput-lower" accept=".csv,.txt" style="display: none;" onchange="loadCoordsFromFile('lower', this)">
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeBladeModal('bladeModal')">Отмена</button>
+            <button class="btn-primary" onclick="saveBlade()">Сохранить</button>
+            <button class="btn-danger" id="deleteBladeBtn" style="display: none;" onclick="deleteBlade()">Удалить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно: Объединение лопаток -->
+<div class="modal-overlay" id="mergeModal">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Объединить лопатки</h3>
+
+        <form id="mergeForm" onsubmit="event.preventDefault()">
+            <input type="hidden" id="mergeAssemblyId">
+
+            <div class="form-group">
+                <label>Наименование сборки *</label>
+                <input type="text" id="mergeName" required maxlength="100" placeholder="Например: Ротор_Ступень_1">
+            </div>
+
+            <div class="form-group">
+                <label>Выберите лопатки</label>
+                <select id="availableBlades" multiple size="8" class="multi-select">
+                    <!-- Заполняется через JS -->
+                </select>
+                <small>Удерживайте Ctrl/Cmd для выбора нескольких</small>
+            </div>
+        </form>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeBladeModal('mergeModal')">Отмена</button>
+            <button class="btn-primary" onclick="saveMerge()">Сохранить сборку</button>
+            <button class="btn-danger" id="deleteMergeBtn" style="display: none;" onclick="deleteMerge()">Удалить сборку</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно: Просмотр координат (только чтение) -->
+<div class="modal-overlay" id="viewCoordsModal">
+    <div class="modal modal-xl" onclick="event.stopPropagation()">
+        <h3>Координаты профиля: <span id="viewProfileName"></span></h3>
+
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>X</th>
+                        <th>Y</th>
+                        <th>Тип</th>
+                    </tr>
+                </thead>
+                <tbody id="viewCoordsBody"></tbody>
+            </table>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeBladeModal('viewCoordsModal')">Закрыть</button>
+            <button class="btn-primary" onclick="exportCoords()">📥 Экспорт CSV</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .blades-container { padding: 0; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e2e8f0; }
+    .header-actions { display: flex; gap: 10px; }
+
+    .data-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .data-table th, .data-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    .data-table th { background: #f8fafc; font-weight: 600; color: #334155; }
+    .data-table tr:hover { background: #f8fafc; }
+
+    .table-actions { display: flex; gap: 6px; }
+    .table-actions button { padding: 4px 10px; font-size: 12px; border-radius: 4px; border: none; cursor: pointer; }
+    .btn-edit { background: #3b82f6; color: #fff; }
+    .btn-view { background: #10b981; color: #fff; }
+    .btn-delete { background: #ef4444; color: #fff; }
+
+    .modal-lg { width: 600px; }
+    .modal-xl { width: 800px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-weight: 500; color: #334155; }
+    .form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+    .form-group small { color: #64748b; font-size: 12px; }
+
+    .form-section { background: #f8fafc; padding: 16px; border-radius: 8px; margin: 16px 0; }
+    .form-section h4 { margin: 0 0 12px 0; color: #334155; }
+
+    .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+    .tab-btn { flex: 1; padding: 8px; border: none; background: #e2e8f0; border-radius: 6px 6px 0 0; cursor: pointer; font-weight: 500; }
+    .tab-btn.active { background: #2563eb; color: #fff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .coords-input { margin-bottom: 12px; }
+    .coords-list { max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; }
+    .coord-item { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+    .coord-item:last-child { border-bottom: none; }
+    .coord-item .remove { color: #ef4444; cursor: pointer; margin-left: 8px; }
+
+    .multi-select { height: 150px; }
+
+    .status-message { text-align: center; padding: 20px; color: #64748b; }
+    .empty-state { text-align: center; padding: 40px; color: #64748b; }
+    .empty-state button { margin-top: 16px; }
+
+    /* === МОДАЛЬНЫЕ ОКНА === */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+        cursor: pointer;
+    }
+    .modal-overlay.active {
+        display: flex !important;
+    }
+    .modal {
+        background: #fff;
+        padding: 24px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow-y: auto;
+        cursor: default;
+    }
+</style>
+
+<script>
+    // ================= ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =================
+    let bladesData = [];
+    let assembliesData = [];
+    let currentCoords = { upper: [], lower: [] };
+    let currentViewBladeId = null;
+
+    // ================= ИНИЦИАЛИЗАЦИЯ =================
+    document.addEventListener('DOMContentLoaded', () => {
+        loadBlades();
+        setupModalCloseHandlers();
+    });
+
+    // ================= ОБРАБОТЧИКИ ЗАКРЫТИЯ МОДАЛОК =================
+    function setupModalCloseHandlers() {
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                closeBladeModal(overlay.id);  // вместо closeModal
+            }
+        });
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            ['bladeModal', 'mergeModal', 'viewCoordsModal'].forEach(id => {
+                const modal = document.getElementById(id);
+                if (modal?.classList.contains('active')) {
+                    closeBladeModal(id);
+                }
+            });
+        }
+    });
+}
+
+    // ================= ЗАГРУЗКА ДАННЫХ =================
+    async function loadBlades() {
+    showLoading(true);
+    try {
+        const res = await fetch('/api/blades');
+        if (!res.ok) {
+            if (res.status === 403) {
+                // Специальная обработка: БД не выбрана
+                alert('⚠️ База данных не выбрана! Откройте настройки.');
+                if (typeof openBladeModal === 'function') {
+                    openBladeModal('settingsModal');
+                }
+                return;
+            }
+            throw new Error('Ошибка загрузки: ' + res.status);
+        }
+        bladesData = await res.json();
+        renderBladesTable();
+    } catch (e) {
+        showError('Не удалось загрузить список лопаток: ' + e.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+    async function loadAssemblies() {
+        try {
+            const res = await fetch('/api/assemblies');
+            if (!res.ok) throw new Error('Ошибка загрузки');
+            assembliesData = await res.json();
+        } catch (e) {
+            console.error('Ошибка загрузки сборок:', e);
+        }
+    }
+
+    function renderBladesTable() {
+        const tbody = document.getElementById('bladesTableBody');
+
+        if (bladesData.length === 0) {
+            tbody.innerHTML = `
+                <tr><td colspan="3" class="empty-state">
+                    <p>Лопатки не найдены</p>
+                    <button class="btn-primary" onclick="openCreateBladeModal()">+ Создать первую лопатку</button>
+                </td></tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = bladesData.map(blade => `
+            <tr>
+                <td>${blade.blade_id}</td>
+                <td>${escapeHtml(blade.name)}</td>
+                <td>
+                    <div class="table-actions">
+                        <button class="btn-edit" onclick="editBlade(${blade.blade_id})">✏️</button>
+                        <button class="btn-view" onclick="viewBladeCoords(${blade.blade_id})">👁️</button>
+                        <button class="btn-delete" onclick="confirmDeleteBlade(${blade.blade_id})">🗑️</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // ================= УПРАВЛЕНИЕ МОДАЛКАМИ =================
+    function openBladeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('active');
+    }
+}
+
+    function closeBladeModal(modalId) {
+    console.log('Закрытие модалки:', modalId); // Отладка
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('active');
+        // Для надёжности: если класс не сработал, явно скрываем
+        if (modal.classList.contains('active') === false) {
+            modal.style.display = 'none';
+        }
+    }
+}
+
+    // ================= CRUD ЛОПАТОК =================
+function openCreateBladeModal() {
+    // === ПРОВЕРКА: выбрана ли база данных ===
+    if (typeof currentDb === 'undefined' || !currentDb) {
+    alert('⚠️ Сначала выберите или создайте базу данных в настройках!');
+    // Прямое открытие модалки настроек через класс
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal) {
+        settingsModal.classList.add('active');
+    }
+    return;
+}
+    // ==========================================
+
+    document.getElementById('bladeModalTitle').textContent = 'Создать лопатку';
+    document.getElementById('bladeId').value = '';
+    document.getElementById('bladeName').value = '';
+    document.getElementById('deleteBladeBtn').style.display = 'none';
+
+    currentCoords = { upper: [], lower: [] };
+    renderCoordLists();
+
+    openBladeModal('bladeModal');
+}
+
+    async function editBlade(bladeId) {
+        const blade = bladesData.find(b => b.blade_id === bladeId);
+        if (!blade) return;
+
+        document.getElementById('bladeModalTitle').textContent = 'Редактировать лопатку';
+        document.getElementById('bladeId').value = blade.blade_id;
+        document.getElementById('bladeName').value = blade.name;
+        document.getElementById('deleteBladeBtn').style.display = 'inline-block';
+
+        await loadBladeCoordinates(bladeId);
+        renderCoordLists();
+
+        openBladeModal('bladeModal');
+    }
+
+    async function loadBladeCoordinates(bladeId) {
+        try {
+            const res = await fetch(`/api/blades/${bladeId}/coordinates`);
+            if (!res.ok) return;
+            const coords = await res.json();
+            currentCoords.upper = coords.filter(c => c.profile_type === 'upper');
+            currentCoords.lower = coords.filter(c => c.profile_type === 'lower');
+        } catch (e) {
+            console.error('Ошибка загрузки координат:', e);
+        }
+    }
+
+    function renderCoordLists() {
+        ['upper', 'lower'].forEach(type => {
+            const list = document.getElementById(`${type}CoordsList`);
+            list.innerHTML = currentCoords[type].map((c, i) => `
+                <div class="coord-item">
+                    <span>${c.x.toFixed(4)}, ${c.y.toFixed(4)}</span>
+                    <span class="remove" onclick="removeCoordPoint('${type}', ${i})">✕</span>
+                </div>
+            `).join('') || '<div style="padding:8px;color:#64748b">Точек нет</div>';
+        });
+    }
+
+    function switchCoordTab(type) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById(`${type}Tab`).classList.add('active');
+    }
+
+    function addCoordPoint(type) {
+        const profileName = document.getElementById(`${type}ProfileName`).value || `profile_${type}`;
+        currentCoords[type].push({
+            profile_type: type,
+            profile_name: profileName,
+            x: 0,
+            y: 0
+        });
+        renderCoordLists();
+    }
+
+    function removeCoordPoint(type, index) {
+        currentCoords[type].splice(index, 1);
+        renderCoordLists();
+    }
+
+    async function saveBlade() {
+        const bladeId = document.getElementById('bladeId').value;
+        const name = document.getElementById('bladeName').value.trim();
+
+        if (!name) {
+            alert('Введите наименование лопатки');
+            return;
+        }
+
+        const allCoords = [...currentCoords.upper, ...currentCoords.lower].map(c => ({
+            profile_type: c.profile_type,
+            profile_name: c.profile_name,
+            x: parseFloat(c.x),
+            y: parseFloat(c.y)
+        })).filter(c => !isNaN(c.x) && !isNaN(c.y));
+
+        if (allCoords.length === 0 && !bladeId) {
+            if (!confirm('Координаты профиля не добавлены. Продолжить?')) return;
+        }
+
+        try {
+            const url = bladeId ? `/api/blades/${bladeId}` : '/api/blades';
+            const method = bladeId ? 'PUT' : 'POST';
+
+            const bladeRes = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+
+            if (!bladeRes.ok) {
+                const err = await bladeRes.json();
+                throw new Error(err.error || 'Ошибка сохранения');
+            }
+
+            const savedBlade = await bladeRes.json();
+            const savedBladeId = savedBlade.blade_id || bladeId;
+
+            if (allCoords.length > 0) {
+                if (bladeId) {
+                    await fetch(`/api/blades/${bladeId}/coordinates`, { method: 'DELETE' });
+                }
+                const coordsRes = await fetch(`/api/blades/${savedBladeId}/coordinates`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(allCoords)
+                });
+                if (!coordsRes.ok) {
+                    const err = await coordsRes.json();
+                    throw new Error(err.error || 'Ошибка сохранения координат');
+                }
+            }
+
+            closeBladeModal('bladeModal');
+            loadBlades();
+            alert('Лопатка сохранена!');
+        } catch (e) {
+            alert(`Ошибка: ${e.message}`);
+        }
+    }
+
+    function confirmDeleteBlade(bladeId) {
+        const blade = bladesData.find(b => b.blade_id === bladeId);
+        if (!blade) return;
+        if (confirm(`Удалить лопатку "${blade.name}"?\nЭто действие необратимо.`)) {
+            deleteBlade(bladeId);
+        }
+    }
+
+    async function deleteBlade(bladeId) {
+        const id = bladeId || document.getElementById('bladeId').value;
+        if (!id) return;
+        try {
+            const res = await fetch(`/api/blades/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Ошибка удаления');
+            closeBladeModal('bladeModal');
+            loadBlades();
+            alert('Лопатка удалена');
+        } catch (e) {
+            alert(`Ошибка: ${e.message}`);
+        }
+    }
+
+    // ================= ПРОСМОТР КООРДИНАТ =================
+    async function viewBladeCoords(bladeId) {
+        currentViewBladeId = bladeId;
+        const blade = bladesData.find(b => b.blade_id === bladeId);
+        if (!blade) return;
+
+        document.getElementById('viewProfileName').textContent = blade.name;
+
+        try {
+            const res = await fetch(`/api/blades/${bladeId}/coordinates`);
+            if (!res.ok) throw new Error('Ошибка загрузки');
+            const coords = await res.json();
+
+            document.getElementById('viewCoordsBody').innerHTML = coords.map((c, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${c.x.toFixed(6)}</td>
+                    <td>${c.y.toFixed(6)}</td>
+                    <td>${c.profile_type === 'upper' ? 'Верхний' : 'Нижний'}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="4" style="text-align:center;color:#64748b">Координат нет</td></tr>';
+
+            openBladeModal('viewCoordsModal');
+        } catch (e) {
+            alert('Не удалось загрузить координаты');
+        }
+    }
+
+    function exportCoords() {
+        if (!currentViewBladeId) return;
+        const blade = bladesData.find(b => b.blade_id === currentViewBladeId);
+        if (!blade) return;
+
+        let csv = 'Type,X,Y\n';
+        // Здесь можно добавить логику экспорта
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${blade.name}_coords.csv`;
+        link.click();
+    }
+
+    // ================= ОБЪЕДИНЕНИЕ ЛОПАТОК =================
+    async function openMergeModal() {
+        await loadBlades();
+        await loadAssemblies();
+
+        document.getElementById('mergeAssemblyId').value = '';
+        document.getElementById('mergeName').value = '';
+        document.getElementById('deleteMergeBtn').style.display = 'none';
+
+        const select = document.getElementById('availableBlades');
+        select.innerHTML = bladesData
+            .filter(b => !b.assembly_id)
+            .map(b => `<option value="${b.blade_id}">${escapeHtml(b.name)}</option>`)
+            .join('');
+
+        openBladeModal('mergeModal');
+    }
+
+    async function saveMerge() {
+        const assemblyId = document.getElementById('mergeAssemblyId').value;
+        const name = document.getElementById('mergeName').value.trim();
+        const select = document.getElementById('availableBlades');
+        const bladeIds = Array.from(select.selectedOptions).map(opt => parseInt(opt.value));
+
+        if (!name || bladeIds.length === 0) {
+            alert('Введите наименование и выберите хотя бы одну лопатку');
+            return;
+        }
+
+        try {
+            const url = assemblyId ? `/api/assemblies/${assemblyId}` : '/api/assemblies';
+            const method = assemblyId ? 'PUT' : 'POST';
+            const payload = assemblyId
+                ? { name, add_blade_ids: bladeIds }
+                : { name, blade_ids: bladeIds };
+
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Ошибка сохранения');
+            }
+
+            closeBladeModal('mergeModal');
+            loadBlades();
+            alert('Сборка сохранена!');
+        } catch (e) {
+            alert(`Ошибка: ${e.message}`);
+        }
+    }
+
+    function confirmDeleteMerge(assemblyId) {
+        if (confirm('Удалить сборку?\nЛопатки останутся в базе.')) {
+            deleteMerge(assemblyId);
+        }
+    }
+
+    async function deleteMerge(assemblyId) {
+        const id = assemblyId || document.getElementById('mergeAssemblyId').value;
+        if (!id) return;
+        try {
+            const res = await fetch(`/api/assemblies/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Ошибка удаления');
+            closeModal('mergeModal');
+            loadBlades();
+            alert('Сборка удалена');
+        } catch (e) {
+            alert(`Ошибка: ${e.message}`);
+        }
+    }
+
+    // ================= УТИЛИТЫ =================
+    function showLoading(show) {
+        document.getElementById('loadingStatus').style.display = show ? 'block' : 'none';
+    }
+
+    function showError(message) {
+        alert(message);
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // ================= ЗАГРУЗКА КООРДИНАТ ИЗ ФАЙЛА =================
+    async function loadCoordsFromFile(profileType, fileInput) {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const lines = text.trim().split('\n');
+            const profileName = file.name.replace(/\.[^/.]+$/, "");
+
+            document.getElementById(`${profileType}ProfileName`).value = profileName;
+
+            let loadedCount = 0;
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || trimmed.startsWith('#')) continue;
+                const parts = trimmed.split(/[\s,;]+/);
+                if (parts.length >= 2) {
+                    const x = parseFloat(parts[0]);
+                    const y = parseFloat(parts[1]);
+                    if (!isNaN(x) && !isNaN(y)) {
+                        currentCoords[profileType].push({
+                            profile_type: profileType,
+                            profile_name: profileName,
+                            x: x,
+                            y: y
+                        });
+                        loadedCount++;
+                    }
+                }
+            }
+
+            renderCoordLists();
+            alert(`✅ Загружено ${loadedCount} точек для ${profileType === 'upper' ? 'верхнего' : 'нижнего'} профиля`);
+        } catch (e) {
+            alert(`❌ Ошибка чтения файла: ${e.message}`);
+            console.error(e);
+        } finally {
+            fileInput.value = '';
+        }
+    }
+</script>
+{% endblock %}

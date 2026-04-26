@@ -41,8 +41,7 @@ class Simulation(Base):
     # Отношения (Relationships)
     assembly = relationship("BladeAssembly", back_populates="simulations")
     blade = relationship("Blade", back_populates="simulations")
-    initial_conditions = relationship("InitialCondition", back_populates="simulations", cascade="all, delete-orphan")
-
+    initial_conditions = relationship("InitialCondition", back_populates="simulations", cascade="all, delete")
 
     # Связи с дочерними таблицами (задачи и результаты)
     tasks = relationship("SimulationTask", back_populates="simulation", cascade="all, delete-orphan")
@@ -137,7 +136,7 @@ class SimulationMaterial(Base):
     )
 
     # Дата добавления (TEXT, nullable=True)
-    created_at = Column(Text, nullable=True, default=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+    created_at = Column(Text, nullable=True, default=get_current_time)
 
     # Обратные связи
     simulation = relationship("Simulation", back_populates="materials")
@@ -181,19 +180,16 @@ class BladeChord(Base):
     __tablename__ = 'blade_chord'
 
     blade_chord_id = Column(Integer, primary_key=True, autoincrement=True)
-
-    # Связь с Initial_conditions (CASCADE)
     initial_conditions_id = Column(
         Integer,
         ForeignKey('initial_conditions.initial_conditions_id', ondelete="CASCADE"),
         nullable=False
     )
-
     name = Column(Text, nullable=False)
     value = Column(Float, nullable=False)
 
-    # Обратная связь
-    initial_conditions = relationship("InitialCondition", back_populates="blade_chord")
+    # ИСПРАВЛЕНИЕ: back_populates должен указывать на "blade_chords" (множественное число)
+    initial_conditions = relationship("InitialCondition", back_populates="blade_chords")
 
     def __repr__(self):
         return f"<BladeChord(id={self.blade_chord_id}, name='{self.name}')>"
@@ -209,9 +205,14 @@ class InitialCondition(Base):
     initial_conditions_id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(Text, nullable=False)
 
+    # Связь с Simulations
+    simulations = relationship("Simulation", back_populates="initial_conditions")
+
     # Каскадные связи с таблицами параметров
-    time_parameters = relationship("TimeParameter", back_populates="initial_conditions", cascade="all, delete-orphan")
+    # ИСПРАВЛЕНИЕ: Убедитесь, что имя здесь "blade_chords" совпадает с back_populates в BladeChord
     blade_chords = relationship("BladeChord", back_populates="initial_conditions", cascade="all, delete-orphan")
+
+    time_parameters = relationship("TimeParameter", back_populates="initial_conditions", cascade="all, delete-orphan")
     potential_flow_parameters = relationship("PotentialFlowParameter", back_populates="initial_conditions",
                                              cascade="all, delete-orphan")
     boundary_identifiers = relationship("BoundaryIdentifier", back_populates="initial_conditions",
@@ -224,9 +225,6 @@ class InitialCondition(Base):
                                         cascade="all, delete-orphan")
     stress_output_parameters = relationship("StressOutputParameter", back_populates="initial_conditions",
                                             cascade="all, delete-orphan")
-
-    # Обратная связь с Simulation (добавьте в класс Simulation, если ещё не добавили)
-    # simulations = relationship("Simulation", back_populates="initial_conditions")
 
     def __repr__(self):
         return f"<InitialCondition(id={self.initial_conditions_id}, name='{self.name}')>"
