@@ -27,6 +27,29 @@
         </table>
     </div>
 
+    <!-- ================= СЕКЦИЯ ОБЪЕДИНЕНИЙ ================= -->
+    <div class="section-header" style="margin-top: 40px; border-top: 2px solid #e2e8f0; padding-top: 20px;">
+        <h2>🔗 Объединения лопаток</h2>
+        <div class="header-actions">
+            <button class="btn-primary" onclick="openCreateAssemblyModal()">+ Создать объединение</button>
+        </div>
+    </div>
+
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Наименование</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="assembliesTableBody">
+                <!-- Загружается через JS -->
+            </tbody>
+        </table>
+    </div>
+
     <!-- Статус загрузки -->
     <div id="loadingStatus" class="status-message" style="display: none;">Загрузка...</div>
 </div>
@@ -34,7 +57,7 @@
 <!-- ================= МОДАЛКИ ================= -->
 
 <!-- Модальное окно: Создание/Редактирование лопатки -->
-<div class="modal-overlay" id="bladeModal">
+<div class="modal-overlay" id="bladeModal" onclick="handleOverlayClick(event, 'bladeModal')">
     <div class="modal modal-lg" onclick="event.stopPropagation()">
         <h3 id="bladeModalTitle">Создать лопатку</h3>
 
@@ -104,7 +127,7 @@
         </form>
 
         <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeBladeModal('bladeModal')">Отмена</button>
+            <button class="btn-secondary" onclick="closeModal('bladeModal')">Отмена</button>
             <button class="btn-primary" onclick="saveBlade()">Сохранить</button>
             <button class="btn-danger" id="deleteBladeBtn" style="display: none;" onclick="deleteBlade()">Удалить</button>
         </div>
@@ -112,7 +135,7 @@
 </div>
 
 <!-- Модальное окно: Объединение лопаток -->
-<div class="modal-overlay" id="mergeModal">
+<div class="modal-overlay" id="mergeModal" onclick="handleOverlayClick(event, 'mergeModal')">
     <div class="modal" onclick="event.stopPropagation()">
         <h3>Объединить лопатки</h3>
 
@@ -126,15 +149,17 @@
 
             <div class="form-group">
                 <label>Выберите лопатки</label>
-                <select id="availableBlades" multiple size="8" class="multi-select">
-                    <!-- Заполняется через JS -->
-                </select>
-                <small>Удерживайте Ctrl/Cmd для выбора нескольких</small>
+                <input type="text" id="mergeBladesSearch" placeholder="🔍 Поиск лопатки..."
+                       class="search-input" oninput="filterMergeBlades()">
+                <div id="mergeBladesList" class="checkbox-list" style="max-height:200px;overflow-y:auto;border:1px solid #cbd5e1;border-radius:6px;padding:8px;margin-top:8px;">
+                    <!-- Чекбоксы генерируются через JS -->
+                </div>
+                <small style="color:#64748b">Выберите одну или несколько лопаток</small>
             </div>
         </form>
 
         <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeBladeModal('mergeModal')">Отмена</button>
+            <button class="btn-secondary" onclick="closeModal('mergeModal')">Отмена</button>
             <button class="btn-primary" onclick="saveMerge()">Сохранить сборку</button>
             <button class="btn-danger" id="deleteMergeBtn" style="display: none;" onclick="deleteMerge()">Удалить сборку</button>
         </div>
@@ -142,7 +167,7 @@
 </div>
 
 <!-- Модальное окно: Просмотр координат (только чтение) -->
-<div class="modal-overlay" id="viewCoordsModal">
+<div class="modal-overlay" id="viewCoordsModal" onclick="handleOverlayClick(event, 'viewCoordsModal')">
     <div class="modal modal-xl" onclick="event.stopPropagation()">
         <h3>Координаты профиля: <span id="viewProfileName"></span></h3>
 
@@ -161,8 +186,58 @@
         </div>
 
         <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeBladeModal('viewCoordsModal')">Закрыть</button>
+            <button class="btn-secondary" onclick="closeModal('viewCoordsModal')">Закрыть</button>
             <button class="btn-primary" onclick="exportCoords()">📥 Экспорт CSV</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно: Создание объединения (с чекбоксами) -->
+<div class="modal-overlay" id="assemblyCreateModal" onclick="handleOverlayClick(event, 'assemblyCreateModal')">
+    <div class="modal modal-lg" onclick="event.stopPropagation()">
+        <h3>Создать объединение лопаток</h3>
+
+        <div class="form-group">
+            <label>Наименование *</label>
+            <input type="text" id="assemblyName" placeholder="Например: Ступень_1_Комплект" maxlength="100">
+        </div>
+
+        <div class="form-group">
+            <label>Выберите лопатки</label>
+            <input type="text" id="assemblyBladesSearch" placeholder="🔍 Поиск лопатки..."
+                   class="search-input" oninput="filterAssemblyBlades()">
+            <div id="assemblyBladesList" class="checkbox-list" style="max-height:200px;overflow-y:auto;border:1px solid #cbd5e1;border-radius:6px;padding:8px;margin-top:8px;">
+                <!-- Чекбоксы генерируются через JS -->
+            </div>
+            <small style="color:#64748b">Выберите одну или несколько лопаток</small>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal('assemblyCreateModal')">Отмена</button>
+            <button class="btn-primary" onclick="saveAssembly()">Создать</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно: Просмотр объединения -->
+<div class="modal-overlay" id="assemblyViewModal" onclick="handleOverlayClick(event, 'assemblyViewModal')">
+    <div class="modal" onclick="event.stopPropagation()">
+        <h3>Состав объединения: <span id="viewAssemblyName"></span></h3>
+        <input type="hidden" id="viewAssemblyId">
+
+        <table class="data-table" style="margin:10px 0;">
+            <thead><tr><th>ID</th><th>Наименование</th><th>Действия</th></tr></thead>
+            <tbody id="viewAssemblyBlades"></tbody>
+        </table>
+
+        <div style="background:#fffbeb;border:1px solid #fcd34d;padding:8px;border-radius:6px;font-size:13px;margin-bottom:12px;">
+            💡 <b>Примечание:</b> Аппроксимация выполняется для каждой лопатки отдельно.
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal('assemblyViewModal')">Закрыть</button>
+            <button class="btn-primary" onclick="approximateAllInAssembly()" style="background:#f59e0b;">⚡ Аппроксимировать все</button>
+            <button class="btn-danger" onclick="deleteAssembly()">🗑️ Удалить сборку</button>
         </div>
     </div>
 </div>
@@ -183,7 +258,7 @@
     .btn-view { background: #10b981; color: #fff; }
     .btn-delete { background: #ef4444; color: #fff; }
 
-    .modal-lg { width: 600px; }
+    .modal-lg { width: 500px; max-width: 90vw; }
     .modal-xl { width: 800px; }
 
     .form-group { margin-bottom: 16px; }
@@ -224,8 +299,8 @@
         cursor: pointer;
     }
     .modal-overlay.active {
-        display: flex !important;
-    }
+    display: flex !important;
+}
     .modal {
         background: #fff;
         padding: 24px;
@@ -257,43 +332,88 @@
     .coords-table .action-btn:hover {
         background: #dc2626;
     }
+
+    /* Чекбоксы для выбора лопаток */
+    .checkbox-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .checkbox-item:hover {
+        background: #f1f5f9;
+    }
+    .checkbox-item input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: #2563eb;
+    }
+    .checkbox-item label {
+        flex: 1;
+        cursor: pointer;
+        font-size: 14px;
+        color: #334155;
+        margin: 0;
+    }
+    .checkbox-item .blade-id {
+        font-size: 11px;
+        color: #94a3b8;
+        background: #f1f5f9;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    /* Поиск */
+    .search-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        box-sizing: border-box;
+        font-size: 14px;
+    }
+    .search-input:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
 </style>
 
 <script>
-    // ================= ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =================
+      // ================= ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =================
     let bladesData = [];
     let assembliesData = [];
     let currentCoords = { upper: [], lower: [] };
     let currentViewBladeId = null;
-    let editingCoords = { upper: [], lower: [] }; // Отдельный буфер для редактирования
+    let editingCoords = { upper: [], lower: [] };
 
     // ================= ИНИЦИАЛИЗАЦИЯ =================
     document.addEventListener('DOMContentLoaded', () => {
         loadBlades();
-        setupModalCloseHandlers();
+        loadAssemblies();
+        // Обработчик ESC теперь в base.html, здесь его дублировать не нужно
     });
 
-    // ================= ОБРАБОТЧИКИ ЗАКРЫТИЯ МОДАЛОК =================
-    function setupModalCloseHandlers() {
-        document.querySelectorAll('.modal-overlay').forEach(overlay => {
-            overlay.addEventListener('click', (e) => {
-                if (e.target === overlay) {
-                    closeBladeModal(overlay.id);
-                }
-            });
-        });
-
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                ['bladeModal', 'mergeModal', 'viewCoordsModal'].forEach(id => {
-                    const modal = document.getElementById(id);
-                    if (modal?.classList.contains('active')) {
-                        closeBladeModal(id);
-                    }
-                });
-            }
-        });
+    // Исправленная обработка клика по оверлею
+    function handleOverlayClick(event, modalId) {
+        // Закрываем, только если клик был именно по темному фону (currentTarget),
+        // а не по самому окну
+        if (event.target === event.currentTarget) {
+            closeModal(modalId);
+        }
     }
+    
+
+
 
     // ================= ЗАГРУЗКА ДАННЫХ =================
     async function loadBlades() {
@@ -325,8 +445,9 @@
             const res = await fetch('/api/assemblies');
             if (!res.ok) throw new Error('Ошибка загрузки');
             assembliesData = await res.json();
+            renderAssembliesTable();
         } catch (e) {
-            console.error('Ошибка загрузки сборок:', e);
+            console.error('Ошибка загрузки объединений:', e);
         }
     }
 
@@ -358,24 +479,27 @@
         `).join('');
     }
 
-    // ================= УПРАВЛЕНИЕ МОДАЛКАМИ =================
-    function openBladeModal(modalId) {
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.classList.add('active');
+    function renderAssembliesTable() {
+        const tbody = document.getElementById('assembliesTableBody');
+        if (!assembliesData || assembliesData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;padding:20px;color:#64748b">Объединений пока нет</td></tr>`;
+            return;
         }
-    }
+        tbody.innerHTML = assembliesData.map(a => `
+            <tr>
+                <td>${a.blade_assembly_id}</td>
+                <td>${escapeHtml(a.name)}</td>
+                <td>
+                    <div class="table-actions">
+                        <button class="btn-edit" onclick="openViewAssemblyModal(${a.blade_assembly_id}, '${escapeHtml(a.name)}')">👁️ Просмотр</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
 
-    function closeBladeModal(modalId) {
-        console.log('Закрытие модалки:', modalId);
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.classList.remove('active');
-            if (modal.classList.contains('active') === false) {
-                modal.style.display = 'none';
-            }
-        }
-    }
+
+
+}
 
     // ================= CRUD ЛОПАТОК =================
     function openCreateBladeModal() {
@@ -393,12 +517,11 @@
         document.getElementById('bladeName').value = '';
         document.getElementById('deleteBladeBtn').style.display = 'none';
 
-        // Сброс координат и буфера редактирования
         currentCoords = { upper: [], lower: [] };
         editingCoords = { upper: [], lower: [] };
 
         renderCoordTables();
-        openBladeModal('bladeModal');
+        openModal('bladeModal');
     }
 
     async function editBlade(bladeId) {
@@ -412,12 +535,11 @@
 
         await loadBladeCoordinates(bladeId);
 
-        // Копируем текущие координаты в буфер редактирования
         editingCoords.upper = [...currentCoords.upper];
         editingCoords.lower = [...currentCoords.lower];
 
         renderCoordTables();
-        openBladeModal('bladeModal');
+        openModal('bladeModal');
     }
 
     async function loadBladeCoordinates(bladeId) {
@@ -432,15 +554,11 @@
         }
     }
 
-    // ================= ТАБЛИЦА РЕДАКТИРОВАНИЯ КООРДИНАТ =================
-
-    // Рендер таблиц редактирования для обоих профилей
     function renderCoordTables() {
         renderCoordTable('upper');
         renderCoordTable('lower');
     }
 
-    // Рендер одной таблицы координат
     function renderCoordTable(type) {
         const tbody = document.getElementById(`${type}CoordsTableBody`);
         const coords = editingCoords[type];
@@ -460,7 +578,6 @@
         `).join('');
     }
 
-    // Обновление координаты в буфере редактирования
     function updateCoord(type, index, field, value) {
         const numValue = parseFloat(value);
         if (!isNaN(numValue)) {
@@ -468,7 +585,6 @@
         }
     }
 
-    // Добавление новой точки в таблицу редактирования
     function addCoordPointToTable(type) {
         editingCoords[type].push({
             profile_type: type,
@@ -478,13 +594,11 @@
         renderCoordTable(type);
     }
 
-    // Удаление точки из таблицы редактирования
     function removeCoordFromTable(type, index) {
         editingCoords[type].splice(index, 1);
         renderCoordTable(type);
     }
 
-    // Загрузка координат из файла в буфер редактирования
     async function loadCoordsFromFile(profileType, fileInput) {
         const file = fileInput.files[0];
         if (!file) return;
@@ -524,109 +638,78 @@
         }
     }
 
-    // Переключение вкладок с обновлением таблиц
     function switchCoordTab(type) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         event.target.classList.add('active');
         document.getElementById(`${type}Tab`).classList.add('active');
-        // Перерендерим таблицу при переключении (на случай, если данные изменились)
         renderCoordTable(type);
     }
 
-    // ================= СОХРАНЕНИЕ ЛОПАТКИ =================
     async function saveBlade() {
-    console.log('=== Начало сохранения лопатки ===');
+        const bladeId = document.getElementById('bladeId').value;
+        const name = document.getElementById('bladeName').value.trim();
 
-    const bladeId = document.getElementById('bladeId').value;
-    const name = document.getElementById('bladeName').value.trim();
-
-    console.log('bladeId:', bladeId, 'name:', name);
-
-    if (!name) {
-        alert('Введите наименование лопатки');
-        return;
-    }
-
-    const allCoords = [...editingCoords.upper, ...editingCoords.lower]
-        .map(c => ({
-            profile_type: c.profile_type,
-            x: parseFloat(c.x),
-            y: parseFloat(c.y)
-        }))
-        .filter(c => !isNaN(c.x) && !isNaN(c.y));
-
-    console.log('Координат для сохранения:', allCoords.length);
-
-    if (allCoords.length === 0 && !bladeId) {
-        if (!confirm('Координаты профиля не добавлены. Продолжить?')) return;
-    }
-
-    try {
-        const url = bladeId ? `/api/blades/${bladeId}` : '/api/blades';
-        const method = bladeId ? 'PUT' : 'POST';
-
-        console.log(`Запрос: ${method} ${url}`);
-
-        const bladeRes = await fetch(url, {
-            method: method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name })
-        });
-
-        console.log('Ответ сервера (лопатка):', bladeRes.status, bladeRes.ok);
-
-        if (!bladeRes.ok) {
-            const err = await bladeRes.json();
-            console.error('Ошибка сохранения лопатки:', err);
-            throw new Error(err.error || 'Ошибка сохранения');
+        if (!name) {
+            alert('Введите наименование лопатки');
+            return;
         }
 
-        const savedBlade = await bladeRes.json();
-        console.log('Сохранённая лопатка:', savedBlade);
-        const savedBladeId = savedBlade.blade_id || bladeId;
-        console.log('ID сохранённой лопатки:', savedBladeId);
+        const allCoords = [...editingCoords.upper, ...editingCoords.lower]
+            .map(c => ({
+                profile_type: c.profile_type,
+                x: parseFloat(c.x),
+                y: parseFloat(c.y)
+            }))
+            .filter(c => !isNaN(c.x) && !isNaN(c.y));
 
-        if (allCoords.length > 0) {
-            if (bladeId) {
-                console.log('Удаление старых координат...');
-                const delRes = await fetch(`/api/blades/${bladeId}/coordinates`, { method: 'DELETE' });
-                console.log('Удаление координат:', delRes.status);
-            }
+        if (allCoords.length === 0 && !bladeId) {
+            if (!confirm('Координаты профиля не добавлены. Продолжить?')) return;
+        }
 
-            console.log('Отправка координат...');
-            const coordsRes = await fetch(`/api/blades/${savedBladeId}/coordinates`, {
-                method: 'POST',
+        try {
+            const url = bladeId ? `/api/blades/${bladeId}` : '/api/blades';
+            const method = bladeId ? 'PUT' : 'POST';
+
+            const bladeRes = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(allCoords)
+                body: JSON.stringify({ name })
             });
 
-            console.log('Ответ сервера (координаты):', coordsRes.status, coordsRes.ok);
-
-            if (!coordsRes.ok) {
-                const err = await coordsRes.json();
-                console.error('Ошибка сохранения координат:', err);
-                throw new Error(err.error || 'Ошибка сохранения координат');
+            if (!bladeRes.ok) {
+                const err = await bladeRes.json();
+                throw new Error(err.error || 'Ошибка сохранения');
             }
-        }
 
-        console.log('=== Завершение сохранения ===');
-        closeBladeModal('bladeModal');
-        await loadBlades(); // await гарантирует, что таблица обновится до показа алерта
-        alert('Лопатка сохранена!');
+            const savedBlade = await bladeRes.json();
+            const savedBladeId = savedBlade.blade_id || bladeId;
 
-    } catch (e) {
-        console.error('Исключение при сохранении:', e);
+            if (allCoords.length > 0) {
+                if (bladeId) {
+                    await fetch(`/api/blades/${bladeId}/coordinates`, { method: 'DELETE' });
+                }
 
-        if (e.response) {
-            e.response.json().then(err => {
-                alert(`Ошибка: ${err.error || 'Неизвестная ошибка'}`);
-            });
-        } else {
-            alert(`Ошибка: ${e.message || e}`);
+                const coordsRes = await fetch(`/api/blades/${savedBladeId}/coordinates`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(allCoords)
+                });
+
+                if (!coordsRes.ok) {
+                    const err = await coordsRes.json();
+                    throw new Error(err.error || 'Ошибка сохранения координат');
+                }
+            }
+
+            closeModal('bladeModal');
+            await loadBlades();
+            alert('Лопатка сохранена!');
+
+        } catch (e) {
+            alert(`Ошибка: ${e.message}`);
         }
     }
-}
 
     function confirmDeleteBlade(bladeId) {
         const blade = bladesData.find(b => b.blade_id === bladeId);
@@ -642,8 +725,8 @@
         try {
             const res = await fetch(`/api/blades/${id}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Ошибка удаления');
-            closeBladeModal('bladeModal');
-            loadBlades();
+            closeModal('bladeModal');
+            await loadBlades();
             alert('Лопатка удалена');
         } catch (e) {
             alert(`Ошибка: ${e.message}`);
@@ -672,7 +755,7 @@
                 </tr>
             `).join('') || '<tr><td colspan="4" style="text-align:center;color:#64748b">Координат нет</td></tr>';
 
-            openBladeModal('viewCoordsModal');
+            openModal('viewCoordsModal');
         } catch (e) {
             alert('Не удалось загрузить координаты');
         }
@@ -697,28 +780,53 @@
     }
 
     // ================= ОБЪЕДИНЕНИЕ ЛОПАТОК =================
+
+    // --- Рендер чекбоксов для модалки объединения ---
+    function renderMergeBladesCheckboxes(searchTerm = '') {
+        const container = document.getElementById('mergeBladesList');
+        const filtered = bladesData.filter(b =>
+            b.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        if (filtered.length === 0) {
+            container.innerHTML = `<div style="padding:12px;color:#64748b;text-align:center">Лопатки не найдены</div>`;
+            return;
+        }
+
+        container.innerHTML = filtered.map(b => `
+            <div class="checkbox-item">
+                <input type="checkbox" id="merge_cb_${b.blade_id}" value="${b.blade_id}">
+                <label for="merge_cb_${b.blade_id}">${escapeHtml(b.name)}</label>
+                <span class="blade-id">#${b.blade_id}</span>
+            </div>
+        `).join('');
+    }
+
+    function filterMergeBlades() {
+        const searchTerm = document.getElementById('mergeBladesSearch').value;
+        renderMergeBladesCheckboxes(searchTerm);
+    }
+
+    function getSelectedMergeBladeIds() {
+        const checkboxes = document.querySelectorAll('#mergeBladesList input[type="checkbox"]:checked');
+        return Array.from(checkboxes).map(cb => parseInt(cb.value));
+    }
+
     async function openMergeModal() {
         await loadBlades();
-        await loadAssemblies();
 
         document.getElementById('mergeAssemblyId').value = '';
         document.getElementById('mergeName').value = '';
         document.getElementById('deleteMergeBtn').style.display = 'none';
 
-        const select = document.getElementById('availableBlades');
-        select.innerHTML = bladesData
-            .filter(b => !b.assembly_id)
-            .map(b => `<option value="${b.blade_id}">${escapeHtml(b.name)}</option>`)
-            .join('');
-
-        openBladeModal('mergeModal');
+        renderMergeBladesCheckboxes();
+        openModal('mergeModal');
     }
 
     async function saveMerge() {
         const assemblyId = document.getElementById('mergeAssemblyId').value;
         const name = document.getElementById('mergeName').value.trim();
-        const select = document.getElementById('availableBlades');
-        const bladeIds = Array.from(select.selectedOptions).map(opt => parseInt(opt.value));
+        const bladeIds = getSelectedMergeBladeIds();
 
         if (!name || bladeIds.length === 0) {
             alert('Введите наименование и выберите хотя бы одну лопатку');
@@ -743,8 +851,8 @@
                 throw new Error(err.error || 'Ошибка сохранения');
             }
 
-            closeBladeModal('mergeModal');
-            loadBlades();
+            closeModal('mergeModal');
+            await loadAssemblies();
             alert('Сборка сохранена!');
         } catch (e) {
             alert(`Ошибка: ${e.message}`);
@@ -763,17 +871,150 @@
         try {
             const res = await fetch(`/api/assemblies/${id}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Ошибка удаления');
-            closeBladeModal('mergeModal');
-            loadBlades();
+            closeModal('mergeModal');
+            await loadAssemblies();
             alert('Сборка удалена');
         } catch (e) {
             alert(`Ошибка: ${e.message}`);
         }
     }
 
+    // ================= ОБЪЕДИНЕНИЯ (АСАМБЛИ) =================
+
+    function renderAssemblyBladesCheckboxes(searchTerm = '') {
+        const container = document.getElementById('assemblyBladesList');
+        const filtered = bladesData.filter(b =>
+            b.name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+
+        if (filtered.length === 0) {
+            container.innerHTML = `<div style="padding:12px;color:#64748b;text-align:center">Лопатки не найдены</div>`;
+            return;
+        }
+
+        container.innerHTML = filtered.map(b => `
+            <div class="checkbox-item">
+                <input type="checkbox" id="assembly_cb_${b.blade_id}" value="${b.blade_id}">
+                <label for="assembly_cb_${b.blade_id}">${escapeHtml(b.name)}</label>
+                <span class="blade-id">#${b.blade_id}</span>
+            </div>
+        `).join('');
+    }
+
+    function filterAssemblyBlades() {
+        const searchTerm = document.getElementById('assemblyBladesSearch').value;
+        renderAssemblyBladesCheckboxes(searchTerm);
+    }
+
+    function getSelectedAssemblyBladeIds() {
+        const checkboxes = document.querySelectorAll('#assemblyBladesList input[type="checkbox"]:checked');
+        return Array.from(checkboxes).map(cb => parseInt(cb.value));
+    }
+
+    function openCreateAssemblyModal() {
+        document.getElementById('assemblyName').value = '';
+        renderAssemblyBladesCheckboxes();
+        openModal('assemblyCreateModal');
+    }
+
+    async function saveAssembly() {
+        const name = document.getElementById('assemblyName').value.trim();
+        const bladeIds = getSelectedAssemblyBladeIds();
+
+        if (!name) return alert('Введите наименование объединения');
+        if (bladeIds.length === 0) return alert('Выберите хотя бы одну лопатку');
+
+        try {
+            const res = await fetch('/api/assemblies', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, blade_ids: bladeIds })
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Ошибка сохранения');
+            }
+            closeModal('assemblyCreateModal');
+            await loadAssemblies();
+            alert('✅ Объединение создано!');
+        } catch (e) {
+            alert('❌ Ошибка: ' + e.message);
+        }
+    }
+
+    async function openViewAssemblyModal(assemblyId, assemblyName) {
+        document.getElementById('viewAssemblyId').value = assemblyId;
+        document.getElementById('viewAssemblyName').textContent = assemblyName;
+        document.getElementById('viewAssemblyBlades').innerHTML = '<tr><td colspan="3" style="text-align:center">Загрузка...</td></tr>';
+        openModal('assemblyViewModal');
+
+        try {
+            const res = await fetch(`/api/assemblies/${assemblyId}/members`);
+            if (!res.ok) throw new Error('Ошибка загрузки');
+            const members = await res.json();
+
+            const tbody = document.getElementById('viewAssemblyBlades');
+            if (members.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#64748b">Лопатки не добавлены</td></tr>';
+            } else {
+                tbody.innerHTML = members.map(m => `
+                    <tr>
+                        <td>${m.blade_id}</td>
+                        <td>${escapeHtml(m.name || m.description || 'Без названия')}</td>
+                        <td>
+                            <button class="btn-view" onclick="viewBladeCoords(${m.blade_id})" style="padding:4px 8px;font-size:12px">👁️</button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        } catch (e) {
+            console.error(e);
+            document.getElementById('viewAssemblyBlades').innerHTML =
+                '<tr><td colspan="3" style="text-align:center;color:#ef4444">Ошибка загрузки</td></tr>';
+        }
+    }
+
+    async function approximateAllInAssembly() {
+        const assemblyId = document.getElementById('viewAssemblyId').value;
+        if (!confirm('Запустить аппроксимацию для всех лопаток в этой сборке?')) return;
+
+        try {
+            const res = await fetch(`/api/assemblies/${assemblyId}/members`);
+            const members = await res.json();
+            const bladeIds = members.map(m => m.blade_id);
+
+            if (bladeIds.length === 0) return alert('В сборке нет лопаток');
+
+            let success = 0;
+            for (const id of bladeIds) {
+                const r = await fetch(`/approximation/execute/${id}`, { method: 'POST' });
+                if (r.ok) success++;
+            }
+            alert(`✅ Аппроксимация завершена: ${success}/${bladeIds.length} лопаток`);
+        } catch (e) {
+            alert('❌ Ошибка: ' + e.message);
+        }
+    }
+
+    async function deleteAssembly() {
+        const assemblyId = document.getElementById('viewAssemblyId').value;
+        if (!confirm('Удалить это объединение?\nЛопатки останутся в базе.')) return;
+
+        try {
+            const res = await fetch(`/api/assemblies/${assemblyId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Ошибка удаления');
+            closeModal('assemblyViewModal');
+            await loadAssemblies();
+            alert('✅ Объединение удалено');
+        } catch (e) {
+            alert('❌ Ошибка: ' + e.message);
+        }
+    }
+
     // ================= УТИЛИТЫ =================
     function showLoading(show) {
-        document.getElementById('loadingStatus').style.display = show ? 'block' : 'none';
+        const el = document.getElementById('loadingStatus');
+        if (el) el.style.display = show ? 'block' : 'none';
     }
 
     function showError(message) {
@@ -781,9 +1022,23 @@
     }
 
     function escapeHtml(text) {
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    // Вспомогательная функция открытия (теперь использует базовую)
+    function openModalWrapper(id) {
+        if (typeof openModal === 'function') {
+            openModal(id);
+        } else {
+            const m = document.getElementById(id);
+            if (m) {
+                m.classList.add('active');
+                m.style.display = 'flex';
+            }
+        }
     }
 </script>
 {% endblock %}

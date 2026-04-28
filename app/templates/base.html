@@ -37,6 +37,9 @@
         .btn-danger { background: #ef4444; color: #fff; }
         .btn-secondary { background: #e2e8f0; }
         input[type="text"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        .modal-overlay.active {
+            display: flex !important;
+        }
     </style>
 </head>
 <body>
@@ -53,7 +56,7 @@
 
     <header>
         <span id="db-status" style="font-size: 14px; color: #64748b;">БД не выбрана</span>
-        <div class="settings-btn" onclick="openModal()">⚙️ Настройки БД</div>
+        <div class="settings-btn" onclick="openModal('settingsModal')">⚙️ Настройки БД</div>
     </header>
 
     <main>
@@ -127,10 +130,27 @@
             loadConfig();
         }
 
-        function openModal() { document.getElementById('settingsModal').style.display = 'flex'; }
-        function closeModal() {
-            if (!currentDb) return alert('Необходимо выбрать или создать базу данных!');
-            document.getElementById('settingsModal').style.display = 'none';
+                // Универсальное открытие
+        function openModal(modalId = 'settingsModal') {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('active');
+                modal.style.display = 'flex'; // Гарантия отображения
+            }
+        }
+
+        // Универсальное закрытие
+        function closeModal(modalId = 'settingsModal') {
+            // Если это модалка настроек, проверяем БД
+            if (modalId === 'settingsModal' && !currentDb) {
+                return alert('Необходимо выбрать или создать базу данных!');
+            }
+
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('active');
+                modal.style.display = 'none';
+            }
         }
 
         loadConfig();
