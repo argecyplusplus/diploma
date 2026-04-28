@@ -536,67 +536,97 @@
 
     // ================= СОХРАНЕНИЕ ЛОПАТКИ =================
     async function saveBlade() {
-        const bladeId = document.getElementById('bladeId').value;
-        const name = document.getElementById('bladeName').value.trim();
+    console.log('=== Начало сохранения лопатки ===');
 
-        if (!name) {
-            alert('Введите наименование лопатки');
-            return;
+    const bladeId = document.getElementById('bladeId').value;
+    const name = document.getElementById('bladeName').value.trim();
+
+    console.log('bladeId:', bladeId, 'name:', name);
+
+    if (!name) {
+        alert('Введите наименование лопатки');
+        return;
+    }
+
+    const allCoords = [...editingCoords.upper, ...editingCoords.lower]
+        .map(c => ({
+            profile_type: c.profile_type,
+            x: parseFloat(c.x),
+            y: parseFloat(c.y)
+        }))
+        .filter(c => !isNaN(c.x) && !isNaN(c.y));
+
+    console.log('Координат для сохранения:', allCoords.length);
+
+    if (allCoords.length === 0 && !bladeId) {
+        if (!confirm('Координаты профиля не добавлены. Продолжить?')) return;
+    }
+
+    try {
+        const url = bladeId ? `/api/blades/${bladeId}` : '/api/blades';
+        const method = bladeId ? 'PUT' : 'POST';
+
+        console.log(`Запрос: ${method} ${url}`);
+
+        const bladeRes = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+
+        console.log('Ответ сервера (лопатка):', bladeRes.status, bladeRes.ok);
+
+        if (!bladeRes.ok) {
+            const err = await bladeRes.json();
+            console.error('Ошибка сохранения лопатки:', err);
+            throw new Error(err.error || 'Ошибка сохранения');
         }
 
-        // Берём данные из буфера редактирования, валидируем и форматируем
-        const allCoords = [...editingCoords.upper, ...editingCoords.lower]
-            .map(c => ({
-                profile_type: c.profile_type,
-                x: parseFloat(c.x),
-                y: parseFloat(c.y)
-            }))
-            .filter(c => !isNaN(c.x) && !isNaN(c.y));
+        const savedBlade = await bladeRes.json();
+        console.log('Сохранённая лопатка:', savedBlade);
+        const savedBladeId = savedBlade.blade_id || bladeId;
+        console.log('ID сохранённой лопатки:', savedBladeId);
 
-        if (allCoords.length === 0 && !bladeId) {
-            if (!confirm('Координаты профиля не добавлены. Продолжить?')) return;
-        }
+        if (allCoords.length > 0) {
+            if (bladeId) {
+                console.log('Удаление старых координат...');
+                const delRes = await fetch(`/api/blades/${bladeId}/coordinates`, { method: 'DELETE' });
+                console.log('Удаление координат:', delRes.status);
+            }
 
-        try {
-            const url = bladeId ? `/api/blades/${bladeId}` : '/api/blades';
-            const method = bladeId ? 'PUT' : 'POST';
-
-            const bladeRes = await fetch(url, {
-                method: method,
+            console.log('Отправка координат...');
+            const coordsRes = await fetch(`/api/blades/${savedBladeId}/coordinates`, {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
+                body: JSON.stringify(allCoords)
             });
 
-            if (!bladeRes.ok) {
-                const err = await bladeRes.json();
-                throw new Error(err.error || 'Ошибка сохранения');
+            console.log('Ответ сервера (координаты):', coordsRes.status, coordsRes.ok);
+
+            if (!coordsRes.ok) {
+                const err = await coordsRes.json();
+                console.error('Ошибка сохранения координат:', err);
+                throw new Error(err.error || 'Ошибка сохранения координат');
             }
+        }
 
-            const savedBlade = await bladeRes.json();
-            const savedBladeId = savedBlade.blade_id || bladeId;
+        console.log('=== Завершение сохранения ===');
+        closeBladeModal('bladeModal');
+        await loadBlades(); // await гарантирует, что таблица обновится до показа алерта
+        alert('Лопатка сохранена!');
 
-            if (allCoords.length > 0) {
-                if (bladeId) {
-                    await fetch(`/api/blades/${bladeId}/coordinates`, { method: 'DELETE' });
-                }
-                const coordsRes = await fetch(`/api/blades/${savedBladeId}/coordinates`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(allCoords)
-                });
-                if (!coordsRes.ok) {
-                    const err = await coordsRes.json();
-                    throw new Error(err.error || 'Ошибка сохранения координат');
-                }
-            }
+    } catch (e) {
+        console.error('Исключение при сохранении:', e);
 
-            closeBladeModal('bladeModal');
-            loadBlades();
-            alert('Лопатка сохранена!');
-        } catch (e) {
-            alert(`Ошибка: ${e.message}`);
+        if (e.response) {
+            e.response.json().then(err => {
+                alert(`Ошибка: ${err.error || 'Неизвестная ошибка'}`);
+            });
+        } else {
+            alert(`Ошибка: ${e.message || e}`);
         }
     }
+}
 
     function confirmDeleteBlade(bladeId) {
         const blade = bladesData.find(b => b.blade_id === bladeId);

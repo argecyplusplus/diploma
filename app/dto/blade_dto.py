@@ -17,7 +17,6 @@ class BladeResponse(BaseModel):
 # В новой БД верхний/нижний профиль хранится в одной таблице с полем profile_type
 class ProfileCoordinateRequest(BaseModel):
     profile_type: str = Field(..., description="'upper' или 'lower'")
-    profile_name: str = Field(..., min_length=1)
     x: float
     y: float
 
@@ -25,7 +24,6 @@ class ProfileCoordinateResponse(BaseModel):
     profile_coordinates_id: int
     blade_id: int
     profile_type: str
-    profile_name: str
     x: float
     y: float
     model_config = ConfigDict(from_attributes=True)

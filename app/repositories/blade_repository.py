@@ -96,10 +96,10 @@ class ProfileCoordinateRepository:
             )
         ).all()
 
-    def create(self, blade_id: int, profile_type: str, profile_name: str, x: float, y: float) -> ProfileCoordinate:
+    def create(self, blade_id: int, profile_type: str, x: float, y: float) -> ProfileCoordinate:
         coord = ProfileCoordinate(
             blade_id=blade_id, profile_type=profile_type,
-            profile_name=profile_name, x=x, y=y
+            x=x, y=y
         )
         self.session.add(coord)
         self.session.flush()

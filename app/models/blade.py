@@ -64,7 +64,6 @@ class ProfileCoordinate(Base):
     profile_coordinates_id = Column(Integer, primary_key=True, autoincrement=True)
     blade_id = Column(Integer, ForeignKey('blades.blade_id', ondelete="CASCADE"), nullable=False)
     profile_type = Column(Text, nullable=False)
-    profile_name = Column(Text, nullable=False)
     x = Column(Float, nullable=False)
     y = Column(Float, nullable=False)
 

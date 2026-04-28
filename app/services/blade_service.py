@@ -52,7 +52,7 @@ class BladeService:
 
         coord = self.coord_repo.create(
             blade_id=blade_id, profile_type=p_type,
-            profile_name=data.profile_name, x=data.x, y=data.y
+            x=data.x, y=data.y
         )
         return ProfileCoordinateResponse.model_validate(coord)
 
@@ -63,7 +63,6 @@ class BladeService:
             {
                 "blade_id": blade_id,
                 "profile_type": c.profile_type.lower(),
-                "profile_name": c.profile_name,
                 "x": c.x,
                 "y": c.y
             } for c in coords
