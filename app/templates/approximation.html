@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="approx-container">
+    <div class="section-header">
+        <h2>Аппроксимация профиля</h2>
+    </div>
+
+    <div class="control-panel" style="background:#fff; padding:20px; border-radius:8px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+        <label style="font-weight:500; margin-right:10px;">Выберите лопатку:</label>
+        <select id="bladeSelect" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; min-width:200px;">
+            <option value="">-- Загрузка списка --</option>
+        </select>
+        <button class="btn-primary" onclick="executeApproximation()" style="margin-left:10px;">▶ Выполнить аппроксимацию</button>
+    </div>
+
+    <div id="loading" style="text-align:center; padding:20px; display:none; color:#64748b;">
+        ⏳ Выполняется расчет и сохранение в БД...
+    </div>
+
+    <div id="results" style="display:none;">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('plot')">📊 График</button>
+            <button class="tab-btn" onclick="switchTab('coords')">📐 Координаты</button>
+            <button class="tab-btn" onclick="switchTab('coeffs')">🔢 Коэффициенты Лежандра</button>
+            <button class="tab-btn" onclick="switchTab('params')">📈 Параметры</button>
+        </div>
+
+        <div id="tab-plot" class="tab-content active" style="text-align:center;">
+            <img id="plotImg" src="" alt="График аппроксимации" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+            <button class="btn-secondary" onclick="savePlot()" style="margin-top:10px;">💾 Сохранить график (PNG)</button>
+        </div>
+
+        <div id="tab-coords" class="tab-content">
+            <table class="data-table"><thead><tr><th>Тип</th><th>X</th><th>Y</th></tr></thead><tbody id="coordsBody"></tbody></table>
+            <button class="btn-secondary" onclick="saveTable('coords')" style="margin-top:10px;">💾 Сохранить CSV</button>
+        </div>
+
+        <div id="tab-coeffs" class="tab-content">
+            <table class="data-table"><thead><tr><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr></thead><tbody id="coeffsBody"></tbody></table>
+            <button class="btn-secondary" onclick="saveTable('coeffs')" style="margin-top:10px;">💾 Сохранить CSV</button>
+        </div>
+
+        <div id="tab-params" class="tab-content">
+            <table class="data-table"><thead><tr><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R²</th></tr></thead><tbody id="paramsBody"></tbody></table>
+            <button class="btn-secondary" onclick="saveTable('params')" style="margin-top:10px;">💾 Сохранить CSV</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .approx-container { max-width: 900px; }
+    .control-panel { display:flex; align-items:center; flex-wrap:wrap; }
+    .tabs { display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid #e2e8f0; }
+    .tab-btn { padding:10px 16px; border:none; background:#f1f5f9; border-radius:6px 6px 0 0; cursor:pointer; font-weight:500; }
+    .tab-btn.active { background:#2563eb; color:#fff; }
+    .tab-content { display:none; background:#fff; padding:16px; border-radius:0 8px 8px 8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+    .tab-content.active { display:block; }
+    .data-table { width:100%; border-collapse:collapse; margin-bottom:10px; }
+    .data-table th, .data-table td { padding:10px; border-bottom:1px solid #e2e8f0; text-align:left; }
+    .data-table th { background:#f8fafc; font-weight:600; }
+</style>
+
+<script>
+    let currentData = { coords: [], coeffs: [], params: [] };
+
+    document.addEventListener('DOMContentLoaded', () => {
+        fetch('/approximation/blades')
+            .then(r => r.json())
+            .then(blades => {
+                const sel = document.getElementById('bladeSelect');
+                sel.innerHTML = '<option value="">-- Выберите лопатку --</option>' +
+                    blades.map(b => `<option value="${b.id}">${b.name} (ID: ${b.id})</option>`).join('');
+            })
+            .catch(err => console.error('Ошибка загрузки списка лопаток:', err));
+    });
+
+    async function executeApproximation() {
+        const bladeId = document.getElementById('bladeSelect').value;
+        if (!bladeId) return alert('Выберите лопатку');
+
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('results').style.display = 'none';
+        try {
+            const res = await fetch(`/approximation/execute/${bladeId}`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Ошибка выполнения аппроксимации');
+            await loadResults(bladeId);
+        } catch (e) {
+            alert('Ошибка: ' + e.message);
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    async function loadResults(bladeId) {
+        try {
+            const [resData, resPlot] = await Promise.all([
+                fetch(`/approximation/results/${bladeId}`).then(r => {
+                    if (!r.ok) throw new Error('Ошибка загрузки результатов');
+                    return r.json();
+                }),
+                fetch(`/approximation/plot/${bladeId}`).then(r => {
+                    if (!r.ok) throw new Error('Ошибка загрузки графика');
+                    return r.json();
+                })
+            ]);
+
+            document.getElementById('plotImg').src = resPlot.image;
+            document.getElementById('coordsBody').innerHTML = resData.transformed_coords.map(c =>
+                `<tr><td>${c.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${c.x.toFixed(6)}</td><td>${c.y.toFixed(6)}</td></tr>`
+            ).join('');
+            document.getElementById('coeffsBody').innerHTML = resData.legendre_coeffs.map(c =>
+                `<tr><td>${c.idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`
+            ).join('');
+            document.getElementById('paramsBody').innerHTML = resData.approximation_params.map(p =>
+                `<tr><td>${p.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${p.max_val.toFixed(4)}</td><td>${p.x_max.toFixed(4)}</td><td>${p.r2.toFixed(4)}</td></tr>`
+            ).join('');
+
+            currentData.coords = resData.transformed_coords;
+            currentData.coeffs = resData.legendre_coeffs;
+            currentData.params = resData.approximation_params;
+
+            document.getElementById('results').style.display = 'block';
+            switchTab('plot');
+        } catch (e) {
+            alert('Ошибка загрузки данных: ' + e.message);
+            document.getElementById('results').style.display = 'none';
+        }
+    }
+
+    // ✅ ИСПРАВЛЕНО: больше не зависит от глобального event
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        const tabMap = ['plot', 'coords', 'coeffs', 'params'];
+        const index = tabMap.indexOf(tabName);
+        if (index !== -1) {
+            document.querySelectorAll('.tab-btn')[index].classList.add('active');
+            document.querySelectorAll('.tab-content')[index].classList.add('active');
+        }
+    }
+
+    function savePlot() {
+        const link = document.createElement('a');
+        link.href = document.getElementById('plotImg').src;
+        link.download = 'approximation_plot.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function saveTable(type) {
+        const headers = type === 'coords' ? ['Type','X','Y'] :
+                        type === 'coeffs' ? ['Index','Upper','Lower'] :
+                        ['Type','Max_Y','X_at_Max','R2'];
+        const data = currentData[type];
+        let csv = headers.join(',') + '\n';
+        if (type === 'coords') data.forEach(r => csv += `${r.type},${r.x},${r.y}\n`);
+        if (type === 'coeffs') data.forEach(r => csv += `${r.idx},${r.upper},${r.lower}\n`);
+        if (type === 'params') data.forEach(r => csv += `${r.type},${r.max_val},${r.x_max},${r.r2}\n`);
+
+        // ✅ Добавлена кодировка UTF-8 для корректного отображения кириллицы в Excel
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `approx_${type}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+</script>
+{% endblock %}

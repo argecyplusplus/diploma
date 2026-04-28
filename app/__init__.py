@@ -3,6 +3,7 @@ import os
 from flask import Flask, redirect, url_for, request, jsonify, g
 from .controllers.settings_api import settings_api_bp
 from .controllers.main_views import main_bp
+from .controllers.approximation_controller import approx_bp
 from .controllers.blade_controller import blade_bp, assembly_bp
 from .controllers.page_views import page_views_bp
 from .utils.database import get_db_list
@@ -16,6 +17,7 @@ def create_app():
     app.register_blueprint(page_views_bp)  # <-- Добавьте это
     app.register_blueprint(blade_bp)
     app.register_blueprint(assembly_bp)
+    app.register_blueprint(approx_bp)
     app.register_blueprint(settings_api_bp, url_prefix='/api/settings')
 
     # Middleware: проверка выбора БД
