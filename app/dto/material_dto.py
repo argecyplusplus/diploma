@@ -44,7 +44,6 @@ class MaterialResponse(BaseModel):
 
 class ChemicalElementCreateRequest(BaseModel):
     """Создание химического элемента + базового материала"""
-    symbol: str = Field(..., min_length=1, max_length=10)
     name: str = Field(..., min_length=1, max_length=100)
     # Тип элемента из старой программы
     type: Literal['Металл', 'Неметалл', 'Оксид', 'Нитрид', 'Карбид', 'Композит', 'Газ']
@@ -60,7 +59,6 @@ class ChemicalElementCreateRequest(BaseModel):
 
 class ChemicalElementUpdateRequest(BaseModel):
     """Обновление химического элемента"""
-    symbol: Optional[str] = None
     name: Optional[str] = None
     type: Optional[Literal['Металл', 'Неметалл', 'Оксид', 'Нитрид', 'Карбид', 'Композит', 'Газ']] = None
 
@@ -75,7 +73,6 @@ class ChemicalElementUpdateRequest(BaseModel):
 class ChemicalElementResponse(BaseModel):
     """Ответ с данными химического элемента и его свойств"""
     chemical_element_id: int
-    symbol: str
     name: str
     type: str
     material_id: int

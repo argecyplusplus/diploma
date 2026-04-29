@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select
 from ..models.material import Material, AlloyComposition, ChemicalElement, ElValue
 
@@ -59,3 +59,39 @@ class MaterialRepository:
         for comp in components_data:
             self.session.add(AlloyComposition(alloy_id=alloy_id, **comp))
         self.session.flush()
+
+    def get_elements_with_type(self) -> List[ChemicalElement]:
+        """Получить все химические элементы с их типом и свойствами материала"""
+        return self.session.scalars(
+            select(ChemicalElement)
+            .join(Material, ChemicalElement.material_id == Material.material_id)
+            .options(
+                joinedload(ChemicalElement.material)
+            )
+        ).all()
+
+    def get_element_by_id_with_type(self, element_id: int) -> Optional[ChemicalElement]:
+        """Получить химический элемент по ID с типом и свойствами материала"""
+        return self.session.scalars(
+            select(ChemicalElement)
+            .where(ChemicalElement.chemical_element_id == element_id)
+            .join(Material, ChemicalElement.material_id == Material.material_id)
+            .options(
+                joinedload(ChemicalElement.material)
+            )
+        ).first()
+
+    def get_element_by_id(self, element_id: int) -> Optional[ChemicalElement]:
+        """Получить химический элемент по ID без eager loading"""
+        return self.session.get(ChemicalElement, element_id)
+
+    def create_chemical_element(self, name: str, type: str, material_id: int) -> ChemicalElement:
+        """Создать запись химического элемента"""
+        element = ChemicalElement(
+            name=name,
+            type=type,
+            material_id=material_id
+        )
+        self.session.add(element)
+        self.session.flush()
+        return element

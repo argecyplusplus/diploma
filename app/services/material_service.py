@@ -56,7 +56,6 @@ class MaterialService:
         )
         # 2. Создаём запись химического элемента
         element = self.repo.create_chemical_element(
-            symbol=data.symbol,
             name=data.name,
             type=data.type,
             material_id=material.material_id
@@ -121,3 +120,66 @@ class MaterialService:
             for k, v in props.items():
                 setattr(alloy, k, v)
             self.repo.update(alloy)
+
+    def get_elements_with_type(self):
+        """Получить все химические элементы с их типом и свойствами материала"""
+        elements = self.session.query(ChemicalElement).options(
+            joinedload(ChemicalElement.material)
+        ).all()
+
+        result = []
+        for elem in elements:
+            mat = elem.material
+            result.append(ChemicalElementResponse(
+                chemical_element_id=elem.chemical_element_id,
+                name=elem.name,
+                type=elem.type,
+                material_id=mat.material_id,
+                density=mat.density,
+                hardness=mat.hardness,
+                thermal_conductivity=mat.thermal_conductivity,
+                heat_capacity=mat.heat_capacity,
+                melting_point=mat.melting_point,
+                thermal_expansion_coef=mat.thermal_expansion_coef
+            ))
+        return result
+
+    def get_element_by_id_with_type(self, element_id: int):
+        """Получить химический элемент по ID с типом и свойствами"""
+        element = self.session.query(ChemicalElement).options(
+            joinedload(ChemicalElement.material)
+        ).filter(ChemicalElement.chemical_element_id == element_id).first()
+
+        if not element:
+            return None
+
+        mat = element.material
+        return ChemicalElementResponse(
+            chemical_element_id=element.chemical_element_id,
+            name=element.name,
+            type=element.type,
+            material_id=mat.material_id,
+            density=mat.density,
+            hardness=mat.hardness,
+            thermal_conductivity=mat.thermal_conductivity,
+            heat_capacity=mat.heat_capacity,
+            melting_point=mat.melting_point,
+            thermal_expansion_coef=mat.thermal_expansion_coef
+        )
+
+    def get_element_by_id(self, element_id: int):
+        """Получить ChemicalElement по ID"""
+        return self.session.query(ChemicalElement).filter(
+            ChemicalElement.chemical_element_id == element_id
+        ).first()
+
+    def create_chemical_element(self, name: str, type: str, material_id: int):
+        """Создать запись химического элемента"""
+        element = ChemicalElement(
+            name=name,
+            type=type,
+            material_id=material_id
+        )
+        self.session.add(element)
+        self.session.flush()  # Чтобы получить ID
+        return element

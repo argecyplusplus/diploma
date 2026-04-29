@@ -76,7 +76,6 @@ class ChemicalElement(Base):
     __tablename__ = 'chemical_elements'
 
     chemical_element_id = Column(Integer, primary_key=True, autoincrement=True)
-    symbol = Column(Text, nullable=False)
     name = Column(Text, nullable=False)
 
     # Исправлено: CheckConstraint теперь импортирован и используется корректно
@@ -100,7 +99,7 @@ class ChemicalElement(Base):
     material = relationship("Material", back_populates="chemical_elements")
 
     def __repr__(self):
-        return f"<ChemicalElement(id={self.chemical_element_id}, symbol='{self.symbol}')>"
+        return f"<ChemicalElement(id={self.chemical_element_id}, name='{self.name}')>"
 
 
 # --------------------------------------------------------------------------
