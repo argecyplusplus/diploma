@@ -46,5 +46,6 @@ class BladeAssemblyResponse(BaseModel):
 class BladeAssemblyMemberResponse(BaseModel):
     blade_assembly_members_id: int
     blade_id: int
-    description: Optional[str]
+    blade_name: Optional[str] = None  # ← добавьте это поле
+    description: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)

@@ -77,6 +77,21 @@ class BladeAssemblyRepository:
         )
         self.session.flush()
 
+    def get_members_with_blade_names(self, assembly_id: int):
+        """Возвращает участников сборки вместе с наименованиями лопаток"""
+        stmt = select(
+            BladeAssemblyMember.blade_assembly_members_id,
+            BladeAssemblyMember.blade_id,
+            BladeAssemblyMember.description,
+            Blade.name.label('blade_name')
+        ).join(
+            Blade, BladeAssemblyMember.blade_id == Blade.blade_id
+        ).where(
+            BladeAssemblyMember.blade_assembly_id == assembly_id
+        )
+        # .mappings() возвращает результат в виде словарей (dict-like)
+        return self.session.execute(stmt).mappings().all()
+
 
 class ProfileCoordinateRepository:
     """Репозиторий для работы с геометрией профилей лопаток"""

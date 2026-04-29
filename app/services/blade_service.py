@@ -84,9 +84,14 @@ class BladeService:
         return [BladeAssemblyResponse.model_validate(a) for a in self.assembly_repo.get_all()]
 
     def get_assembly_members(self, assembly_id: int) -> List[BladeAssemblyMemberResponse]:
-        assembly = self.assembly_repo.get_by_id(assembly_id)
-        if not assembly: return []
-        return [BladeAssemblyMemberResponse.model_validate(m) for m in assembly.members]
+        # Получаем уже соединённые данные из БД
+        members_data = self.assembly_repo.get_members_with_blade_names(assembly_id)
+
+        if not members_data:
+            return []
+
+        # Преобразуем словари в Pydantic-модели
+        return [BladeAssemblyMemberResponse(**row) for row in members_data]
 
     def update_assembly(self, assembly_id: int, data: BladeAssemblyUpdateRequest) -> BladeAssemblyResponse:
         assembly = self.assembly_repo.get_by_id(assembly_id)
