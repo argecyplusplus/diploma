@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from ..models.material import Material, AlloyComposition, ChemicalElement, ElValue
 
 class MaterialRepository:
@@ -52,9 +52,10 @@ class MaterialRepository:
 
     def update_alloy_composition(self, alloy_id: int, components_data: List[dict]):
         """Полностью заменяет состав сплава"""
+        # ✅ Удаляем старые записи через delete()
         self.session.execute(
-            select(AlloyComposition).where(AlloyComposition.alloy_id == alloy_id)
-        ).delete()
+            delete(AlloyComposition).where(AlloyComposition.alloy_id == alloy_id)
+        )
         self.session.flush()
         for comp in components_data:
             self.session.add(AlloyComposition(alloy_id=alloy_id, **comp))

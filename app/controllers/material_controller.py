@@ -5,7 +5,7 @@ from ..dto.material_dto import (
     MaterialCreateRequest, MaterialUpdateRequest,
     ChemicalElementCreateRequest, ChemicalElementUpdateRequest,
     ChemicalElementResponse,  # 🔥 Добавлено
-    AlloyCreateRequest
+    AlloyCreateRequest, MaterialResponse
 )
 from ..utils.database import get_db_session
 
@@ -108,7 +108,7 @@ def delete_chemical_element(id):
 def get_all_materials():
     try:
         materials = get_service().repo.get_all()
-        return jsonify([m.model_dump() for m in materials])
+        return jsonify([MaterialResponse.model_validate(m).model_dump() for m in materials])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -118,7 +118,7 @@ def get_material(id):
         mat = get_service().repo.get_by_id(id)
         if not mat:
             return jsonify({"error": "Материал не найден"}), 404
-        return jsonify(mat.model_dump())
+        return jsonify(MaterialResponse.model_validate(mat).model_dump())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -146,7 +146,7 @@ def delete_material(id):
 def get_alloys():
     try:
         alloys = get_service().repo.get_alloys()
-        return jsonify([m.model_dump() for m in alloys])
+        return jsonify([MaterialResponse.model_validate(a).model_dump() for a in alloys])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -154,9 +154,10 @@ def get_alloys():
 def create_alloy():
     try:
         data = AlloyCreateRequest(**request.json)
-        res = get_service().create_alloy(data)
+        alloy = get_service().create_alloy(data)  # переименовать res -> alloy для ясности
         g.db_session.commit()
-        return jsonify(res.model_dump()), 201
+        # ✅ Исправлено
+        return jsonify(MaterialResponse.model_validate(alloy).model_dump()), 201
     except ValidationError as e:
         safe_rollback()
         return jsonify({"error": e.errors()}), 400
@@ -174,7 +175,8 @@ def get_alloy_details(id):
 
         comps = svc.repo.get_alloy_components(id)
         return jsonify({
-            "alloy": alloy.model_dump(),
+            # ✅ Исправлено
+            "alloy": MaterialResponse.model_validate(alloy).model_dump(),
             "components": [
                 {
                     "component_material_id": c.component_material_id,
@@ -203,7 +205,8 @@ def update_alloy(id):
         svc.repo.update_alloy_composition(id, [c.model_dump() for c in data.components])
         svc.repo.update(alloy)
         g.db_session.commit()
-        return jsonify(alloy.model_dump())
+        # ✅ Исправлено
+        return jsonify(MaterialResponse.model_validate(alloy).model_dump())
     except ValidationError as e:
         safe_rollback()
         return jsonify({"error": e.errors()}), 400
