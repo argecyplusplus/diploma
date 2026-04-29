@@ -197,7 +197,7 @@
             <tr>
                 <td>${m.material_id}</td>
                 <td>${escapeHtml(m.name)}</td>
-                <td>${m.type === 'element' ? 'Элемент' : 'Соединение'}</td>
+                <td>${m.type || '—'}</td>
                 <td>${m.density?.toFixed(1) || '—'}</td>
                 <td>${m.thermal_conductivity?.toFixed(2) || '—'}</td>
                 <td>${m.heat_capacity?.toFixed(1) || '—'}</td>
