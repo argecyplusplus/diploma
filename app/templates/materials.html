@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="materials-container">
+    <!-- БЛОК МАТЕРИАЛЫ -->
+    <div class="section-header">
+        <h2>🧪 Химические элементы / Материалы</h2>
+        <button class="btn-primary" onclick="openMaterialModal()">+ Добавить материал</button>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead><tr><th>ID</th><th>Название</th><th>Тип</th><th>ρ, кг/м³</th><th>λ</th><th>Cp</th><th>Действия</th></tr></thead>
+            <tbody id="elementsTable"><tr><td colspan="7" class="text-center">Загрузка...</td></tr></tbody>
+        </table>
+    </div>
+
+    <!-- БЛОК СПЛАВЫ -->
+    <div class="section-header">
+        <h2>🔩 Сплавы</h2>
+        <button class="btn-primary" onclick="openAlloyModal()">+ Создать сплав</button>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead><tr><th>ID</th><th>Название</th><th>ρ, кг/м³</th><th>Tпл</th><th>Комп.</th><th>Действия</th></tr></thead>
+            <tbody id="alloysTable"><tr><td colspan="6" class="text-center">Загрузка...</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модалка: Материал -->
+<div class="modal-overlay" id="materialModal">
+    <div class="modal">
+        <h3 id="matModalTitle">Добавить материал</h3>
+        <form id="matForm">
+            <input type="hidden" id="matId">
+            <div class="form-group"><label>Название *</label><input type="text" id="matName" required></div>
+            <div class="form-group">
+                <label>Тип элемента *</label>
+                <label for="elementType"></label><select id="elementType" required>
+                    <option value="">-- Выберите тип --</option>
+                    <option value="Металл">Металл</option>
+                    <option value="Неметалл">Неметалл</option>
+                    <option value="Оксид">Оксид</option>
+                    <option value="Нитрид">Нитрид</option>
+                    <option value="Карбид">Карбид</option>
+                    <option value="Композит">Композит</option>
+                    <option value="Газ">Газ</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>ρ, кг/м³ *</label><input type="number" id="matDensity" step="0.1" required></div>
+                <div class="form-group"><label>Твердость, HV</label><input type="number" id="matHardness" step="0.1"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>λ, Вт/мК *</label><input type="number" id="matLambda" step="0.01" required></div>
+                <div class="form-group"><label>Cp, Дж/кгК *</label><input type="number" id="matCp" step="0.1" required></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Tпл, °С</label><input type="number" id="matTmelt" step="0.1"></div>
+                <div class="form-group"><label>КТР, 10⁻⁶/К *</label><input type="number" id="matKLT" step="0.01" required></div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal('materialModal')">Отмена</button>
+                <button type="submit" class="btn-primary">Сохранить</button>
+                <button type="button" class="btn-danger" id="matDeleteBtn" onclick="deleteMaterial()">Удалить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модалка: Сплав -->
+<div class="modal-overlay" id="alloyModal">
+    <div class="modal modal-lg">
+        <h3 id="alloyModalTitle">Создать сплав</h3>
+        <form id="alloyForm">
+            <input type="hidden" id="alloyId">
+            <div class="form-group"><label>Название сплава *</label><input type="text" id="alloyName" required></div>
+            <h4>Компоненты (сумма = 100%)</h4>
+            <div id="alloyComponents"></div>
+            <button type="button" class="btn-secondary btn-sm" onclick="addAlloyComponentRow()">+ Компонент</button>
+            <div id="massSumError" class="error-msg">⚠️ Сумма должна быть 100% (сейчас: <span id="massSum">0</span>%)</div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeModal('alloyModal')">Отмена</button>
+                <button type="submit" class="btn-primary">Рассчитать и сохранить</button>
+                <button type="button" class="btn-danger" id="alloyDeleteBtn" onclick="deleteAlloy()">Удалить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Модалка: Просмотр сплава -->
+<div class="modal-overlay" id="viewAlloyModal">
+    <div class="modal">
+        <h3>Сплав: <span id="viewAlloyName"></span></h3>
+        <div class="properties-grid">
+            <div><b>ρ:</b> <span id="viewDensity"></span> кг/м³</div>
+            <div><b>λ:</b> <span id="viewLambda"></span> Вт/мК</div>
+            <div><b>Cp:</b> <span id="viewCp"></span> Дж/кгК</div>
+            <div><b>Tпл:</b> <span id="viewTmelt"></span> °С</div>
+            <div><b>КТР:</b> <span id="viewKLT"></span> 10⁻⁶/К</div>
+            <div><b>Твердость:</b> <span id="viewHardness"></span> HV</div>
+        </div>
+        <h4>Состав:</h4>
+        <table class="data-table"><thead><tr><th>Компонент</th><th>Доля, %</th></tr></thead><tbody id="viewAlloyComps"></tbody></table>
+        <div class="modal-actions"><button class="btn-secondary" onclick="closeModal('viewAlloyModal')">Закрыть</button></div>
+    </div>
+</div>
+
+<style>
+    .materials-container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #e2e8f0; }
+    .table-wrapper { overflow-x: auto; margin-bottom: 30px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .data-table th, .data-table td { padding: 10px 12px; border: 1px solid #e2e8f0; text-align: left; }
+    .data-table th { background: #f8fafc; font-weight: 600; }
+    .data-table tr:hover { background: #f8fafc; }
+    .text-center { text-align: center; color: #64748b; }
+
+    /* Кнопки */
+    .btn-primary { background: #3b82f6; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-secondary { background: #e2e8f0; color: #1e293b; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    .btn-secondary:hover { background: #cbd5e1; }
+    .btn-danger { background: #ef4444; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-edit { background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px; }
+    .btn-delete { background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px; color: #ef4444; }
+    .btn-view { background: none; border: none; cursor: pointer; font-size: 16px; padding: 4px; color: #3b82f6; }
+
+    /* Модальные окна */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: #fff; padding: 24px; border-radius: 12px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+    .modal-lg { max-width: 700px; }
+    .modal h3 { margin: 0 0 20px; }
+    .modal h4 { margin: 20px 0 10px; font-size: 14px; color: #475569; }
+
+    /* Формы */
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; margin-bottom: 4px; font-weight: 500; font-size: 14px; }
+    .form-group input, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .error-msg { color: #dc2626; font-size: 13px; margin: 8px 0; display: none; }
+    .error-msg.show { display: block; }
+
+    /* Компоненты сплава */
+    .comp-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .comp-row select { flex: 2; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    .comp-row input { flex: 1; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    .btn-remove { background: #ef4444; color: #fff; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+
+    /* Сетка свойств */
+    .properties-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; background: #f8fafc; padding: 16px; border-radius: 8px; margin: 12px 0; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+</style>
+
+<script>
+    let materials = [], alloys = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadMaterials();
+        loadAlloys();
+        document.getElementById('matForm').onsubmit = saveMaterial;
+        document.getElementById('alloyForm').onsubmit = saveAlloy;
+    });
+
+    // ===== ЗАГРУЗКА ДАННЫХ =====
+    async function loadMaterials() {
+    try {
+        // 🔥 ИЗМЕНЕНО: /api/materials → /api/elements
+        const res = await fetch('/api/elements');
+        if (!res.ok) throw new Error('Ошибка загрузки');
+        materials = await res.json();
+        renderMaterialsTable();
+    } catch (e) {
+        document.getElementById('elementsTable').innerHTML = `<tr><td colspan="7" class="text-center" style="color:#ef4444">Ошибка: ${e.message}</td></tr>`;
+    }
+}
+
+    async function loadAlloys() {
+        try {
+            const res = await fetch('/api/alloys');
+            if (!res.ok) throw new Error('Ошибка загрузки');
+            alloys = await res.json();
+            renderAlloysTable();
+        } catch (e) {
+            document.getElementById('alloysTable').innerHTML = `<tr><td colspan="6" class="text-center" style="color:#ef4444">Ошибка: ${e.message}</td></tr>`;
+        }
+    }
+
+    function renderMaterialsTable() {
+        if (!materials.length) {
+            document.getElementById('elementsTable').innerHTML = `<tr><td colspan="7" class="text-center">Нет материалов</td></tr>`;
+            return;
+        }
+        document.getElementById('elementsTable').innerHTML = materials.map(m => `
+            <tr>
+                <td>${m.material_id}</td>
+                <td>${escapeHtml(m.name)}</td>
+                <td>${m.type === 'element' ? 'Элемент' : 'Соединение'}</td>
+                <td>${m.density?.toFixed(1) || '—'}</td>
+                <td>${m.thermal_conductivity?.toFixed(2) || '—'}</td>
+                <td>${m.heat_capacity?.toFixed(1) || '—'}</td>
+                <td>
+                    <button class="btn-edit" onclick="editMaterial(${m.material_id})">✏️</button>
+                    <button class="btn-delete" onclick="deleteMaterialById(${m.material_id})">🗑️</button>
+                </td>
+            </tr>`).join('');
+    }
+
+    function renderAlloysTable() {
+        if (!alloys.length) {
+            document.getElementById('alloysTable').innerHTML = `<tr><td colspan="6" class="text-center">Нет сплавов</td></tr>`;
+            return;
+        }
+        document.getElementById('alloysTable').innerHTML = alloys.map(a => `
+            <tr>
+                <td>${a.material_id}</td>
+                <td>${escapeHtml(a.name)}</td>
+                <td>${a.density?.toFixed(1) || '—'}</td>
+                <td>${a.melting_point?.toFixed(0) || '—'}</td>
+                <td><button class="btn-view" onclick="viewAlloy(${a.material_id})">👁️</button></td>
+                <td>
+                    <button class="btn-edit" onclick="editAlloy(${a.material_id})">✏️</button>
+                    <button class="btn-delete" onclick="deleteAlloyById(${a.material_id})">🗑️</button>
+                </td>
+            </tr>`).join('');
+    }
+
+    // ===== МОДАЛКИ =====
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    function handleOverlayClick(e, id) { if (e.target.id === id) closeModal(id); }
+
+    // ===== МАТЕРИАЛЫ =====
+    function openMaterialModal(id = null) {
+        document.getElementById('matId').value = id || '';
+        document.getElementById('matModalTitle').textContent = id ? 'Редактировать' : 'Добавить';
+        document.getElementById('matDeleteBtn').style.display = id ? 'inline-block' : 'none';
+        document.getElementById('matForm').reset();
+        if (id) {
+            const m = materials.find(x => x.material_id == id);
+            if (m) {
+                document.getElementById('matName').value = m.name;
+                document.getElementById('elementType').value = m.type || 'Металл'; // Или дефолтное значение
+                document.getElementById('matDensity').value = m.density || '';
+                document.getElementById('matHardness').value = m.hardness || '';
+                document.getElementById('matLambda').value = m.thermal_conductivity || '';
+                document.getElementById('matCp').value = m.heat_capacity || '';
+                document.getElementById('matTmelt').value = m.melting_point || '';
+                document.getElementById('matKLT').value = m.thermal_expansion_coef || '';
+            }
+        }
+        openModal('materialModal');
+    }
+
+    async function saveMaterial(e) {
+    e.preventDefault();
+    const id = document.getElementById('matId').value;
+    const payload = {
+        name: document.getElementById('matName').value,
+        type: document.getElementById('elementType').value,  // ✅ Тип элемента
+        density: +document.getElementById('matDensity').value,
+        thermal_conductivity: +document.getElementById('matLambda').value,
+        heat_capacity: +document.getElementById('matCp').value,
+        thermal_expansion_coef: +document.getElementById('matKLT').value,
+        hardness: document.getElementById('matHardness').value ? +document.getElementById('matHardness').value : null,
+        melting_point: document.getElementById('matTmelt').value ? +document.getElementById('matTmelt').value : null
+    };
+    try {
+        // 🔥 ИЗМЕНЕНО: /api/materials → /api/elements
+        const url = id ? `/api/elements/${id}` : '/api/elements';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method,
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || 'Ошибка сохранения');
+        }
+        closeModal('materialModal');
+        await loadMaterials();
+        await loadAlloys(); // пересчёт сплавов
+    } catch (err) {
+        alert('Ошибка: ' + err.message);
+    }
+}
+
+    async function deleteMaterial() {
+    const id = document.getElementById('matId').value;
+    if (confirm('Удалить элемент? Все сплавы с этим компонентом будут пересчитаны.')) {
+        try {
+            // 🔥 ИЗМЕНЕНО: /api/materials → /api/elements
+            await fetch(`/api/elements/${id}`, { method: 'DELETE' });
+            closeModal('materialModal');
+            await loadMaterials();
+            await loadAlloys();
+        } catch (e) { alert('Ошибка: ' + e.message); }
+    }
+}
+
+    async function deleteMaterialById(id) {
+    if (confirm('Удалить этот элемент?')) {
+        try {
+            // 🔥 ИЗМЕНЕНО: /api/materials → /api/elements
+            await fetch(`/api/elements/${id}`, { method: 'DELETE' });
+            await loadMaterials();
+            await loadAlloys();
+        } catch (e) { alert('Ошибка: ' + e.message); }
+    }
+}
+
+    function editMaterial(id) { openMaterialModal(id); }
+
+    // ===== СПЛАВЫ =====
+    async function openAlloyModal(id = null) {
+        document.getElementById('alloyId').value = id || '';
+        document.getElementById('alloyModalTitle').textContent = id ? 'Редактировать сплав' : 'Создать сплав';
+        document.getElementById('alloyDeleteBtn').style.display = id ? 'inline-block' : 'none';
+        document.getElementById('alloyComponents').innerHTML = '';
+        document.getElementById('alloyForm').reset();
+
+        if (id) {
+            // Загрузка компонентов сплава
+            try {
+                const res = await fetch(`/api/alloys/${id}`);
+                const data = await res.json();
+                document.getElementById('alloyName').value = data.alloy.name;
+                data.components.forEach(c => {
+                    addAlloyComponentRow(c.component_material_id, (c.mass_fraction * 100).toFixed(1));
+                });
+                validateMassSum();
+            } catch (e) { console.error(e); }
+        } else {
+            addAlloyComponentRow(); addAlloyComponentRow();
+        }
+        openModal('alloyModal');
+    }
+
+    function addAlloyComponentRow(selectedId = '', fraction = '') {
+        const div = document.createElement('div');
+        div.className = 'comp-row';
+        const options = materials.map(m => `<option value="${m.material_id}" ${m.material_id == selectedId ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('');
+        div.innerHTML = `
+            <select class="comp-select"><option value="">Выберите...</option>${options}</select>
+            <input type="number" class="comp-frac" placeholder="%" min="0" max="100" step="0.1" value="${fraction}" oninput="validateMassSum()">
+            <button type="button" class="btn-remove" onclick="this.parentElement.remove(); validateMassSum()">✕</button>
+        `;
+        document.getElementById('alloyComponents').appendChild(div);
+    }
+
+    function validateMassSum() {
+        const inputs = document.querySelectorAll('.comp-frac');
+        let sum = 0;
+        inputs.forEach(i => { const v = parseFloat(i.value); if (!isNaN(v)) sum += v; });
+        document.getElementById('massSum').textContent = sum.toFixed(1);
+        const err = document.getElementById('massSumError');
+        err.classList.toggle('show', Math.abs(sum - 100) > 0.5);
+        return Math.abs(sum - 100) <= 0.5;
+    }
+
+    async function saveAlloy(e) {
+        e.preventDefault();
+        if (!validateMassSum()) { alert('Сумма массовых долей должна быть 100%!'); return; }
+        const id = document.getElementById('alloyId').value;
+        const name = document.getElementById('alloyName').value;
+        const components = [];
+        document.querySelectorAll('.comp-row').forEach(row => {
+            const matId = row.querySelector('.comp-select').value;
+            const frac = parseFloat(row.querySelector('.comp-frac').value) / 100;
+            if (matId && frac > 0) components.push({ component_material_id: +matId, mass_fraction: frac });
+        });
+        if (components.length < 2) { alert('Нужно минимум 2 компонента'); return; }
+        try {
+            const url = id ? `/api/alloys/${id}` : '/api/alloys';
+            const method = id ? 'PUT' : 'POST';
+            const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, components }) });
+            if (!res.ok) throw new Error('Ошибка сохранения');
+            closeModal('alloyModal');
+            await loadAlloys();
+        } catch (err) { alert('Ошибка: ' + err.message); }
+    }
+
+    async function deleteAlloy() {
+        const id = document.getElementById('alloyId').value;
+        if (confirm('Удалить сплав?')) {
+            try {
+                await fetch(`/api/alloys/${id}`, { method: 'DELETE' });
+                closeModal('alloyModal');
+                await loadAlloys();
+            } catch (e) { alert('Ошибка: ' + e.message); }
+        }
+    }
+
+    async function deleteAlloyById(id) {
+        if (confirm('Удалить этот сплав?')) {
+            try {
+                await fetch(`/api/alloys/${id}`, { method: 'DELETE' });
+                await loadAlloys();
+            } catch (e) { alert('Ошибка: ' + e.message); }
+        }
+    }
+
+    function editAlloy(id) { openAlloyModal(id); }
+
+    async function viewAlloy(id) {
+        try {
+            const res = await fetch(`/api/alloys/${id}`);
+            const data = await res.json();
+            document.getElementById('viewAlloyName').textContent = data.alloy.name;
+            document.getElementById('viewDensity').textContent = data.alloy.density?.toFixed(1) || '—';
+            document.getElementById('viewLambda').textContent = data.alloy.thermal_conductivity?.toFixed(2) || '—';
+            document.getElementById('viewCp').textContent = data.alloy.heat_capacity?.toFixed(1) || '—';
+            document.getElementById('viewTmelt').textContent = data.alloy.melting_point?.toFixed(0) || '—';
+            document.getElementById('viewKLT').textContent = data.alloy.thermal_expansion_coef?.toFixed(2) || '—';
+            document.getElementById('viewHardness').textContent = data.alloy.hardness?.toFixed(1) || '—';
+            document.getElementById('viewAlloyComps').innerHTML = data.components.map(c => {
+                const mat = materials.find(m => m.material_id == c.component_material_id);
+                return `<tr><td>${mat ? escapeHtml(mat.name) : 'Удалён'}</td><td>${(c.mass_fraction * 100).toFixed(1)}%</td></tr>`;
+            }).join('');
+            openModal('viewAlloyModal');
+        } catch (e) { alert('Ошибка: ' + e.message); }
+    }
+
+    function escapeHtml(text) {
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+</script>
+{% endblock %}

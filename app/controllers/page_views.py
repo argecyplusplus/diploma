@@ -12,7 +12,7 @@ def blades_page():
 
 @page_views_bp.route('/materials')
 def materials_page():
-    return render_template('base.html')
+    return render_template('materials.html')
 
 @page_views_bp.route('/simulation')
 def simulation_page():
