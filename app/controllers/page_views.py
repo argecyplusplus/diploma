@@ -16,4 +16,4 @@ def materials_page():
 
 @page_views_bp.route('/simulation')
 def simulation_page():
-    return render_template('base.html')
+    return render_template('simulation.html')

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="ic-container">
+    <div class="section-header"><h2>⚙️ Начальные условия</h2></div>
+
+    <div class="card">
+        <h3>Создать набор</h3>
+        <form id="icForm" onsubmit="createIC(event)">
+            <div class="form-group"><label>Название набора</label><input type="text" name="name" required></div>
+
+            <details><summary>⏱️ Временные параметры</summary>
+                <div class="form-row">
+                    <input type="number" step="any" name="time_parameters.time" placeholder="Time" required>
+                    <input type="number" step="any" name="time_parameters.dt" placeholder="dt" required>
+                    <input type="number" step="1" name="time_parameters.nbT" placeholder="nbT" required>
+                    <input type="number" step="1" name="time_parameters.Nplot" placeholder="Nplot" required>
+                </div>
+            </details>
+
+            <details><summary>🌊 Поток и границы</summary>
+                <div class="form-row">
+                    <input type="number" step="any" name="potential_flow.beta" placeholder="beta" required>
+                    <input type="number" step="any" name="potential_flow.B" placeholder="B" required>
+                    <input type="text" name="boundaries[0].name" placeholder="Имя границы" value="S1">
+                    <input type="number" step="any" name="boundaries[0].value" placeholder="Значение" value="100" required>
+                </div>
+            </details>
+
+            <details><summary>🔨 Построение</summary>
+                <div class="form-row">
+                    {% for p in ['NC','NSp','NSm','NSpn','NSpm'] %}
+                    <input type="number" step="1" name="construction.{{ p }}" placeholder="{{ p }}" required>
+                    {% endfor %}
+                </div>
+            </details>
+
+            <details><summary>🔥 Напряжения</summary>
+                <div class="form-row">
+                    <input type="number" step="any" name="stress_output.coef" placeholder="coef" required>
+                    <input type="number" step="any" name="stress_output.delt" placeholder="delt" required>
+                    <input type="number" step="1" name="stress_output.Npt" placeholder="Npt" required>
+                </div>
+            </details>
+
+            <button type="submit" class="btn-primary">💾 Сохранить набор</button>
+        </form>
+    </div>
+
+    <h3 style="margin-top:20px">Сохраненные наборы</h3>
+    <table class="data-table">
+        <thead><tr><th>ID</th><th>Название</th></tr></thead>
+        <tbody>
+            {% for ic in ics %}<tr><td>{{ ic.initial_conditions_id }}</td><td>{{ ic.name }}</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+.ic-container { max-width: 900px; margin: 0 auto; padding: 20px; }
+details { background: #f8fafc; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
+details summary { cursor: pointer; font-weight: 500; }
+</style>
+
+<script>
+async function createIC(e) {
+    e.preventDefault();
+    const form = new FormData(e.target);
+    const obj = {};
+    for(let [k, v] of form.entries()) {
+        let keys = k.split(/[\.\[\]]+/).filter(Boolean);
+        let curr = obj;
+        for(let i=0; i<keys.length-1; i++) { if(!curr[keys[i]]) curr[keys[i]] = {}; curr = curr[keys[i]]; }
+        curr[keys[keys.length-1]] = isNaN(v) ? v : Number(v);
+    }
+    obj.name = form.get('name');
+
+    try {
+        const res = await fetch('/initial-conditions/create', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(obj)
+        });
+        const data = await res.json();
+        if(res.ok) { alert('✅ Набор сохранен!'); location.reload(); }
+        else alert('❌ ' + JSON.stringify(data.error));
+    } catch(e) { alert('❌ Ошибка сети'); }
+}
+</script>
+{% endblock %}

@@ -72,16 +72,29 @@
 </main>
 
     <!-- Settings Modal -->
+    <!-- Settings Modal -->
     <div class="modal-overlay" id="settingsModal">
         <div class="modal">
-            <h3>Управление базами данных</h3>
-            <div style="display: flex; gap: 8px;">
-                <input type="text" id="newDbName" placeholder="Имя новой базы...">
-                <button class="btn-primary" onclick="createDb()">Создать</button>
+            <h3>⚙️ Настройки</h3>
+
+            <div class="form-group">
+                <label>📁 База данных</label>
+                <div class="db-list" id="dbList"></div>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                    <input type="text" id="newDbName" placeholder="Имя новой БД..." style="flex:1;">
+                    <button class="btn-primary" onclick="createDb()">Создать</button>
+                </div>
             </div>
-            <div class="db-list" id="dbList"></div>
+
+            <div class="form-group" style="margin-top:16px;">
+                <label>🔧 Путь к FreeFEM++</label>
+                <input type="text" id="freefemPath" placeholder="Например: C:\Program Files\FreeFem++\FreeFem++.exe">
+                <small style="color:#64748b;">Оставьте пустым, если FreeFEM добавлен в PATH системы</small>
+            </div>
+
             <div class="actions">
-                <button class="btn-secondary" onclick="closeModal()">Закрыть</button>
+                <button class="btn-secondary" onclick="closeModal('settingsModal')">Закрыть</button>
+                <button class="btn-primary" onclick="saveSettings()">💾 Сохранить настройки</button>
             </div>
         </div>
     </div>
@@ -89,23 +102,54 @@
     <script>
     let currentDb = null;
 
+    // ================= ЕДИНАЯ ФУНКЦИЯ ЗАГРУЗКИ =================
     async function loadConfig() {
-        const res = await fetch('/api/settings/config');
-        const data = await res.json();
-        currentDb = data.current_db;
-        renderDbList(data.databases);
-        document.getElementById('db-status').textContent = currentDb ? `Активна: ${currentDb}` : 'БД не выбрана';
+        try {
+            // 1. Настройки FreeFEM
+            const settingsRes = await fetch('/api/settings');
+            const settingsData = await settingsRes.json();
+            if (settingsData.freefem_path) {
+                document.getElementById('freefemPath').value = settingsData.freefem_path;
+            }
 
-        // Автооткрытие если нет БД
-        if (!currentDb) openModal();
+            // 2. Список БД
+            const dbRes = await fetch('/api/settings/dbs');
+            const dbData = await dbRes.json();
+
+            const dbs = dbData.databases || [];
+            const current = dbData.current_db || null;
+
+            currentDb = current;
+            renderDbList(dbs);
+
+            document.getElementById('db-status').textContent = current
+                ? `Активна: ${current}`
+                : 'БД не выбрана';
+
+            if (!current) openModal('settingsModal');
+        } catch (e) {
+            console.error('Ошибка загрузки:', e);
+            document.getElementById('dbList').innerHTML =
+                `<div class="db-item" style="color:#ef4444">Ошибка: ${e.message}</div>`;
+        }
     }
 
     function renderDbList(dbs) {
+        if (!dbs || !Array.isArray(dbs) || dbs.length === 0) {
+            document.getElementById('dbList').innerHTML =
+                '<div class="db-item">Нет доступных баз данных</div>';
+            return;
+        }
+
+        // 🔥 Удаляем дубликаты на фронтенде (на всякий случай)
+        const uniqueDbs = [...new Set(dbs)];
+
         const list = document.getElementById('dbList');
-        list.innerHTML = dbs.map(db => `
+        list.innerHTML = uniqueDbs.map(db => `
             <div class="db-item ${db === currentDb ? 'active' : ''}" onclick="selectDb('${db}')">
                 <span>${db}</span>
-                <button class="btn-danger" style="padding: 2px 8px; font-size: 12px;" onclick="event.stopPropagation(); deleteDb('${db}')">✕</button>
+                <button class="btn-danger" style="padding:2px 8px;font-size:12px"
+                        onclick="event.stopPropagation(); deleteDb('${db}')">✕</button>
             </div>
         `).join('');
     }
@@ -113,81 +157,109 @@
     async function createDb() {
         const name = document.getElementById('newDbName').value.trim();
         if (!name) return alert('Введите имя');
-        const res = await fetch('/api/settings/create', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
+
+        const res = await fetch('/api/settings/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name})
+        });
         const data = await res.json();
-        if (res.ok) { document.getElementById('newDbName').value = ''; loadConfig(); }
-        else alert(data.error);
+
+        if (res.ok) {
+            document.getElementById('newDbName').value = '';
+            loadConfig();
+        } else {
+            alert('Ошибка: ' + (data.error || 'Неизвестная'));
+        }
     }
 
     async function selectDb(name) {
-        await fetch('/api/settings/select', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
-        loadConfig();
+        const res = await fetch('/api/settings/select', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name})
+        });
+        if (res.ok) loadConfig();
+        else alert('Ошибка выбора БД');
     }
 
     async function deleteDb(name) {
         if (!confirm(`Удалить ${name}? Это действие необратимо.`)) return;
-        await fetch(`/api/settings/delete/${name}`, { method: 'DELETE' });
-        loadConfig();
+
+        const res = await fetch(`/api/settings/delete/${name}`, { method: 'DELETE' });
+        if (res.ok) loadConfig();
+        else alert('Ошибка удаления');
     }
 
-    // Универсальное открытие
+    async function saveSettings() {
+        const freefemPath = document.getElementById('freefemPath').value.trim();
+        try {
+            const res = await fetch('/api/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ freefem_path: freefemPath })
+            });
+            if (res.ok) {
+                alert('✅ Настройки сохранены!');
+                closeModal('settingsModal');
+            } else {
+                const err = await res.json();
+                alert('❌ Ошибка: ' + (err.error || 'Неизвестная'));
+            }
+        } catch(e) {
+            alert('❌ Ошибка сети: ' + e.message);
+        }
+    }
+
+    // ================= МОДАЛКИ =================
     function openModal(modalId = 'settingsModal') {
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.classList.add('active');
             modal.style.display = 'flex';
-            // Блокируем прокрутку фона
             document.body.style.overflow = 'hidden';
         }
     }
 
-    // Универсальное закрытие
     function closeModal(modalId = 'settingsModal') {
-        // Если это модалка настроек, проверяем БД
         if (modalId === 'settingsModal' && !currentDb) {
-            return alert('Необходимо выбрать или создать базу данных!');
+            return alert('⚠️ Необходимо выбрать или создать базу данных!');
         }
-
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.classList.remove('active');
             modal.style.display = 'none';
-            // Возвращаем прокрутку
             document.body.style.overflow = '';
         }
     }
 
-    // 🔹 Закрытие по клику на оверлей (вне контента модалки)
+    // Закрытие по клику на оверлей
     document.addEventListener('click', function(e) {
-        // Проверяем все открытые модалки
         document.querySelectorAll('.modal-overlay.active').forEach(overlay => {
             const modalContent = overlay.querySelector('.modal');
-            // Если клик был по оверлею, но не по контенту модалки
-            if (e.target === overlay && !modalContent.contains(e.target)) {
-                const modalId = overlay.id;
-                closeModal(modalId);
+            if (e.target === overlay && !modalContent?.contains(e.target)) {
+                closeModal(overlay.id);
             }
         });
     });
 
-    // 🔹 Закрытие по нажатию Escape
+    // Закрытие по Escape
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' || e.keyCode === 27) {
-            // Закрываем все открытые модалки
+        if (e.key === 'Escape') {
             document.querySelectorAll('.modal-overlay.active').forEach(overlay => {
                 closeModal(overlay.id);
             });
         }
     });
 
-    // 🔹 Предотвращаем закрытие при клике внутри модалки
+    // Предотвращаем закрытие при клике внутри модалки
     document.querySelectorAll('.modal').forEach(modal => {
-        modal.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
+        modal.addEventListener('click', function(e) { e.stopPropagation(); });
     });
 
-    loadConfig();
+    // ================= ИНИЦИАЛИЗАЦИЯ =================
+    // 🔥 Вызываем ТОЛЬКО ОДИН раз
+    document.addEventListener('DOMContentLoaded', loadConfig);
 </script>
 </body>
 </html>

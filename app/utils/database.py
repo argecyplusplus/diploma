@@ -24,31 +24,49 @@ def save_config(config):
         json.dump(config, f, indent=4)
 
 
+def get_current_db():
+    """Возвращает имя текущей выбранной базы данных или None"""
+    config = _load_config()
+    return config.get("current_db")
+
+
 def get_db_list():
     config = _load_config()
-    # Фильтруем только существующие файлы
-    valid_dbs = [db for db in config["databases"] if os.path.exists(os.path.join(DB_DIR, db))]
-    if len(valid_dbs) != len(config["databases"]):
+    # 🔥 Удаляем дубликаты и несуществующие файлы
+    seen = set()
+    valid_dbs = []
+    for db in config["databases"]:
+        if db not in seen and os.path.exists(os.path.join(DB_DIR, db)):
+            valid_dbs.append(db)
+            seen.add(db)
+
+    # Сохраняем, если список изменился
+    if valid_dbs != config["databases"]:
         config["databases"] = valid_dbs
         save_config(config)
+
     return valid_dbs, config["current_db"]
 
 
 def create_database(name):
     if not name.endswith('.db'):
         name += '.db'
+
     config = _load_config()
+
+    # 🔥 Проверка на дубликат
     if name in config["databases"]:
         raise ValueError("База данных уже существует")
 
     os.makedirs(DB_DIR, exist_ok=True)
     db_path = os.path.join(DB_DIR, name)
 
-    # Создаем файл и инициализируем таблицы через SQLAlchemy
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
 
-    config["databases"].append(name)
+    # 🔥 Добавляем только если нет в списке
+    if name not in config["databases"]:
+        config["databases"].append(name)
     config["current_db"] = name
     save_config(config)
     return name
