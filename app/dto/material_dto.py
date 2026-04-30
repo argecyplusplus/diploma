@@ -1,108 +1,107 @@
-from typing import List, Optional
+from typing import List, Optional, Literal
 from pydantic import BaseModel, Field, ConfigDict
 
 
-# --------------------------------------------------------------------------
-# 1. DTO для Материалов (Materials)
-# --------------------------------------------------------------------------
+# ================= МАТЕРИАЛЫ (Базовые) =================
 
 class MaterialCreateRequest(BaseModel):
-    """DTO для создания нового материала или сплава"""
-    name: str = Field(..., min_length=1, max_length=100, description="Название материала")
-    type: str = Field(..., description="Тип: 'element' или 'alloy'")
+    """DTO для создания материала/элемента"""
+    name: str = Field(..., min_length=1, max_length=100)
+    # type удален, так как тип определяется контекстом (элемент или сплав)
+    density: float = Field(..., gt=0)
+    thermal_conductivity: float = Field(..., gt=0)
+    heat_capacity: float = Field(..., gt=0)
+    thermal_expansion_coef: float = Field(..., gt=0)
+    hardness: Optional[float] = None
+    melting_point: Optional[float] = None
 
-    # Обязательные физические свойства
-    density: float = Field(..., gt=0, description="Плотность (кг/м³)")
-    thermal_conductivity: float = Field(..., gt=0, description="Теплопроводность")
-    heat_capacity: float = Field(..., gt=0, description="Теплоемкость")
-    thermal_expansion_coef: float = Field(..., gt=0, description="Коэффициент теплового расширения")
 
-    # Необязательные свойства
-    hardness: Optional[float] = Field(None, description="Твердость")
-    melting_point: Optional[float] = Field(None, description="Температура плавления")
-
-    def to_repository_kwargs(self) -> dict:
-        """Преобразует DTO в аргументы для метода create репозитория"""
-        return {
-            "name": self.name,
-            "type": self.type,
-            "density": self.density,
-            "thermal_conductivity": self.thermal_conductivity,
-            "heat_capacity": self.heat_capacity,
-            "thermal_expansion_coef": self.thermal_expansion_coef,
-            "hardness": self.hardness,
-            "melting_point": self.melting_point
-        }
+class MaterialUpdateRequest(BaseModel):
+    """DTO для обновления свойств материала"""
+    density: Optional[float] = None
+    hardness: Optional[float] = None
+    thermal_conductivity: Optional[float] = None
+    heat_capacity: Optional[float] = None
+    melting_point: Optional[float] = None
+    thermal_expansion_coef: Optional[float] = None
 
 
 class MaterialResponse(BaseModel):
-    """DTO для отображения материала в интерфейсе"""
+    """Ответ API с данными материала"""
     material_id: int
     name: str
-    type: str
+    # type: str # Можно оставить, если нужно различать element/alloy в ответе
     density: float
     hardness: Optional[float]
     thermal_conductivity: float
     heat_capacity: float
     melting_point: Optional[float]
     thermal_expansion_coef: float
-
     model_config = ConfigDict(from_attributes=True)
 
 
-# --------------------------------------------------------------------------
-# 2. DTO для Сплавов (Alloy Compositions)
-# --------------------------------------------------------------------------
-# Эти DTO используются, когда мы редактируем состав конкретного сплава
+# ================= ХИМИЧЕСКИЕ ЭЛЕМЕНТЫ =================
 
-class AlloyComponentRequest(BaseModel):
-    """DTO для добавления компонента в сплав"""
-    component_material_id: int = Field(..., description="ID материала-компонента")
-    mass_fraction: float = Field(..., ge=0, le=1, description="Массовая доля (от 0.0 до 1.0)")
+class ChemicalElementCreateRequest(BaseModel):
+    """Создание химического элемента + базового материала"""
+    name: str = Field(..., min_length=1, max_length=100)
+    # Тип элемента из старой программы
+    type: Literal['Металл', 'Неметалл', 'Оксид', 'Нитрид', 'Карбид', 'Композит', 'Газ']
 
-
-class AlloyComponentResponse(BaseModel):
-    """DTO для отображения состава сплава"""
-    alloy_composition_id: int
-    component_material_id: int
-    mass_fraction: float
-
-    model_config = ConfigDict(from_attributes=True)
+    # Свойства материала (дублируются для удобства единого вызова API)
+    density: float = Field(..., gt=0)
+    thermal_conductivity: float = Field(..., gt=0)
+    heat_capacity: float = Field(..., gt=0)
+    thermal_expansion_coef: float = Field(..., gt=0)
+    hardness: Optional[float] = None
+    melting_point: Optional[float] = None
 
 
-# --------------------------------------------------------------------------
-# 3. DTO для Химических элементов (Chemical Elements)
-# --------------------------------------------------------------------------
+class ChemicalElementUpdateRequest(BaseModel):
+    """Обновление химического элемента"""
+    name: Optional[str] = None
+    type: Optional[Literal['Металл', 'Неметалл', 'Оксид', 'Нитрид', 'Карбид', 'Композит', 'Газ']] = None
 
-class ChemicalElementRequest(BaseModel):
-    """DTO для добавления химического элемента к материалу"""
-    symbol: str = Field(..., min_length=1, max_length=3, description="Символ (напр. Fe)")
-    name: str = Field(..., description="Полное название")
+    density: Optional[float] = None
+    thermal_conductivity: Optional[float] = None
+    heat_capacity: Optional[float] = None
+    thermal_expansion_coef: Optional[float] = None
+    hardness: Optional[float] = None
+    melting_point: Optional[float] = None
 
 
 class ChemicalElementResponse(BaseModel):
-    """DTO для отображения списка элементов"""
+    """Ответ с данными химического элемента и его свойств"""
     chemical_element_id: int
-    symbol: str
     name: str
-
+    type: str
+    material_id: int
+    density: float
+    hardness: Optional[float]
+    thermal_conductivity: float
+    heat_capacity: float
+    melting_point: Optional[float]
+    thermal_expansion_coef: float
     model_config = ConfigDict(from_attributes=True)
 
 
-# --------------------------------------------------------------------------
-# 4. DTO для Значений упругости (Elasticity Values)
-# --------------------------------------------------------------------------
+# ================= СПЛАВЫ =================
 
-class ElValueRequest(BaseModel):
-    """DTO для привязки параметра упругости к материалу"""
-    elasticity_parameters_id: int
-    value: float
+class AlloyComponentRequest(BaseModel):
+    """Компонент сплава для создания"""
+    component_material_id: int
+    mass_fraction: float = Field(..., ge=0, le=1, description="От 0.0 до 1.0")
 
 
-class ElValueResponse(BaseModel):
-    """DTO для отображения значений упругости"""
-    el_values_id: int
-    elasticity_parameters_id: int
-    value: float
-
+class AlloyComponentResponse(BaseModel):
+    """Ответ с данными компонента сплава"""
+    alloy_composition_id: int
+    component_material_id: int
+    mass_fraction: float
     model_config = ConfigDict(from_attributes=True)
+
+
+class AlloyCreateRequest(BaseModel):
+    """Создание сплава с компонентами"""
+    name: str = Field(..., min_length=1, max_length=100)
+    components: List[AlloyComponentRequest] = Field(..., min_length=2)

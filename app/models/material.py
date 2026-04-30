@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, Float, ForeignKey
+from sqlalchemy import Column, Integer, Text, Float, ForeignKey, CheckConstraint, Boolean
 from sqlalchemy.orm import relationship
 from .base import Base
 
@@ -11,7 +11,7 @@ class Material(Base):
 
     material_id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(Text, nullable=False)
-    type = Column(Text, nullable=False)
+    is_alloy = Column(Boolean, default=False, nullable=False)  # новый флаг
     density = Column(Float, nullable=False)
     hardness = Column(Float, nullable=True)
     thermal_conductivity = Column(Float, nullable=False)
@@ -31,12 +31,12 @@ class Material(Base):
     chemical_elements = relationship("ChemicalElement", back_populates="material", cascade="all, delete-orphan")
     el_values = relationship("ElValue", back_populates="material", cascade="all, delete-orphan")
 
-    # Связи с модулем симуляций (будут активированы после добавления back_populates в simulation.py)
+    # Связи с модулем симуляций
     simulation_materials = relationship("SimulationMaterial", back_populates="material")
     initial_temperatures = relationship("InitialTemperature", back_populates="material")
 
     def __repr__(self):
-        return f"<Material(id={self.material_id}, name='{self.name}', type='{self.type}')>"
+        return f"<Material(id={self.material_id}, name='{self.name}', is_alloy={self.is_alloy})>"
 
 
 # --------------------------------------------------------------------------
@@ -76,8 +76,20 @@ class ChemicalElement(Base):
     __tablename__ = 'chemical_elements'
 
     chemical_element_id = Column(Integer, primary_key=True, autoincrement=True)
-    symbol = Column(Text, nullable=False)
     name = Column(Text, nullable=False)
+
+    # Исправлено: CheckConstraint теперь импортирован и используется корректно
+    type = Column(
+        Text,
+        nullable=False,
+        info={'check_constraint': "type IN ('Металл', 'Неметалл', 'Оксид', 'Нитрид', 'Карбид', 'Композит', 'Газ')"}
+    )
+
+    # Альтернативный вариант для SQLAlchemy 2.0 через __table_args__, если выше не сработает:
+    # __table_args__ = (
+    #     CheckConstraint("type IN ('Металл', 'Неметалл', 'Оксид', 'Нитрид', 'Карбид', 'Композит', 'Газ')", name='chk_chemical_element_type'),
+    # )
+
     material_id = Column(
         Integer,
         ForeignKey('materials.material_id', ondelete="CASCADE"),
@@ -87,7 +99,7 @@ class ChemicalElement(Base):
     material = relationship("Material", back_populates="chemical_elements")
 
     def __repr__(self):
-        return f"<ChemicalElement(id={self.chemical_element_id}, symbol='{self.symbol}')>"
+        return f"<ChemicalElement(id={self.chemical_element_id}, name='{self.name}')>"
 
 
 # --------------------------------------------------------------------------

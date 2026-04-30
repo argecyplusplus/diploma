@@ -432,7 +432,7 @@
     });
 
     // Исправленная обработка клика по оверлею
-    function handleOverlayClick(event, modalId) {
+    /* function handleOverlayClick(event, modalId) {
         // Закрываем, только если клик был именно по темному фону (currentTarget),
         // а не по самому окну
         if (event.target === event.currentTarget) {
@@ -440,7 +440,7 @@
         }
     }
     
-
+    */
 
 
     // ================= ЗАГРУЗКА ДАННЫХ =================
@@ -667,12 +667,11 @@
         }
     }
 
-    function switchCoordTab(type) {
+    function switchCoordTab(type, event) {
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         event.target.classList.add('active');
         document.getElementById(`${type}Tab`).classList.add('active');
-        renderCoordTable(type);
     }
 
     async function saveBlade() {
@@ -1066,7 +1065,7 @@
     }
 
     // Вспомогательная функция открытия (теперь использует базовую)
-    function openModalWrapper(id) {
+    /*function openModalWrapper(id) {
         if (typeof openModal === 'function') {
             openModal(id);
         } else {
@@ -1077,6 +1076,8 @@
             }
         }
     }
+
+     */
 
     function goToApproximation(bladeId) {
     // Редирект на страницу аппроксимации с предустановленным выбором лопатки

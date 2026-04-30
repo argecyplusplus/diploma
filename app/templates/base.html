@@ -44,12 +44,12 @@
 </head>
 <body>
     <aside>
-        <h2>WGKM Modeling</h2>
+        <h2>FFModeling++</h2>
         <nav>
         <a href="/">Главная</a>
         <a href="/blades">Лопатки</a>
         <a href="/approximation">Аппроксимация</a> <!-- НОВОЕ -->
-        <a href="/materials">Материалы</a>
+        <a href="/materials">Материалы и сплавы</a>
         <a href="/simulation">Моделирование</a>
     </nav>
     </aside>
@@ -87,73 +87,107 @@
     </div>
 
     <script>
-        let currentDb = null;
+    let currentDb = null;
 
-        async function loadConfig() {
-            const res = await fetch('/api/settings/config');
-            const data = await res.json();
-            currentDb = data.current_db;
-            renderDbList(data.databases);
-            document.getElementById('db-status').textContent = currentDb ? `Активна: ${currentDb}` : 'БД не выбрана';
+    async function loadConfig() {
+        const res = await fetch('/api/settings/config');
+        const data = await res.json();
+        currentDb = data.current_db;
+        renderDbList(data.databases);
+        document.getElementById('db-status').textContent = currentDb ? `Активна: ${currentDb}` : 'БД не выбрана';
 
-            // Автооткрытие если нет БД
-            if (!currentDb) openModal();
-        }
+        // Автооткрытие если нет БД
+        if (!currentDb) openModal();
+    }
 
-        function renderDbList(dbs) {
-            const list = document.getElementById('dbList');
-            list.innerHTML = dbs.map(db => `
-                <div class="db-item ${db === currentDb ? 'active' : ''}" onclick="selectDb('${db}')">
-                    <span>${db}</span>
-                    <button class="btn-danger" style="padding: 2px 8px; font-size: 12px;" onclick="event.stopPropagation(); deleteDb('${db}')">✕</button>
-                </div>
-            `).join('');
-        }
+    function renderDbList(dbs) {
+        const list = document.getElementById('dbList');
+        list.innerHTML = dbs.map(db => `
+            <div class="db-item ${db === currentDb ? 'active' : ''}" onclick="selectDb('${db}')">
+                <span>${db}</span>
+                <button class="btn-danger" style="padding: 2px 8px; font-size: 12px;" onclick="event.stopPropagation(); deleteDb('${db}')">✕</button>
+            </div>
+        `).join('');
+    }
 
-        async function createDb() {
-            const name = document.getElementById('newDbName').value.trim();
-            if (!name) return alert('Введите имя');
-            const res = await fetch('/api/settings/create', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
-            const data = await res.json();
-            if (res.ok) { document.getElementById('newDbName').value = ''; loadConfig(); }
-            else alert(data.error);
-        }
+    async function createDb() {
+        const name = document.getElementById('newDbName').value.trim();
+        if (!name) return alert('Введите имя');
+        const res = await fetch('/api/settings/create', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
+        const data = await res.json();
+        if (res.ok) { document.getElementById('newDbName').value = ''; loadConfig(); }
+        else alert(data.error);
+    }
 
-        async function selectDb(name) {
-            await fetch('/api/settings/select', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
-            loadConfig();
-        }
-
-        async function deleteDb(name) {
-            if (!confirm(`Удалить ${name}? Это действие необратимо.`)) return;
-            await fetch(`/api/settings/delete/${name}`, { method: 'DELETE' });
-            loadConfig();
-        }
-
-                // Универсальное открытие
-        function openModal(modalId = 'settingsModal') {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.classList.add('active');
-                modal.style.display = 'flex'; // Гарантия отображения
-            }
-        }
-
-        // Универсальное закрытие
-        function closeModal(modalId = 'settingsModal') {
-            // Если это модалка настроек, проверяем БД
-            if (modalId === 'settingsModal' && !currentDb) {
-                return alert('Необходимо выбрать или создать базу данных!');
-            }
-
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.classList.remove('active');
-                modal.style.display = 'none';
-            }
-        }
-
+    async function selectDb(name) {
+        await fetch('/api/settings/select', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
         loadConfig();
-    </script>
+    }
+
+    async function deleteDb(name) {
+        if (!confirm(`Удалить ${name}? Это действие необратимо.`)) return;
+        await fetch(`/api/settings/delete/${name}`, { method: 'DELETE' });
+        loadConfig();
+    }
+
+    // Универсальное открытие
+    function openModal(modalId = 'settingsModal') {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+            // Блокируем прокрутку фона
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    // Универсальное закрытие
+    function closeModal(modalId = 'settingsModal') {
+        // Если это модалка настроек, проверяем БД
+        if (modalId === 'settingsModal' && !currentDb) {
+            return alert('Необходимо выбрать или создать базу данных!');
+        }
+
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+            // Возвращаем прокрутку
+            document.body.style.overflow = '';
+        }
+    }
+
+    // 🔹 Закрытие по клику на оверлей (вне контента модалки)
+    document.addEventListener('click', function(e) {
+        // Проверяем все открытые модалки
+        document.querySelectorAll('.modal-overlay.active').forEach(overlay => {
+            const modalContent = overlay.querySelector('.modal');
+            // Если клик был по оверлею, но не по контенту модалки
+            if (e.target === overlay && !modalContent.contains(e.target)) {
+                const modalId = overlay.id;
+                closeModal(modalId);
+            }
+        });
+    });
+
+    // 🔹 Закрытие по нажатию Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' || e.keyCode === 27) {
+            // Закрываем все открытые модалки
+            document.querySelectorAll('.modal-overlay.active').forEach(overlay => {
+                closeModal(overlay.id);
+            });
+        }
+    });
+
+    // 🔹 Предотвращаем закрытие при клике внутри модалки
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    });
+
+    loadConfig();
+</script>
 </body>
 </html>
