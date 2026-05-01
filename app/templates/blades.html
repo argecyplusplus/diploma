@@ -73,8 +73,8 @@
                 <h4>Координаты профиля</h4>
 
                 <div class="tabs">
-                    <button type="button" class="tab-btn active" onclick="switchCoordTab('upper')">Верхний профиль</button>
-                    <button type="button" class="tab-btn" onclick="switchCoordTab('lower')">Нижний профиль</button>
+                    <button type="button" class="tab-btn active" onclick="switchCoordTab('upper', event)">Верхний профиль</button>
+                    <button type="button" class="tab-btn" onclick="switchCoordTab('lower', event)">Нижний профиль</button>
                 </div>
 
                 <div id="upperTab" class="tab-content active">
@@ -668,11 +668,13 @@
     }
 
     function switchCoordTab(type, event) {
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-        event.target.classList.add('active');
-        document.getElementById(`${type}Tab`).classList.add('active');
-    }
+    // Убираем активные классы со всех кнопок и контента
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    // Активируем текущую кнопку и соответствующую вкладку
+    event.target.classList.add('active');
+    document.getElementById(`${type}Tab`).classList.add('active');
+}
 
     async function saveBlade() {
         const bladeId = document.getElementById('bladeId').value;

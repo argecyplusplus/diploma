@@ -228,9 +228,22 @@
     }
 
     // ===== МОДАЛКИ =====
-    function openModal(id) { document.getElementById(id).classList.add('active'); }
-    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-    function handleOverlayClick(e, id) { if (e.target.id === id) closeModal(id); }
+    function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('active');
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active');
+}
+    function handleOverlayClick(event, modalId) {
+    // Закрываем, только если клик был именно по оверлею (затемнённому фону)
+    if (event.target === event.currentTarget) {
+        closeModal(modalId);
+    }
+
+}
 
     // ===== МАТЕРИАЛЫ =====
     function openMaterialModal(id = null) {
