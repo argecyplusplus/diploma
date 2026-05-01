@@ -144,21 +144,17 @@ async function createSimulation(e) {
     btnLoader.style.display = 'inline-block';
 
     const form = e.target;
-
-    // 🔥 Собираем выбранные чекбоксы
     const materialIds = [...document.querySelectorAll('input[name="material_ids"]:checked')].map(cb => parseInt(cb.value));
     if (materialIds.length === 0) {
-        alert('❌ Выберите хотя бы один материал или сплав');
+        alert('❌ Выберите хотя бы один материал');
         resetBtn(); return;
     }
-
     const bladeId = form.querySelector('[name="blade_id"]').value;
-const assemblyId = form.querySelector('[name="assembly_id"]').value;
-
-if ((bladeId && assemblyId) || (!bladeId && !assemblyId)) {
-    alert('❌ Выберите либо лопатку, либо объединение');
-    resetBtn(); return;
-}
+    const assemblyId = form.querySelector('[name="assembly_id"]').value;
+    if ((bladeId && assemblyId) || (!bladeId && !assemblyId)) {
+        alert('❌ Выберите либо лопатку, либо объединение');
+        resetBtn(); return;
+    }
 
     const payload = {
     name: form.querySelector('[name="name"]').value,
@@ -171,17 +167,41 @@ if ((bladeId && assemblyId) || (!bladeId && !assemblyId)) {
 
     try {
         const res = await fetch('/simulation/create', {
-            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if(res.ok) { alert('✅ Расчет успешно запущен!'); location.reload(); }
-        else alert('❌ Ошибка: ' + (data.error || 'Неизвестная'));
-    } catch(e) { alert('❌ Ошибка сети: ' + e.message); }
-    finally { resetBtn(); }
-
-    function resetBtn() {
-        btn.disabled = false; btnText.style.display = 'inline'; btnLoader.style.display = 'none';
+        if (!res.ok) throw new Error(data.error || 'Ошибка');
+        const simId = data.id;
+        // Начинаем опрос статуса
+        pollStatus(simId);
+    } catch(e) {
+        alert('❌ Ошибка: ' + e.message);
+        resetBtn();
     }
+
+    function pollStatus(simId) {
+        const interval = setInterval(async () => {
+            const resp = await fetch(`/simulation/${simId}/status`);
+            const statusData = await resp.json();
+            if (statusData.status === 'completed' || statusData.status === 'failed') {
+                clearInterval(interval);
+                if (statusData.status === 'completed') {
+                    alert('✅ Расчет завершен! Результат появится в истории.');
+                } else {
+                    alert('❌ Ошибка расчета. Проверьте консоль.');
+                }
+                resetBtn();
+                location.reload();  // обновить таблицу истории
+            } else {
+                // можно показывать сообщение о статусе
+                btnLoader.textContent = `⏳ ${statusData.status}...`;
+            }
+        }, 2000);
+    }
+
+    function resetBtn() { btn.disabled = false; btnText.style.display = 'inline'; btnLoader.style.display = 'none';}
 }
 
 // ===== ЗАГРУЗКА МАТЕРИАЛОВ ДЛЯ ЧЕКБОКСОВ =====

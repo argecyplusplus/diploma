@@ -5,7 +5,7 @@ from ..services.simulation_service import SimulationService
 from ..dto.simulation_dto import SimulationCreateRequest, InitialConditionCreateRequest
 from ..utils.database import get_db_session
 from ..models.blade import Blade, BladeAssembly
-from ..models.simulation import InitialCondition
+from ..models.simulation import InitialCondition, Simulation
 from ..models.material import Material, AlloyComposition
 from ..repositories.material_repository import MaterialRepository
 from ..models.material import ChemicalElement  # добавить импорт
@@ -73,6 +73,13 @@ def download_result(sim_id):
     if not os.path.exists(path):
         abort(404)
     return send_file(path, as_attachment=True)
+
+@sim_bp.route('/<int:sim_id>/status', methods=['GET'])
+def get_status(sim_id):
+    sim = get_service().session.get(Simulation, sim_id)
+    if not sim:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"status": sim.status, "progress": sim.progress})
 
 # ================= НАЧАЛЬНЫЕ УСЛОВИЯ =================
 @ic_bp.route('/api/list', methods=['GET'])

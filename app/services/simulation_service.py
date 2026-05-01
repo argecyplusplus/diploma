@@ -1,5 +1,8 @@
 import os
 import subprocess
+import threading
+import re
+from pathlib import Path
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -11,6 +14,7 @@ from ..models.simulation import (
 )
 from ..models.blade import Approximation, LegendreCoefficient
 from ..models.material import Material
+from ..utils.database import get_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +34,12 @@ class SimulationService:
     def get_initial_conditions_list(self):
         return self.repo.get_all_initial_conditions()
 
+    def get_simulation_status(self, sim_id: int) -> dict:
+        sim = self.session.get(Simulation, sim_id)
+        if not sim:
+            return {"error": "Not found"}
+        return {"status": sim.status, "progress": getattr(sim, 'progress', 0)}
+
     def create_simulation(self, data: SimulationCreateRequest) -> int:
         # Проверка: ровно один из id должен быть указан
         if (data.blade_id is None and data.assembly_id is None) or \
@@ -37,68 +47,106 @@ class SimulationService:
             raise ValueError("Должна быть указана либо лопатка, либо объединение, но не оба")
 
         sim_data = data.model_dump(exclude={'tasks', 'material_ids'})
-        # Удаляем None-значения, чтобы не передавать их в create
         sim_data = {k: v for k, v in sim_data.items() if v is not None}
-        # Если выбрано объединение, поле blade_assembly_id называется не assembly_id
         if 'assembly_id' in sim_data:
             sim_data['blade_assembly_id'] = sim_data.pop('assembly_id')
-        # Если выбрана лопатка, blade_id будет передан как есть
 
+        # Устанавливаем начальный статус
+        sim_data['status'] = 'pending'
         sim = self.repo.create(**sim_data)
         sim_id = sim.simulation_id
 
         self.repo.add_materials(sim_id, data.material_ids)
         self.repo.add_tasks(sim_id, [t.model_dump() for t in data.tasks])
+        self.session.commit()   # сохраняем, чтобы запись была до фоновой задачи
 
-        # 📁 Создаём папку для конкретного расчёта
+        # Создаём папку и генерируем .edp (синхронно)
         sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
         os.makedirs(sim_dir, exist_ok=True)
+        edp_path = os.path.join(sim_dir, "blade_sim.edp")
 
         try:
-            edp_path = os.path.join(sim_dir, "blade_sim.edp")
             self._generate_freefem_code(sim_id, sim_dir, edp_path)
+        except Exception as e:
+            # Если генерация кода упала, помечаем симуляцию как failed
+            sim.status = 'failed'
+            self.session.commit()
+            raise e
+
+        # Запускаем фоновый поток для выполнения FreeFEM
+        thread = threading.Thread(target=self._run_simulation_background,
+                                   args=(sim_id, edp_path, sim_dir),
+                                   daemon=True)
+        thread.start()
+
+        return sim_id
+
+    def _run_simulation_background(self, sim_id: int, edp_path: str, sim_dir: str):
+        from sqlalchemy.orm import sessionmaker
+        from ..utils.database import get_engine
+        from ..repositories.simulation_repository import SimulationRepository
+
+        engine = get_engine()
+        Session = sessionmaker(bind=engine)
+        session = Session()
+        try:
+            sim = session.get(Simulation, sim_id)
+            if not sim:
+                logger.error(f"Simulation {sim_id} not found in background")
+                return
+
+            sim.status = "running"
+            session.commit()
 
             logger.info(f"🚀 Запуск FreeFEM++ для симуляции {sim_id}...")
             result = self._run_freefem(edp_path, sim_dir)
 
-            # 💾 Сохраняем логи консоли
+            # Сохраняем лог
             log_path = os.path.join(sim_dir, "console.log")
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.write(result.get('stdout', '') + '\n--- ERROR OUTPUT ---\n' + result.get('stderr', ''))
-            self.repo.add_result(sim_id, "log", log_path, "FreeFEM++ console output")
+
+            # Используем репозиторий с нашей сессией
+            repo = SimulationRepository(session)
+            repo.add_result(sim_id, "log", log_path, "FreeFEM++ console output")
 
             if result['success']:
                 sim.status = "completed"
-                # FreeFEM++ в скрипте сохраняет result.vtk. Проверяем и регистрируем.
                 vtk_path = os.path.join(sim_dir, "result.vtk")
                 if os.path.exists(vtk_path):
-                    self.repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
+                    repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
             else:
                 sim.status = "failed"
                 logger.error(f"❌ Симуляция {sim_id} завершилась с ошибкой: {result.get('error')}")
 
-            self.session.add(sim)
-            self.session.commit()
-
+            session.commit()
         except Exception as e:
-            logger.error(f"💥 Ошибка при создании симуляции {sim_id}: {e}")
-            self.session.rollback()
-            raise e
-
-        return sim_id
+            logger.error(f"💥 Ошибка в фоновой задаче симуляции {sim_id}: {e}", exc_info=True)
+            try:
+                sim = session.get(Simulation, sim_id)
+                if sim:
+                    sim.status = "failed"
+                    session.commit()
+            except:
+                pass
+        finally:
+            session.close()
 
     def get_simulations_list(self):
         return self.repo.get_all_simulations()
 
     # ========================================================================
-    # 🔧 Внутренние методы генерации и запуска
+    # 🔧 Внутренние методы генерации и запуска (без изменений, но модифицируем _generate_freefem_code для проверки blade_id)
     # ========================================================================
 
     def _generate_freefem_code(self, sim_id: int, sim_dir: str, edp_path: str):
         sim = self.session.get(Simulation, sim_id)
+        if not sim.blade_id:
+            raise ValueError(
+                "Для моделирования необходимо выбрать конкретную лопатку (аппроксимация привязана к лопатке)")
         ic_id = sim.initial_conditions_id
 
-        # 1. Загружаем параметры начальных условий
+        # 1. Получаем все необходимые параметры из БД
         const_params = self.session.scalar(
             select(ConstructionParameter).where(ConstructionParameter.initial_conditions_id == ic_id))
         flow_params = self.session.scalar(
@@ -108,113 +156,77 @@ class SimulationService:
             select(BoundaryIdentifier).where(BoundaryIdentifier.initial_conditions_id == ic_id))
         chord = self.session.scalar(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id))
 
-        # 2. Плотность первого материала
+        # 2. Материал (берём первый из связанных)
         first_mat_id = sim.materials[0].material_id if sim.materials else None
         material = self.session.get(Material, first_mat_id)
         rho = material.density if material else 1.0
 
-        # 3. Коэффициенты Лежандра (аппроксимация должна быть выполнена заранее)
-        approx = self.session.scalar(select(Approximation).where(Approximation.blade_id == sim.blade_id).order_by(
-            Approximation.approximation_id.desc()))
+        # 3. Аппроксимация и коэффициенты Лежандра
+        approx = self.session.scalar(
+            select(Approximation).where(Approximation.blade_id == sim.blade_id)
+            .order_by(Approximation.approximation_id.desc()))
         if not approx:
             raise ValueError(
                 "Для выбранной лопатки не выполнена аппроксимация. Запустите аппроксимацию перед моделированием.")
 
         coeffs = self.session.scalars(
-            select(LegendreCoefficient).where(LegendreCoefficient.approximation_id == approx.approximation_id).order_by(
-                LegendreCoefficient.legendre_coefficients_id)).all()
+            select(LegendreCoefficient).where(LegendreCoefficient.approximation_id == approx.approximation_id)
+            .order_by(LegendreCoefficient.legendre_coefficients_id)).all()
         if len(coeffs) < 10:
             raise ValueError("Недостаточно коэффициентов Лежандра (ожидается 10).")
 
-        coeffs_up = ", ".join(f"{c.upper_value:.10e}" for c in coeffs)
-        coeffs_low = ", ".join(f"{c.lower_value:.10e}" for c in coeffs)
+        # 4. Сохраняем коэффициенты в CSV-файл (как требует шаблон)
+        coeffs_csv = os.path.join(sim_dir, "out_L_blade.csv")
+        with open(coeffs_csv, 'w', encoding='utf-8') as f:
+            upper_vals = [f"{c.upper_value:.15e}" for c in coeffs]
+            lower_vals = [f"{c.lower_value:.15e}" for c in coeffs]
+            f.write(" ".join(upper_vals) + "\n")
+            f.write(" ".join(lower_vals) + "\n")
 
-        # 4. Генерация скрипта FreeFEM++
-        script = f"""
-int S1 = {boundary.value if boundary else 100};
-real Chord1 = {chord.value if chord else 1.0}; 
-real RC = 3. * Chord1;
+        # 5. Загружаем шаблон
+        template_path = Path(__file__).parent.parent / "templates" / "blade_sim.edp.template"
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template = f.read()
 
-border C(t=0, 2*pi){{x=Chord1/2. + RC*cos(t); y=RC*sin(t);}}
+        # 6. Заменяем параметры
+        replacements = {
+            "{{S1}}": str(boundary.value if boundary else 100),
+            "{{Chord1}}": str(chord.value if chord else 1.0),
+            "{{beta}}": str(flow_params.beta if flow_params else 0.0),
+            "{{B}}": str(flow_params.B if flow_params else 1.0),
+            "{{rho}}": str(rho),
+            "{{NC}}": str(const_params.NC if const_params else 50),
+            "{{NSp}}": str(const_params.NSp if const_params else 50),
+            "{{NSm}}": str(const_params.NSm if const_params else 50),
+            "{{NSpm}}": str(const_params.NSpm if const_params else 20),
+            "{{NSpn}}": str(const_params.NSpn if const_params else 10),
+            "{{dt}}": str(time_params.dt if time_params else 0.1),
+            "{{nbT}}": str(time_params.nbT if time_params else 100),
+        }
 
-real beta = {flow_params.beta if flow_params else 0.0}; 
-real B = {flow_params.B if flow_params else 1.0};
-real rho = {rho}; 
+        script = template
+        for key, val in replacements.items():
+            script = script.replace(key, val)
 
-load "iovtk"
-real[int] coeffsUp(10) = [{coeffs_up}];
-real[int] coeffsLow(10) = [{coeffs_low}];
-
-func real Lezh(real[int] L,real t){{
-    real[int] y(10);
-    y(0)=1.; y(1)=t; y(2)=(3.*t^2-1.)/2.; y(3)=(5.*t^3-3.*t)/2.; 
-    y(4)=(35.*t^4-30.*t^2+3.)/8.; y(5)=(63.*t^5-70.*t^3+15.*t)/8.;
-    y(6)=231./16.*t^6-315./16.*t^4+105./16.*t^2-5./16.; 
-    y(7)=429./16.*t^7-693./16.*t^5+315./16.*t^3-35./16.*t;
-    y(8)=6435./128.*t^8-3003./32.*t^6+3465./64.*t^4-315./32.*t^2+35./128.;
-    y(9)=12155./128.*t^9-6435./32.*t^7+9009./64.*t^5-1155./32.*t^3+315./128.*t;
-    return L'*y;
-}}
-
-border Splus(t=0., 1.){{x=Chord1*t; y=Chord1*Lezh(coeffsUp,t); label=S1;}}
-border Sminus(t=1., 0.){{x=Chord1*t; y=Chord1*Lezh(coeffsLow,t); label=S1;}}
-border Spm(t=0,1.){{x=0;y=Chord1*Lezh(coeffsLow,0)+t*Chord1*(Lezh(coeffsUp,0)-Lezh(coeffsLow,0)); label=S1;}}
-border Smp(t=1.,0.){{x=Chord1;y=Chord1*Lezh(coeffsLow,1)+t*Chord1*(Lezh(coeffsUp,1)-Lezh(coeffsLow,1)); label=S1;}}
-
-real xblade=Chord1*0.25, yblade=Chord1*(Lezh(coeffsUp,0.5)+Lezh(coeffsLow,0.5))/2;
-mesh Th = buildmesh(C({const_params.NC})+Splus({const_params.NSp})+Spm({const_params.NSpm})+Sminus({const_params.NSm})+Smp({const_params.NSpm}));
-
-fespace Vh(Th, P2);
-Vh psi, w, vx, vy, p;
-real cost = cos(beta*pi/180.), sint=sin(beta*pi/180.);
-
-solve potential(psi, w)
-  = int2d(Th)(dx(psi)*dx(w)+dy(psi)*dy(w))
-  + on(C, psi = cost*y-sint*x) 
-  + on(S1, psi=0);
-vx=dx(psi); vy=dy(psi);
-p = 1-rho/(2*B)*(vx^2+vy^2);
-
-real dt = {time_params.dt if time_params else 0.1}, nbT = {time_params.nbT if time_params else 100};
-border D(t=0, 2.){{x=0.5+t*cost; y=+t*sint;}}
-mesh Sh = buildmesh(C({const_params.NC}) + Splus(-{const_params.NSp}) + Spm(-{const_params.NSpm}) + Sminus(-{const_params.NSm}) + Smp(-{const_params.NSpm}) + D({const_params.NSpn}));
-fespace Wh(Sh, P1); Wh vv;
-fespace W0(Sh, P0); W0 k = 0.01*(region == 2) + 0.1*(region == 1);
-W0 u1 = dy(psi)*(region == 2), u2 = -dx(psi)*(region == 2);
-Wh v = 400*(region == 1), vold;
-Sh = change(Sh,flabel = (label == C && [u1,u2]'*N <0) ? 10 : label);
-
-int i;
-problem thermic(v, vv, init=i, solver=LU)
-  = int2d(Sh)(v*vv/dt + k*(dx(v)*dx(vv) + dy(v)*dy(vv)) + 10*(u1*dx(v) + u2*dy(v))*vv)
-  - int2d(Sh)(vold*vv/dt) + on(10, v= 0);
-
-for(i = 0; i < nbT; i++) {{ vold[]= v[]; thermic; }}
-
-// 💾 Сохраняем результат в VTK для визуализации
-savevtk("result.vtk", Th, p, "pressure");
-cout << "Simulation completed successfully." << endl;
-"""
+        # 7. Сохраняем финальный .edp файл
         with open(edp_path, 'w', encoding='utf-8') as f:
             f.write(script)
+
         logger.info(f"📝 Скрипт FreeFEM++ сохранён: {edp_path}")
+        logger.info(f"📝 Коэффициенты Лежандра сохранены в: {coeffs_csv}")
 
     def _run_freefem(self, edp_path: str, work_dir: str) -> dict:
-        # 🌍 Путь к исполняемому файлу FreeFEM++ (берётся из .env или системный PATH)
         ff_path = os.getenv("FREEFEM_PATH", "FreeFem++")
-
-        # 🖥️ Формируем команду: -nw = no window (тихий режим для сервера)
         cmd = [ff_path, edp_path, "-nw"]
-
         env = os.environ.copy()
-        env['PWD'] = work_dir  # FreeFEM иногда использует CWD для относительных путей
+        env['PWD'] = work_dir
 
         try:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=600,  # ⏱️ Максимум 10 минут на расчёт
+                timeout=600,
                 cwd=work_dir,
                 env=env
             )

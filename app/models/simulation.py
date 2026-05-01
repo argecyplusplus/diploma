@@ -19,6 +19,8 @@ class Simulation(Base):
     simulation_id = Column(Integer, primary_key=True, autoincrement=True)
     # Наименование моделирования
     name = Column(Text, nullable=False)
+    status = Column(Text, nullable=False, default="created")  # created, queued, running, completed, failed
+    progress = Column(Integer, nullable=False, default=0)  # 0..100, опционально
 
     # Внешние ключи
     blade_assembly_id = Column(
