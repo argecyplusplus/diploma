@@ -54,16 +54,17 @@ def index():
 
 @sim_bp.route('/create', methods=['POST'])
 def create():
+    service = get_service()
     try:
         data = SimulationCreateRequest(**request.json)
-        sim_id = get_service().create_simulation(data)
-        g.db_session.commit()
+        sim_id = service.create_simulation(data)
+        service.session.commit()
         return jsonify({"message": "Моделирование создано", "id": sim_id}), 201
     except ValidationError as e:
-        g.db_session.rollback()
+        service.session.rollback()
         return jsonify({"error": e.errors()}), 400
     except Exception as e:
-        g.db_session.rollback()
+        service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
 @sim_bp.route('/<int:sim_id>/download')
@@ -74,21 +75,47 @@ def download_result(sim_id):
     return send_file(path, as_attachment=True)
 
 # ================= НАЧАЛЬНЫЕ УСЛОВИЯ =================
+@ic_bp.route('/api/list', methods=['GET'])
+def get_initial_conditions_api():
+    service = get_service()
+    ics = service.get_initial_conditions_list()
+    return jsonify([{"initial_conditions_id": ic.initial_conditions_id, "name": ic.name} for ic in ics])
+
+
 @ic_bp.route('/')
 def ic_index():
-    ics = get_service().get_initial_conditions_list()
-    return render_template('initial_conditions.html', ics=ics)
+    service = get_service()
+    session = g.db_session
+    # Загружаем материалы (элементы и сплавы) для выпадающего списка
+    elements = session.scalars(select(Material).where(Material.is_alloy == False)).all()
+    alloys = session.scalars(select(Material).where(Material.is_alloy == True)).all()
+    materials = elements + alloys
+    ics = service.get_initial_conditions_list()
+    return render_template('initial_conditions.html', ics=ics, materials=materials)
+
 
 @ic_bp.route('/create', methods=['POST'])
 def ic_create():
+    service = get_service()
     try:
         data = InitialConditionCreateRequest(**request.json)
-        ic_id = get_service().create_initial_condition(data)
-        g.db_session.commit()
+        ic_id = service.create_initial_condition(data)
+        service.session.commit()
         return jsonify({"message": "Набор сохранен", "id": ic_id}), 201
     except ValidationError as e:
-        g.db_session.rollback()
+        service.session.rollback()
         return jsonify({"error": e.errors()}), 400
     except Exception as e:
-        g.db_session.rollback()
+        service.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@ic_bp.route('/<int:ic_id>', methods=['DELETE'])
+def ic_delete(ic_id):
+    service = get_service()
+    try:
+        service.delete_initial_condition(ic_id)
+        service.session.commit()
+        return jsonify({"message": "Удалено"}), 200
+    except Exception as e:
+        service.session.rollback()
         return jsonify({"error": str(e)}), 500

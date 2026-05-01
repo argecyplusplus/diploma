@@ -7,7 +7,7 @@ class TaskRequest(BaseModel):
 
 class SimulationCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
-    blade_id: int
+    blade_id: Optional[int] = None
     assembly_id: Optional[int] = None
     material_ids: List[int] = Field(..., min_length=1)
     initial_conditions_id: int

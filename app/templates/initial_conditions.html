@@ -83,12 +83,12 @@
 
             <!-- 🌡️ Начальные температуры (динамические) -->
             <details>
-                <summary>🌡️ Начальные температуры материалов</summary>
-                <div id="initial-temps-list">
-                    <!-- Строки добавляются через JS -->
-                </div>
-                <button type="button" class="btn-sm" onclick="addTempRow()">+ Добавить материал</button>
-            </details>
+    <summary>🌡️ Начальные температуры материалов</summary>
+    <div id="initial-temps-list">
+        <!-- Строки добавляются через JS -->
+    </div>
+    <button type="button" class="btn-sm" onclick="addTempRow()">+ Добавить материал</button>
+</details>
 
             <!-- 📐 Хорда лопасти (динамические) -->
             <details>
@@ -148,32 +148,21 @@
     </div>
 
     <!-- Список сохранённых наборов -->
-    <h3 style="margin-top:30px">📋 Сохранённые наборы</h3>
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Название</th>
-                    <th>Действия</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for ic in ics %}
-                <tr>
-                    <td>{{ ic.initial_conditions_id }}</td>
-                    <td>{{ ic.name }}</td>
-                    <td>
-                        <button class="btn-view" onclick="viewIC({{ ic.initial_conditions_id }})">👁️</button>
-                        <button class="btn-delete" onclick="deleteIC({{ ic.initial_conditions_id }})">🗑️</button>
-                    </td>
-                </tr>
-                {% else %}
-                <tr><td colspan="3" class="text-center" style="color:#64748b">Наборы не найдены</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<h3 style="margin-top:30px">📋 Сохранённые наборы</h3>
+<div class="table-wrapper">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody id="icTableBody">
+            <tr><td colspan="3" class="text-center">Загрузка...</td></tr>
+        </tbody>
+    </table>
+</div>
 </div>
 
 <style>
@@ -206,6 +195,35 @@
 </style>
 
 <script>
+
+    let materialsList = []; // глобальный массив материалов
+
+// Загрузка списка материалов (элементов и сплавов)
+async function loadMaterialsForIC() {
+    try {
+        const elementsRes = await fetch('/api/elements');
+        const elements = elementsRes.ok ? await elementsRes.json() : [];
+        const alloysRes = await fetch('/api/alloys');
+        const alloys = alloysRes.ok ? await alloysRes.json() : [];
+        materialsList = [...elements, ...alloys];
+    } catch (e) {
+        console.error('Ошибка загрузки материалов:', e);
+        materialsList = [];
+    }
+}
+
+// Функция генерации options для селекта
+function getMaterialOptions() {
+    if (materialsList.length === 0) {
+        return '<option value="">Материалы не загружены</option>';
+    }
+    let options = '<option value="">-- Выберите материал --</option>';
+    materialsList.forEach(m => {
+        options += `<option value="${m.material_id}">${escapeHtml(m.name)}</option>`;
+    });
+    return options;
+}
+
     // ================= ДИНАМИЧЕСКИЕ СТРОКИ =================
 
     function addDynamicRow(containerId, fields, defaults = {}) {
@@ -231,21 +249,20 @@
     }
 
     function addTempRow() {
-        const container = document.getElementById('initial-temps-list');
-        const index = container.querySelectorAll('.dynamic-row').length;
-        const row = document.createElement('div');
-        row.className = 'dynamic-row';
-        row.innerHTML = `
-            <select name="initial_temps[${index}].material_id" style="flex:1;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
-                <option value="">-- Выберите материал --</option>
-                {% for m in materials %}<option value="{{ m.material_id }}">{{ m.name }}</option>{% endfor %}
-            </select>
-            <input type="number" step="any" name="initial_temps[${index}].value" placeholder="T, °C" required>
-            <button type="button" class="btn-remove" onclick="removeRow(this)">✕</button>
-        `;
-        container.appendChild(row);
-        updateRemoveButtons('initial-temps-list');
-    }
+    const container = document.getElementById('initial-temps-list');
+    const index = container.querySelectorAll('.dynamic-row').length;
+    const row = document.createElement('div');
+    row.className = 'dynamic-row';
+    row.innerHTML = `
+        <select name="initial_temps[${index}].material_id" style="flex:1;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+            ${getMaterialOptions()}
+        </select>
+        <input type="number" step="any" name="initial_temps[${index}].value" placeholder="T, °C" required>
+        <button type="button" class="btn-remove" onclick="removeRow(this)">✕</button>
+    `;
+    container.appendChild(row);
+    updateRemoveButtons('initial-temps-list');
+}
 
     function removeRow(btn) {
         const row = btn.closest('.dynamic-row');
@@ -266,50 +283,73 @@
     // ================= ОТПРАВКА ФОРМЫ =================
 
     async function createIC(e) {
-        e.preventDefault();
-        const form = e.target;
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
 
-        // Собираем данные в вложенный объект
-        const obj = { name: form.querySelector('[name="name"]').value };
+    // Базовая структура
+    const payload = {
+        name: formData.get('name'),
+        time_parameters: {},
+        potential_flow: {},
+        construction: {},
+        elasticity: {},
+        stress_output: {},
+        boundaries: [],
+        initial_temps: [],
+        chords: []
+    };
 
-        // Простой парсер для вложенных полей (time_parameters.*, boundaries[0].*, etc.)
-        for (const [key, value] of new FormData(form).entries()) {
-            if (key === 'name') continue;
-
-            // Парсим ключи вида "boundaries[0].name" или "time_parameters.time"
-            const match = key.match(/^([^\[\.]+)(?:\[(\d+)\])?\.([^\[\.]+)$/);
-            if (match) {
-                const [, section, idx, field] = match;
-                if (!obj[section]) obj[section] = [];
-                const index = idx !== undefined ? parseInt(idx) : 0;
-                if (!obj[section][index]) obj[section][index] = {};
-                obj[section][index][field] = isNaN(value) ? value : Number(value);
-            }
+    // Вспомогательная функция для заполнения вложенных полей по префиксу
+    function setNested(obj, path, value) {
+        const parts = path.split('.');
+        let current = obj;
+        for (let i = 0; i < parts.length - 1; i++) {
+            if (!current[parts[i]]) current[parts[i]] = {};
+            current = current[parts[i]];
         }
+        const key = parts[parts.length - 1];
+        current[key] = isNaN(value) ? value : parseFloat(value);
+    }
 
-        // Удаляем пустые массивы
-        for (const key in obj) {
-            if (Array.isArray(obj[key]) && obj[key].length === 0) delete obj[key];
-        }
+    for (const [key, value] of formData.entries()) {
+        if (key === 'name') continue;
 
-        try {
-            const res = await fetch('/initial-conditions/create', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(obj)
-            });
-            const data = await res.json();
-
-            if (res.ok) {
-                alert('✅ Набор сохранён!');
-                location.reload();
-            } else {
-                alert('❌ Ошибка: ' + (data.error || 'Неизвестная'));
-            }
-        } catch (err) {
-            alert('❌ Ошибка сети: ' + err.message);
+        // Обработка массивов (boundaries, initial_temps, chords)
+        const arrayMatch = key.match(/^([a-z_]+)\[(\d+)\]\.([a-z_]+)$/);
+        if (arrayMatch) {
+            const [, arrayName, idx, field] = arrayMatch;
+            const index = parseInt(idx);
+            if (!payload[arrayName][index]) payload[arrayName][index] = {};
+            payload[arrayName][index][field] = isNaN(value) ? value : parseFloat(value);
+        } else {
+            // Вложенные объекты (time_parameters.time, potential_flow.beta, ...)
+            setNested(payload, key, value);
         }
     }
+
+    // Очистка пустых массивов
+    ['boundaries', 'initial_temps', 'chords'].forEach(key => {
+        payload[key] = payload[key].filter(item => item && Object.keys(item).length);
+    });
+
+    try {
+        const res = await fetch('/initial-conditions/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert('✅ Набор сохранён!');
+            location.reload();
+        } else {
+            alert('❌ Ошибка: ' + JSON.stringify(data.error || 'Неизвестная'));
+        }
+    } catch (err) {
+        alert('❌ Ошибка сети: ' + err.message);
+    }
+}
 
     // ================= ПРОСМОТР / УДАЛЕНИЕ =================
 
@@ -333,11 +373,49 @@
         }
     }
 
+    // Загрузка списка наборов начальных условий
+async function loadICsTable() {
+    const tbody = document.getElementById('icTableBody');
+    try {
+        const res = await fetch('/initial-conditions/api/list');
+        if (!res.ok) throw new Error('Ошибка загрузки');
+        const ics = await res.json();
+        if (ics.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center">Наборы не найдены</td></tr>';
+        } else {
+            tbody.innerHTML = ics.map(ic => `
+                <tr>
+                    <td>${ic.initial_conditions_id}</td>
+                    <td>${escapeHtml(ic.name)}</td>
+                    <td>
+                        <button class="btn-view" onclick="viewIC(${ic.initial_conditions_id})">👁️</button>
+                        <button class="btn-delete" onclick="deleteIC(${ic.initial_conditions_id})">🗑️</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#ef4444">Ошибка загрузки</td></tr>';
+        console.error(e);
+    }
+}
+
+
     // Инициализация: скрываем кнопки удаления, если строка одна
-    document.addEventListener('DOMContentLoaded', () => {
-        ['boundaries-list', 'chords-list', 'initial-temps-list'].forEach(id => {
-            updateRemoveButtons(id);
-        });
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadMaterialsForIC();
+    await loadICsTable();  // ← добавить
+    ['boundaries-list', 'chords-list', 'initial-temps-list'].forEach(id => {
+        updateRemoveButtons(id);
     });
+});
+
+    function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 </script>
 {% endblock %}

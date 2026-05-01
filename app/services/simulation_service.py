@@ -31,7 +31,19 @@ class SimulationService:
         return self.repo.get_all_initial_conditions()
 
     def create_simulation(self, data: SimulationCreateRequest) -> int:
+        # Проверка: ровно один из id должен быть указан
+        if (data.blade_id is None and data.assembly_id is None) or \
+                (data.blade_id is not None and data.assembly_id is not None):
+            raise ValueError("Должна быть указана либо лопатка, либо объединение, но не оба")
+
         sim_data = data.model_dump(exclude={'tasks', 'material_ids'})
+        # Удаляем None-значения, чтобы не передавать их в create
+        sim_data = {k: v for k, v in sim_data.items() if v is not None}
+        # Если выбрано объединение, поле blade_assembly_id называется не assembly_id
+        if 'assembly_id' in sim_data:
+            sim_data['blade_assembly_id'] = sim_data.pop('assembly_id')
+        # Если выбрана лопатка, blade_id будет передан как есть
+
         sim = self.repo.create(**sim_data)
         sim_id = sim.simulation_id
 
@@ -218,3 +230,8 @@ cout << "Simulation completed successfully." << endl;
             return {"success": False, "error": f"FreeFEM++ не найден по пути: {ff_path}. Укажите FREEFEM_PATH в .env"}
         except Exception as e:
             return {"success": False, "error": str(e)}
+
+    def delete_initial_condition(self, ic_id: int):
+        ic = self.session.get(InitialCondition, ic_id)
+        if ic:
+            self.session.delete(ic)

@@ -34,15 +34,14 @@
 </div>
 
                 <div class="form-group ic-group">
-                    <label for="initial_conditions_id">Начальные условия</label>
-                    <div class="input-with-action">
-                        <select id="initial_conditions_id" name="initial_conditions_id" required>
-                            <option value="" disabled selected>Выберите набор...</option>
-                            {% for ic in ics %}<option value="{{ ic.initial_conditions_id }}">{{ ic.name }}</option>{% endfor %}
-                        </select>
-                        <a href="/initial-conditions" class="btn-action" title="Управление начальными условиями">⚙️</a>
-                    </div>
-                </div>
+    <label for="initial_conditions_id">Начальные условия</label>
+    <div class="input-with-action">
+        <select id="initial_conditions_id" name="initial_conditions_id" required>
+            <option value="" disabled selected>Загрузка...</option>
+        </select>
+        <a href="/initial-conditions" class="btn-action" title="Управление начальными условиями">⚙️</a>
+    </div>
+</div>
 
                 <!-- 🔥 БЛОК С ЧЕКБОКСАМИ ДЛЯ МАТЕРИАЛОВ (динамическая загрузка) -->
 <div class="form-group full-width">
@@ -153,14 +152,22 @@ async function createSimulation(e) {
         resetBtn(); return;
     }
 
+    const bladeId = form.querySelector('[name="blade_id"]').value;
+const assemblyId = form.querySelector('[name="assembly_id"]').value;
+
+if ((bladeId && assemblyId) || (!bladeId && !assemblyId)) {
+    alert('❌ Выберите либо лопатку, либо объединение');
+    resetBtn(); return;
+}
+
     const payload = {
-        name: form.querySelector('[name="name"]').value,
-        blade_id: parseInt(form.querySelector('[name="blade_id"]').value),
-        assembly_id: form.querySelector('[name="assembly_id"]').value ? parseInt(form.querySelector('[name="assembly_id"]').value) : null,
-        initial_conditions_id: parseInt(form.querySelector('[name="initial_conditions_id"]').value),
-        material_ids: materialIds, // 🔥 Массив ID
-        tasks: [...form.querySelectorAll('input[name="tasks"]:checked')].map(cb => ({task_id: parseInt(cb.value)}))
-    };
+    name: form.querySelector('[name="name"]').value,
+    blade_id: bladeId ? parseInt(bladeId) : null,
+    assembly_id: assemblyId ? parseInt(assemblyId) : null,
+    initial_conditions_id: parseInt(form.querySelector('[name="initial_conditions_id"]').value),
+    material_ids: materialIds,
+    tasks: [...form.querySelectorAll('input[name="tasks"]:checked')].map(cb => ({task_id: parseInt(cb.value)}))
+};
 
     try {
         const res = await fetch('/simulation/create', {
@@ -263,6 +270,29 @@ async function loadAssembliesSelect() {
 }
 
 
+// Загрузка начальных условий
+async function loadInitialConditionsSelect() {
+    const select = document.getElementById('initial_conditions_id');
+    try {
+        const res = await fetch('/initial-conditions/api/list');
+        if (!res.ok) throw new Error('Ошибка загрузки');
+        const ics = await res.json();
+        if (ics.length === 0) {
+            select.innerHTML = '<option value="" disabled selected>Нет наборов</option>';
+        } else {
+            let options = '<option value="" disabled selected>Выберите набор...</option>';
+            ics.forEach(ic => {
+                options += `<option value="${ic.initial_conditions_id}">${escapeHtml(ic.name)}</option>`;
+            });
+            select.innerHTML = options;
+        }
+    } catch (e) {
+        select.innerHTML = '<option value="" disabled selected>Ошибка загрузки</option>';
+        console.error('Ошибка загрузки начальных условий:', e);
+    }
+}
+
+
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -272,8 +302,9 @@ function escapeHtml(text) {
 // Вызвать загрузку после загрузки страницы
 document.addEventListener('DOMContentLoaded', () => {
     loadMaterialsCheckboxes();
-    loadBladesSelect();          // загрузка лопаток
-    loadAssembliesSelect();      // загрузка объединений
+    loadBladesSelect();
+    loadAssembliesSelect();
+    loadInitialConditionsSelect();  // ← добавить
 });
 </script>
 {% endblock %}

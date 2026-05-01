@@ -24,12 +24,12 @@ class Simulation(Base):
     blade_assembly_id = Column(
         Integer,
         ForeignKey('blade_assemblies.blade_assembly_id', ondelete="CASCADE"),
-        nullable=False
+        nullable=True
     )
     blade_id = Column(
         Integer,
         ForeignKey('blades.blade_id', ondelete="CASCADE"),
-        nullable=False
+        nullable=True
     )
     # Ссылка на начальные условия (класс InitialCondition будет создан в следующем шаге)
     initial_conditions_id = Column(
