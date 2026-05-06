@@ -306,7 +306,10 @@ body {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
-.modal-lg { width: 600px; }
+.modal-lg {
+    width: 800px;   /* вместо 600px */
+    max-width: 90vw;
+}
 .modal-xl { width: 900px; }
 .modal h3 {
     font-size: 1.4rem;
@@ -319,9 +322,18 @@ body {
     display: flex;
     gap: 12px;
     justify-content: flex-end;
-    margin-top: 24px;
-    padding-top: 16px;
+    margin-top: 20px;
+    padding-top: 12px;
     border-top: 1px solid var(--border);
+}
+
+.modal-actions button {
+    padding: 6px 14px;       /* вместо 8px 18px */
+    font-size: 0.85rem;
+    height: 34px;            /* фиксированная высота */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* Стили для длинных таблиц внутри модалки */
@@ -500,17 +512,12 @@ body {
     gap: 8px;
 }
 .table-actions button {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    font-size: 1.1rem;
-    border-radius: 8px;
-    background: #f1f5f9;
-    color: #334155;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
+    width: auto;            /* убрать фиксированную ширину */
+    min-width: 56px;        /* минимальная ширина под текст */
+    height: 28px;           /* уменьшить высоту */
+    padding: 0 8px;
+    font-size: 0.75rem;
+    border-radius: 6px;
 }
 .table-actions button:hover {
     background: var(--primary);
@@ -554,4 +561,16 @@ body {
 .modal .table-wrapper {
     max-height: 40vh;
     overflow-y: auto;
+}
+
+.clickable-row {
+    cursor: pointer;
+}
+.clickable-row:hover {
+    background: #f8fafc;
+}
+
+.modal-wide {
+    width: 700px;
+    max-width: 90vw;
 }

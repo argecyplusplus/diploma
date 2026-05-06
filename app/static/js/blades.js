@@ -47,24 +47,18 @@ async function loadAssemblies() {
 function renderBladesTable() {
     const tbody = document.getElementById('bladesTableBody');
     if (bladesData.length === 0) {
-        tbody.innerHTML = `
-            <tr><td colspan="4" class="empty-state">
-                <p>Лопатки не найдены</p>
-                <button class="btn-primary" onclick="openCreateBladeModal()">+ Создать первую лопатку</button>
-            </td></tr>
-        `;
+        tbody.innerHTML = `<tr><td colspan="3" class="empty-state">...</td></tr>`;
         return;
     }
     tbody.innerHTML = bladesData.map(blade => `
-        <tr>
+        <tr class="clickable-row" data-blade-id="${blade.blade_id}" onclick="viewBladeCoords(${blade.blade_id})">
             <td>${blade.blade_id}</td>
             <td>${escapeHtml(blade.name)}</td>
             <td>
                 <div class="table-actions">
-                    <button class="btn-edit" onclick="editBlade(${blade.blade_id})">✏️</button>
-                    <button class="btn-view" onclick="viewBladeCoords(${blade.blade_id})">👁️</button>
-                    <button class="btn-approx" onclick="goToApproximation(${blade.blade_id})">⚡</button>
-                    <button class="btn-delete" onclick="confirmDeleteBlade(${blade.blade_id})">🗑️</button>
+                    <button class="btn-edit" onclick="event.stopPropagation(); editBlade(${blade.blade_id})">Редактировать</button>
+                    <button class="btn-approx" onclick="event.stopPropagation(); goToApproximation(${blade.blade_id})">Аппроксимировать</button>
+                    <button class="btn-delete" onclick="event.stopPropagation(); confirmDeleteBlade(${blade.blade_id})">Удалить</button>
                 </div>
             </td>
         </tr>
@@ -78,14 +72,10 @@ function renderAssembliesTable() {
         return;
     }
     tbody.innerHTML = assembliesData.map(a => `
-        <tr>
+        <tr class="clickable-row" data-assembly-id="${a.blade_assembly_id}" onclick="openViewAssemblyModal(${a.blade_assembly_id}, '${escapeHtml(a.name)}')">
             <td>${a.blade_assembly_id}</td>
             <td>${escapeHtml(a.name)}</td>
-            <td>
-                <div class="table-actions">
-                    <button class="btn-edit" onclick="openViewAssemblyModal(${a.blade_assembly_id}, '${escapeHtml(a.name)}')">👁️</button>
-                </div>
-            </td>
+            <td></td> <!-- Пустая ячейка вместо кнопки -->
         </tr>
     `).join('');
 }
@@ -472,7 +462,7 @@ async function openViewAssemblyModal(assemblyId, assemblyName) {
                     <tr>
                         <td>${m.blade_id}</td>
                         <td>${bladeName}</td>
-                        <td><button class="btn-approx-sm" onclick="goToApproximation(${m.blade_id})">⚡ К аппроксимации</button></td>
+                        <td><button class="btn-approx-sm" onclick="goToApproximation(${m.blade_id})">К аппроксимации</button></td>
                     </tr>
                 `;
             }).join('');
