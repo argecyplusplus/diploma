@@ -1,6 +1,8 @@
 # app/__init__.py
 import os
 from flask import Flask, redirect, url_for, request, jsonify, g
+
+from controllers.two_blade_controller import two_blade_bp
 from .controllers.settings_api import settings_api_bp
 from .controllers.main_views import main_bp
 from .controllers.approximation_controller import approx_bp
@@ -30,6 +32,7 @@ def create_app():
     app.register_blueprint(sim_bp)
     app.register_blueprint(ic_bp)
     app.register_blueprint(settings_api_bp)
+    app.register_blueprint(two_blade_bp)
 
     migrate = Migrate(app, Base)
 

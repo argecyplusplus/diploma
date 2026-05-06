@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="tb-container">
+    <div class="section-header">
+        <h2>🔄 Двухлопаточная модель</h2>
+        <a href="/" class="btn-secondary">← На главную</a>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>📝 Новый расчёт</h3>
+            <span class="card-hint">Выберите две лопатки и задайте параметры</span>
+        </div>
+
+        <form id="twoBladeForm">
+            <!-- Название -->
+            <div class="form-group">
+                <label for="name">Название расчёта *</label>
+                <input type="text" id="name" name="name" required placeholder="Напр.: Двухлопаточная_1">
+            </div>
+
+            <!-- Выбор лопаток -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="blade_id">Основная лопатка *</label>
+                    <select id="blade_id" name="blade_id" required>
+                        <option value="" disabled selected>Загрузка...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="blade_id_small">Малая лопатка *</label>
+                    <select id="blade_id_small" name="blade_id_small" required>
+                        <option value="" disabled selected>Загрузка...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Геометрические параметры -->
+            <details open>
+                <summary>📐 Геометрические параметры</summary>
+                <div class="form-grid">
+                    <div class="form-group"><label>Chord (хорда большой), м</label><input type="number" step="any" name="chord" required></div>
+                    <div class="form-group"><label>Chord2 (хорда малой), м</label><input type="number" step="any" name="chord2" required></div>
+                    <div class="form-group"><label>dely_offset (смещение по Y), м</label><input type="number" step="any" name="dely_offset" value="0"></div>
+                </div>
+            </details>
+
+            <!-- Термодинамика газа и материала -->
+            <details>
+                <summary>🔥 Температуры и свойства</summary>
+                <div class="form-grid">
+                    <div class="form-group"><label>T_gas, K</label><input type="number" step="any" name="t_gas" required></div>
+                    <div class="form-group"><label>T_cool, K</label><input type="number" step="any" name="t_cool" required></div>
+                    <div class="form-group"><label>T_blade, K</label><input type="number" step="any" name="t_blade" required></div>
+                    <div class="form-group"><label>Press0, Па</label><input type="number" step="any" name="press0" required></div>
+                    <div class="form-group"><label>U0, м/с</label><input type="number" step="any" name="u0" required></div>
+                    <div class="form-group"><label>beta, °</label><input type="number" step="any" name="beta" required></div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group"><label>houter, Вт/(м²·К)</label><input type="number" step="any" name="houter" required></div>
+                    <div class="form-group"><label>hinner, Вт/(м²·К)</label><input type="number" step="any" name="hinner" required></div>
+                    <div class="form-group"><label>Rgas, Дж/(кг·К)</label><input type="number" step="any" name="rgas" required></div>
+                    <div class="form-group"><label>cpgas, Дж/(кг·К)</label><input type="number" step="any" name="cpgas" required></div>
+                    <div class="form-group"><label>kgas, Вт/(м·К)</label><input type="number" step="any" name="kgas" required></div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group"><label>rhosteel, кг/м³</label><input type="number" step="any" name="rhosteel" required></div>
+                    <div class="form-group"><label>cpsteel, Дж/(кг·К)</label><input type="number" step="any" name="cpsteel" required></div>
+                    <div class="form-group"><label>ksteel, Вт/(м·К)</label><input type="number" step="any" name="ksteel" required></div>
+                </div>
+            </details>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-primary btn-lg" id="submitBtn">
+                    <span class="btn-text">🚀 Запустить расчёт</span>
+                    <span class="btn-loader" style="display:none;">⏳ Расчёт...</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div id="statusMessage" style="margin-top:20px;"></div>
+</div>
+
+<style>
+    .tb-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 15px; margin-bottom: 15px; }
+    .form-actions { text-align: center; margin-top: 25px; }
+    .btn-lg { padding: 12px 30px; font-size: 16px; }
+    .btn-loader { display: none; }
+</style>
+
+<script>
+    // Загрузка списка лопаток
+    async function loadBladesSelect() {
+        const mainSelect = document.getElementById('blade_id');
+        const smallSelect = document.getElementById('blade_id_small');
+        try {
+            const res = await fetch('/api/blades');
+            if (!res.ok) throw new Error('Ошибка загрузки');
+            const blades = await res.json();
+            if (blades.length === 0) {
+                mainSelect.innerHTML = '<option disabled>Нет лопаток</option>';
+                smallSelect.innerHTML = '<option disabled>Нет лопаток</option>';
+                return;
+            }
+            let options = '<option value="" disabled selected>Выберите лопатку</option>';
+            blades.forEach(b => {
+                options += `<option value="${b.blade_id}">${escapeHtml(b.name)}</option>`;
+            });
+            mainSelect.innerHTML = options;
+            smallSelect.innerHTML = options;
+        } catch (e) {
+            mainSelect.innerHTML = '<option disabled>Ошибка загрузки</option>';
+            smallSelect.innerHTML = '<option disabled>Ошибка загрузки</option>';
+            console.error(e);
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    document.getElementById('twoBladeForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submitBtn');
+        const btnText = btn.querySelector('.btn-text');
+        const btnLoader = btn.querySelector('.btn-loader');
+        btn.disabled = true;
+        btnText.style.display = 'none';
+        btnLoader.style.display = 'inline-block';
+
+        const formData = new FormData(e.target);
+        const payload = {};
+        for (let [key, value] of formData.entries()) {
+            payload[key] = parseFloat(value) || value; // числа преобразуем
+        }
+
+        try {
+            const res = await fetch('/two-blade/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Ошибка запуска');
+            const simId = data.sim_id;
+            document.getElementById('statusMessage').innerHTML = `<div class="alert alert-info">⏳ Расчёт запущен, ожидайте...</div>`;
+            pollStatus(simId);
+        } catch (err) {
+            alert('❌ ' + err.message);
+            resetBtn();
+        }
+
+        function pollStatus(simId) {
+            const interval = setInterval(async () => {
+                const resp = await fetch(`/two-blade/status/${simId}`);
+                const status = await resp.json();
+                if (status.status === 'completed') {
+                    clearInterval(interval);
+                    window.location.href = `/two-blade/results/${simId}`;
+                } else if (status.status === 'failed') {
+                    clearInterval(interval);
+                    document.getElementById('statusMessage').innerHTML = '<div class="alert alert-danger">❌ Ошибка расчёта</div>';
+                    resetBtn();
+                } else {
+                    document.getElementById('statusMessage').innerHTML = `<div class="alert alert-info">⏳ Статус: ${status.status}...</div>`;
+                }
+            }, 2000);
+        }
+
+        function resetBtn() {
+            btn.disabled = false;
+            btnText.style.display = 'inline';
+            btnLoader.style.display = 'none';
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', loadBladesSelect);
+</script>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="results-container">
+    <div class="section-header">
+        <h2>📊 Результаты расчёта #{{ sim_id }}</h2>
+        <a href="/two-blade" class="btn-secondary">← Новый расчёт</a>
+    </div>
+
+    <div class="card">
+        <h3>📁 Сгенерированные файлы</h3>
+        {% if files %}
+        <ul class="file-list">
+            {% for f in files %}
+            <li>
+                <a href="/two-blade/download/{{ sim_id }}/{{ f }}" target="_blank" class="file-link">
+                    📄 {{ f }}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p>Файлы не найдены. Возможно, расчёт ещё не завершён или произошла ошибка.</p>
+        {% endif %}
+    </div>
+
+    <div class="note">
+        <p>💡 <strong>Примечание:</strong> EPS-графики можно открыть в любом векторном редакторе, CSV – в Excel.</p>
+    </div>
+</div>
+
+<style>
+    .results-container { max-width: 800px; margin: 0 auto; padding: 20px; }
+    .file-list { list-style: none; padding: 0; }
+    .file-list li { margin: 10px 0; padding: 8px; background: #f8fafc; border-radius: 6px; }
+    .file-link { text-decoration: none; font-weight: 500; color: #2563eb; font-size: 1.1em; }
+    .file-link:hover { text-decoration: underline; }
+    .note { margin-top: 30px; padding: 15px; background: #fef9c3; border-radius: 8px; }
+</style>
+{% endblock %}
