@@ -1,7 +1,9 @@
 from app import create_app
+from dotenv import load_dotenv
 
 # Создаем экземпляр Flask-приложения, вызывая нашу фабрику
 app = create_app()
+load_dotenv()
 
 if __name__ == '__main__':
     # Запускаем локальный сервер разработки

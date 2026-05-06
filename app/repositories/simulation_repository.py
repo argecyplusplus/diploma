@@ -1,191 +1,84 @@
-from typing import List, Optional, Dict
+from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import select, delete as sql_delete
-
+from sqlalchemy import select
 from ..models.simulation import (
     Simulation, SimulationTask, SimulationResult, SimulationMaterial,
-    InitialCondition, TimeParameter, BladeChord, PotentialFlowParameter,
-    BoundaryIdentifier, ElasticityParameter, ConstructionParameter,
-    InitialTemperature, StressOutputParameter
+    InitialCondition, TimeParameter, PotentialFlowParameter,
+    BoundaryIdentifier, ConstructionParameter, InitialTemperature,
+    ElasticityParameter, StressOutputParameter, BladeChord
 )
-
-
-class InitialConditionRepository:
-    """
-    Репозиторий для управления начальными условиями (InitialConditions)
-    и их сложной структурой параметров (время, границы, температура и т.д.)
-    """
-
-    def __init__(self, session: Session):
-        self.session = session
-
-    # --- Базовые операции ---
-    def create(self, name: str) -> InitialCondition:
-        condition = InitialCondition(name=name)
-        self.session.add(condition)
-        self.session.flush()
-        return condition
-
-    def get_by_id(self, condition_id: int) -> Optional[InitialCondition]:
-        return self.session.get(InitialCondition, condition_id)
-
-    def delete(self, condition: InitialCondition):
-        self.session.delete(condition)
-
-    # --- Управление параметрами времени ---
-    def add_time_parameters(self, condition_id: int, time: float, dt: float, nbT: float, Nplot: float) -> TimeParameter:
-        params = TimeParameter(
-            initial_conditions_id=condition_id,
-            time=time, dt=dt, nbT=nbT, Nplot=Nplot
-        )
-        self.session.add(params)
-        self.session.flush()
-        return params
-
-    # --- Управление геометрией (хорда) ---
-    def add_blade_chord(self, condition_id: int, name: str, value: float) -> BladeChord:
-        chord = BladeChord(initial_conditions_id=condition_id, name=name, value=value)
-        self.session.add(chord)
-        self.session.flush()
-        return chord
-
-    # --- Управление газодинамикой (потенциальный поток) ---
-    def add_flow_parameters(self, condition_id: int, beta: float, B: float) -> PotentialFlowParameter:
-        params = PotentialFlowParameter(initial_conditions_id=condition_id, beta=beta, B=B)
-        self.session.add(params)
-        self.session.flush()
-        return params
-
-    # --- Управление границами (Boundary Identifiers) ---
-    def add_boundary_identifier(self, condition_id: int, name: str, value: float) -> BoundaryIdentifier:
-        identifier = BoundaryIdentifier(initial_conditions_id=condition_id, name=name, value=value)
-        self.session.add(identifier)
-        self.session.flush()
-        return identifier
-
-    def bulk_add_boundaries(self, condition_id: int, boundaries: List[Dict]) -> List[BoundaryIdentifier]:
-        """Массовое добавление граничных условий"""
-        instances = [
-            BoundaryIdentifier(initial_conditions_id=condition_id, **b)
-            for b in boundaries
-        ]
-        self.session.add_all(instances)
-        self.session.flush()
-        return instances
-
-    # --- Управление упругостью ---
-    def add_elasticity_parameters(self, condition_id: int, b: float, nu: float, KLT: float) -> ElasticityParameter:
-        params = ElasticityParameter(initial_conditions_id=condition_id, b=b, nu=nu, KLT=KLT)
-        self.session.add(params)
-        self.session.flush()
-        return params
-
-    # --- Управление конструктивными параметрами ---
-    def add_construction_parameters(self, condition_id: int, NC: int, NSp: int, NSm: int, NSpn: int,
-                                    NSpm: int) -> ConstructionParameter:
-        params = ConstructionParameter(
-            initial_conditions_id=condition_id,
-            NC=NC, NSp=NSp, NSm=NSm, NSpn=NSpn, NSpm=NSpm
-        )
-        self.session.add(params)
-        self.session.flush()
-        return params
-
-    # --- Управление температурой ---
-    def add_initial_temperature(self, condition_id: int, material_id: int, value: float) -> InitialTemperature:
-        temp = InitialTemperature(initial_conditions_id=condition_id, material_id=material_id, value=value)
-        self.session.add(temp)
-        self.session.flush()
-        return temp
-
-    # --- Управление выводом напряжений ---
-    def add_stress_output_parameters(self, condition_id: int, coef: float, delt: float,
-                                     Npt: float) -> StressOutputParameter:
-        params = StressOutputParameter(initial_conditions_id=condition_id, coef=coef, delt=delt, Npt=Npt)
-        self.session.add(params)
-        self.session.flush()
-        return params
+from ..models.material import ElValue
 
 
 class SimulationRepository:
-    """Репозиторий для управления симуляциями и связанными объектами"""
-
     def __init__(self, session: Session):
         self.session = session
 
-    # --- Базовые операции ---
-    def create(self, name: str, blade_assembly_id: int, blade_id: int, initial_conditions_id: int) -> Simulation:
-        simulation = Simulation(
-            name=name,
-            blade_assembly_id=blade_assembly_id,
-            blade_id=blade_id,
-            initial_conditions_id=initial_conditions_id
-        )
-        self.session.add(simulation)
-        self.session.flush()
-        return simulation
-
-    def get_by_id(self, simulation_id: int) -> Optional[Simulation]:
-        return self.session.get(Simulation, simulation_id)
-
-    def get_all(self) -> List[Simulation]:
+    # --- Simulations ---
+    def get_all_simulations(self) -> List[Simulation]:
         return self.session.scalars(select(Simulation)).all()
 
-    def delete(self, simulation: Simulation):
-        self.session.delete(simulation)
+    def get_by_id(self, sim_id: int) -> Optional[Simulation]:
+        return self.session.get(Simulation, sim_id)
 
-    # --- Управление задачами (Tasks) ---
-    def add_task(self, simulation_id: int, task_value: float, description: Optional[str] = None) -> SimulationTask:
-        task = SimulationTask(
-            simulation_id=simulation_id,
-            task_value=task_value,
-            description=description
-        )
-        self.session.add(task)
+    def create(self, **kwargs) -> Simulation:
+        sim = Simulation(**kwargs)
+        self.session.add(sim)
         self.session.flush()
-        return task
+        return sim
 
-    def get_tasks(self, simulation_id: int) -> List[SimulationTask]:
-        return self.session.scalars(
-            select(SimulationTask).where(SimulationTask.simulation_id == simulation_id)
-        ).all()
-
-    # --- Управление результатами (Results) ---
-    def add_result(self, simulation_id: int, file_type: str, file_path: str,
-                   description: Optional[str] = None) -> SimulationResult:
-        result = SimulationResult(
-            simulation_id=simulation_id,
-            file_type=file_type,
-            file_path=file_path,
-            description=description
-        )
-        self.session.add(result)
+    def add_tasks(self, sim_id: int, tasks_data: List[dict]):
+        for t in tasks_data:
+            self.session.add(SimulationTask(simulation_id=sim_id, task_value=1.0, description=t.get('description')))
         self.session.flush()
-        return result
 
-    def get_results(self, simulation_id: int) -> List[SimulationResult]:
-        return self.session.scalars(
-            select(SimulationResult).where(SimulationResult.simulation_id == simulation_id)
-        ).all()
-
-    # --- Управление материалами симуляции ---
-    def add_material(self, simulation_id: int, material_id: int) -> SimulationMaterial:
-        # Проверка на дубликаты (опционально, но полезно)
-        exists = self.session.scalar(
-            select(SimulationMaterial).where(
-                SimulationMaterial.simulation_id == simulation_id,
-                SimulationMaterial.material_id == material_id
-            )
-        )
-        if exists:
-            return exists
-
-        link = SimulationMaterial(simulation_id=simulation_id, material_id=material_id)
-        self.session.add(link)
+    def add_materials(self, sim_id: int, material_ids: List[int]):
+        for mid in material_ids:
+            self.session.add(SimulationMaterial(simulation_id=sim_id, material_id=mid))
         self.session.flush()
-        return link
 
-    def get_materials(self, simulation_id: int) -> List[SimulationMaterial]:
-        return self.session.scalars(
-            select(SimulationMaterial).where(SimulationMaterial.simulation_id == simulation_id)
-        ).all()
+    def add_result(self, sim_id: int, file_type: str, file_path: str, desc: str = "") -> SimulationResult:
+        res = SimulationResult(simulation_id=sim_id, file_type=file_type, file_path=file_path, description=desc)
+        self.session.add(res)
+        self.session.flush()
+        return res
+
+    # --- Initial Conditions ---
+    def get_all_initial_conditions(self) -> List[InitialCondition]:
+        return self.session.scalars(select(InitialCondition)).all()
+
+    def create_initial_condition(self, data: dict) -> InitialCondition:
+        ic = InitialCondition(name=data['name'])
+        self.session.add(ic)
+        self.session.flush()
+        ic_id = ic.initial_conditions_id
+
+        # Сохраняем вложенные параметры
+        self.session.add(TimeParameter(initial_conditions_id=ic_id, **data['time_parameters']))
+        self.session.add(PotentialFlowParameter(initial_conditions_id=ic_id, **data['potential_flow']))
+        self.session.add(ConstructionParameter(initial_conditions_id=ic_id, **data['construction']))
+
+        # Создаём ElasticityParameter и сразу сохраняем ссылку на него
+        elastic_param = ElasticityParameter(initial_conditions_id=ic_id, **data['elasticity'])
+        self.session.add(elastic_param)
+        self.session.flush()  # чтобы получить elastic_param.elasticity_parameters_id
+
+        self.session.add(StressOutputParameter(initial_conditions_id=ic_id, **data['stress_output']))
+
+        for b in data['boundaries']:
+            self.session.add(BoundaryIdentifier(initial_conditions_id=ic_id, **b))
+        for t in data['initial_temps']:
+            self.session.add(InitialTemperature(initial_conditions_id=ic_id, **t))
+        for c in data['chords']:
+            self.session.add(BladeChord(initial_conditions_id=ic_id, **c))
+
+        # Добавляем Ei (el_values)
+        for ei in data.get('ei_values', []):
+            self.session.add(ElValue(
+                elasticity_parameters_id=elastic_param.elasticity_parameters_id,
+                material_id=ei['material_id'],
+                value=ei['value']
+            ))
+
+        self.session.flush()
+        return ic

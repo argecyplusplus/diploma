@@ -228,9 +228,22 @@
     }
 
     // ===== МОДАЛКИ =====
-    function openModal(id) { document.getElementById(id).classList.add('active'); }
-    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-    function handleOverlayClick(e, id) { if (e.target.id === id) closeModal(id); }
+    function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('active');
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active');
+}
+    function handleOverlayClick(event, modalId) {
+    // Закрываем, только если клик был именно по оверлею (затемнённому фону)
+    if (event.target === event.currentTarget) {
+        closeModal(modalId);
+    }
+
+}
 
     // ===== МАТЕРИАЛЫ =====
     function openMaterialModal(id = null) {
@@ -329,8 +342,8 @@
                 const data = await res.json();
                 document.getElementById('alloyName').value = data.alloy.name;
                 data.components.forEach(c => {
-                    addAlloyComponentRow(c.component_material_id, (c.mass_fraction * 100).toFixed(1));
-                });
+    addAlloyComponentRow(c.component_material_id, (c.mass_fraction * 100).toFixed(4));
+});
                 validateMassSum();
             } catch (e) { console.error(e); }
         } else {
@@ -340,26 +353,32 @@
     }
 
     function addAlloyComponentRow(selectedId = '', fraction = '') {
-        const div = document.createElement('div');
-        div.className = 'comp-row';
-        const options = materials.map(m => `<option value="${m.material_id}" ${m.material_id == selectedId ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('');
-        div.innerHTML = `
-            <select class="comp-select"><option value="">Выберите...</option>${options}</select>
-            <input type="number" class="comp-frac" placeholder="%" min="0" max="100" step="0.1" value="${fraction}" oninput="validateMassSum()">
-            <button type="button" class="btn-remove" onclick="this.parentElement.remove(); validateMassSum()">✕</button>
-        `;
-        document.getElementById('alloyComponents').appendChild(div);
-    }
+    const div = document.createElement('div');
+    div.className = 'comp-row';
+    const options = materials.map(m => `<option value="${m.material_id}" ${m.material_id == selectedId ? 'selected' : ''}>${escapeHtml(m.name)}</option>`).join('');
+    div.innerHTML = `
+        <select class="comp-select"><option value="">Выберите...</option>${options}</select>
+        <input type="number" class="comp-frac" placeholder="%" min="0" max="100" step="any" value="${fraction}" oninput="validateMassSum()">
+        <button type="button" class="btn-remove" onclick="this.parentElement.remove(); validateMassSum()">✕</button>
+    `;
+    document.getElementById('alloyComponents').appendChild(div);
+}
 
     function validateMassSum() {
-        const inputs = document.querySelectorAll('.comp-frac');
-        let sum = 0;
-        inputs.forEach(i => { const v = parseFloat(i.value); if (!isNaN(v)) sum += v; });
-        document.getElementById('massSum').textContent = sum.toFixed(1);
-        const err = document.getElementById('massSumError');
-        err.classList.toggle('show', Math.abs(sum - 100) > 0.5);
-        return Math.abs(sum - 100) <= 0.5;
-    }
+    const inputs = document.querySelectorAll('.comp-frac');
+    let sum = 0;
+    inputs.forEach(i => {
+        let val = i.value;
+        if (typeof val === 'string') val = val.replace(',', '.');
+        const v = parseFloat(val);
+        if (!isNaN(v)) sum += v;
+    });
+    document.getElementById('massSum').textContent = sum.toFixed(2);
+    const err = document.getElementById('massSumError');
+    const isValid = Math.abs(sum - 100) <= 0.1;  // допуск 0.1%
+    err.classList.toggle('show', !isValid);
+    return isValid;
+}
 
     async function saveAlloy(e) {
         e.preventDefault();
@@ -369,7 +388,7 @@
         const components = [];
         document.querySelectorAll('.comp-row').forEach(row => {
             const matId = row.querySelector('.comp-select').value;
-            const frac = parseFloat(row.querySelector('.comp-frac').value) / 100;
+            const frac = parseFloat(row.querySelector('.comp-frac').value.replace(',', '.')) / 100;
             if (matId && frac > 0) components.push({ component_material_id: +matId, mass_fraction: frac });
         });
         if (components.length < 2) { alert('Нужно минимум 2 компонента'); return; }
@@ -417,9 +436,9 @@
             document.getElementById('viewKLT').textContent = data.alloy.thermal_expansion_coef?.toFixed(2) || '—';
             document.getElementById('viewHardness').textContent = data.alloy.hardness?.toFixed(1) || '—';
             document.getElementById('viewAlloyComps').innerHTML = data.components.map(c => {
-                const mat = materials.find(m => m.material_id == c.component_material_id);
-                return `<tr><td>${mat ? escapeHtml(mat.name) : 'Удалён'}</td><td>${(c.mass_fraction * 100).toFixed(1)}%</td></tr>`;
-            }).join('');
+    const mat = materials.find(m => m.material_id == c.component_material_id);
+    return `<tr><td>${mat ? escapeHtml(mat.name) : 'Удалён'}</td><td>${(c.mass_fraction * 100).toFixed(2)}%</td></tr>`;
+}).join('');
             openModal('viewAlloyModal');
         } catch (e) { alert('Ошибка: ' + e.message); }
     }

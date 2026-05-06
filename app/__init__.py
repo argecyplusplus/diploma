@@ -6,7 +6,11 @@ from .controllers.main_views import main_bp
 from .controllers.approximation_controller import approx_bp
 from .controllers.blade_controller import blade_bp, assembly_bp
 from .controllers.page_views import page_views_bp
+from flask_migrate import Migrate
+from app.models import blade, material, simulation
+from app.models.base import Base
 from .controllers.material_controller import mat_bp, alloy_bp, element_bp
+from .controllers.simulation_controller import sim_bp, ic_bp
 from .utils.database import get_db_list
 
 
@@ -17,12 +21,17 @@ def create_app():
     # Регистрация Blueprints
     app.register_blueprint(page_views_bp)  # <-- Добавьте это
     app.register_blueprint(blade_bp)
+    app.register_blueprint(main_bp)
     app.register_blueprint(assembly_bp)
     app.register_blueprint(approx_bp)
     app.register_blueprint(mat_bp)
     app.register_blueprint(alloy_bp)
     app.register_blueprint(element_bp)
-    app.register_blueprint(settings_api_bp, url_prefix='/api/settings')
+    app.register_blueprint(sim_bp)
+    app.register_blueprint(ic_bp)
+    app.register_blueprint(settings_api_bp)
+
+    migrate = Migrate(app, Base)
 
     # Middleware: проверка выбора БД
     @app.before_request
@@ -45,5 +54,6 @@ def create_app():
         db_session = g.pop('db_session', None)
         if db_session is not None:
             db_session.remove()
+
 
     return app

@@ -19,17 +19,19 @@ class Simulation(Base):
     simulation_id = Column(Integer, primary_key=True, autoincrement=True)
     # Наименование моделирования
     name = Column(Text, nullable=False)
+    status = Column(Text, nullable=False, default="created")  # created, queued, running, completed, failed
+    progress = Column(Integer, nullable=False, default=0)  # 0..100, опционально
 
     # Внешние ключи
     blade_assembly_id = Column(
         Integer,
         ForeignKey('blade_assemblies.blade_assembly_id', ondelete="CASCADE"),
-        nullable=False
+        nullable=True
     )
     blade_id = Column(
         Integer,
         ForeignKey('blades.blade_id', ondelete="CASCADE"),
-        nullable=False
+        nullable=True
     )
     # Ссылка на начальные условия (класс InitialCondition будет создан в следующем шаге)
     initial_conditions_id = Column(

@@ -1,9 +1,11 @@
 from typing import List, Dict
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+
+from models.material import ChemicalElement
 from ..repositories.material_repository import MaterialRepository
 from ..dto.material_dto import (
     MaterialCreateRequest, MaterialUpdateRequest, AlloyCreateRequest,
-    ChemicalElementCreateRequest
+    ChemicalElementCreateRequest, ChemicalElementResponse
 )
 
 class MaterialService:
@@ -12,8 +14,9 @@ class MaterialService:
         self.repo = MaterialRepository(session)
 
     def _calculate_properties(self, components: List[dict]) -> Dict:
-        """Расчёт свойств сплава по правилу смесей (Rule of Mixtures)"""
-        inv_density = 0.0
+        """Расчёт свойств сплава по правилу смесей (как в старой программе: объёмное усреднение)"""
+        total_mass = 0.0  # сумма массовых долей = 1
+        total_vol = 0.0
         conductivity = 0.0
         heat_cap = 0.0
         expansion = 0.0
@@ -22,23 +25,42 @@ class MaterialService:
 
         for comp in components:
             mat = self.repo.get_by_id(comp["component_material_id"])
-            if not mat: continue
-            w = comp["mass_fraction"]
+            if not mat:
+                continue
+            w = comp["mass_fraction"]  # массовая доля в долях (0..1)
+            total_mass += w
+            vol = w / mat.density  # объём (пропорциональный)
+            total_vol += vol
+            conductivity += vol * mat.thermal_conductivity
+            heat_cap += vol * mat.heat_capacity
+            expansion += vol * mat.thermal_expansion_coef
+            if mat.hardness is not None:
+                hardness_sum += vol * mat.hardness
+            if mat.melting_point is not None:
+                melting_sum += vol * mat.melting_point
 
-            inv_density += w / mat.density
-            conductivity += w * mat.thermal_conductivity
-            heat_cap += w * mat.heat_capacity
-            expansion += w * mat.thermal_expansion_coef
-            if mat.hardness is not None: hardness_sum += w * mat.hardness
-            if mat.melting_point is not None: melting_sum += w * mat.melting_point
+        if total_vol > 0:
+            density = total_mass / total_vol  # плотность = общая масса / объём
+            thermal_conductivity = conductivity / total_vol
+            heat_capacity = heat_cap / total_vol
+            thermal_expansion_coef = expansion / total_vol
+            hardness = hardness_sum / total_vol if hardness_sum > 0 else None
+            melting_point = melting_sum / total_vol if melting_sum > 0 else None
+        else:
+            density = 0.0
+            thermal_conductivity = 0.0
+            heat_capacity = 0.0
+            thermal_expansion_coef = 0.0
+            hardness = None
+            melting_point = None
 
         return {
-            "density": 1.0 / inv_density if inv_density > 0 else 0.0,
-            "thermal_conductivity": conductivity,
-            "heat_capacity": heat_cap,
-            "thermal_expansion_coef": expansion,
-            "hardness": hardness_sum if hardness_sum > 0 else None,
-            "melting_point": melting_sum if melting_sum > 0 else None,
+            "density": density,
+            "thermal_conductivity": thermal_conductivity,
+            "heat_capacity": heat_capacity,
+            "thermal_expansion_coef": thermal_expansion_coef,
+            "hardness": hardness,
+            "melting_point": melting_point,
         }
 
     def create_element(self, data: ChemicalElementCreateRequest):
