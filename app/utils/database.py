@@ -5,108 +5,103 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from flask import g
 from ..models.base import Base
 
-# Важно: импортируем все модели, чтобы Base.metadata знал о них
+# Импорт моделей для создания таблиц
 from ..models import blade, material, simulation
 
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'db_config.json')
 DB_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'databases')
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'db_config.json')
 
 
 def _load_config():
     if not os.path.exists(CONFIG_FILE):
-        save_config({"current_db": None, "databases": []})
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump({"current_db": None}, f)
+        return {"current_db": None}
     with open(CONFIG_FILE, 'r') as f:
         return json.load(f)
 
 
-def save_config(config):
+def _save_config(config):
     with open(CONFIG_FILE, 'w') as f:
         json.dump(config, f, indent=4)
 
 
-def get_current_db():
-    """Возвращает имя текущей выбранной базы данных или None"""
-    config = _load_config()
-    return config.get("current_db")
-
-
 def get_db_list():
+    """Сканирует папку databases и возвращает список БД (без .db) и текущую активную"""
+    os.makedirs(DB_DIR, exist_ok=True)
+    dbs = []
+    for f in os.listdir(DB_DIR):
+        if f.endswith('.db'):
+            dbs.append(f[:-3])  # удаляем расширение
+
     config = _load_config()
-    # 🔥 Удаляем дубликаты и несуществующие файлы
-    seen = set()
-    valid_dbs = []
-    for db in config["databases"]:
-        if db not in seen and os.path.exists(os.path.join(DB_DIR, db)):
-            valid_dbs.append(db)
-            seen.add(db)
+    current = config.get("current_db")
+    # Проверяем, существует ли файл текущей БД
+    if current and not os.path.exists(os.path.join(DB_DIR, current + '.db')):
+        current = None
+        config["current_db"] = None
+        _save_config(config)
 
-    # Сохраняем, если список изменился
-    if valid_dbs != config["databases"]:
-        config["databases"] = valid_dbs
-        save_config(config)
+    return dbs, current
 
-    return valid_dbs, config["current_db"]
+
+def get_current_db():
+    _, current = get_db_list()
+    return current
 
 
 def create_database(name):
+    """Создаёт новый файл .db и возвращает имя без расширения"""
     if not name.endswith('.db'):
         name += '.db'
-
-    config = _load_config()
-
-    # 🔥 Проверка на дубликат
-    if name in config["databases"]:
-        raise ValueError("База данных уже существует")
-
     os.makedirs(DB_DIR, exist_ok=True)
     db_path = os.path.join(DB_DIR, name)
+    if os.path.exists(db_path):
+        raise ValueError("База данных уже существует")
 
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
-
-    # 🔥 Добавляем только если нет в списке
-    if name not in config["databases"]:
-        config["databases"].append(name)
-    config["current_db"] = name
-    save_config(config)
-    return name
+    return name[:-3]  # возвращаем имя без .db
 
 
 def select_database(name):
-    config = _load_config()
-    if name not in config["databases"]:
+    """Устанавливает активную БД (имя без .db)"""
+    db_path = os.path.join(DB_DIR, name + '.db')
+    if not os.path.exists(db_path):
         raise ValueError("База данных не найдена")
+    config = _load_config()
     config["current_db"] = name
-    save_config(config)
+    _save_config(config)
     return name
 
 
 def delete_database(name):
-    config = _load_config()
-    if name not in config["databases"]:
+    """Удаляет файл БД и, если она была активной, сбрасывает current_db"""
+    db_path = os.path.join(DB_DIR, name + '.db')
+    if not os.path.exists(db_path):
         raise ValueError("База данных не найдена")
+    os.remove(db_path)
 
-    db_path = os.path.join(DB_DIR, name)
-    if os.path.exists(db_path):
-        os.remove(db_path)
-
-    config["databases"].remove(name)
-    if config["current_db"] == name:
+    config = _load_config()
+    if config.get("current_db") == name:
         config["current_db"] = None
-    save_config(config)
+        _save_config(config)
 
 
 def get_engine():
+    """Возвращает SQLAlchemy engine для активной БД"""
     config = _load_config()
-    if not config["current_db"]:
+    current = config.get("current_db")
+    if not current:
         raise RuntimeError("DB_NOT_SELECTED")
-    db_path = os.path.join(DB_DIR, config["current_db"])
+    db_path = os.path.join(DB_DIR, current + '.db')
     if not os.path.exists(db_path):
         raise RuntimeError("DB_FILE_MISSING")
     return create_engine(f"sqlite:///{db_path}", echo=False)
 
 
 def get_db_session():
+    """Возвращает сессию SQLAlchemy для текущего запроса (через Flask g)"""
     if 'db_session' not in g:
         engine = get_engine()
         session_factory = sessionmaker(bind=engine)

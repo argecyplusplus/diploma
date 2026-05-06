@@ -1,175 +1,377 @@
-<!-- app/templates/base.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WGKM Modeling</title>
+    <title>FF Pro — моделирование лопаток ГТД</title>
     <style>
-        :root { --primary: #2563eb; --bg: #f8fafc; --sidebar-w: 240px; }
-        body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); display: flex; height: 100vh; }
-
-        /* Header */
-        header { position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: 60px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 10; }
-        .settings-btn { cursor: pointer; padding: 8px; border-radius: 8px; transition: 0.2s; }
-        .settings-btn:hover { background: #e2e8f0; }
-
-        /* Sidebar */
-        aside { width: var(--sidebar-w); background: #1e293b; color: #fff; display: flex; flex-direction: column; padding-top: 20px; }
-        aside h2 { text-align: center; margin-bottom: 30px; font-size: 18px; }
-        aside nav a { display: block; padding: 12px 24px; color: #cbd5e1; text-decoration: none; transition: 0.2s; }
-        aside nav a:hover, aside nav a.active { background: #334155; color: #fff; border-left: 3px solid var(--primary); }
-
-        /* Main Content */
-        main { margin-left: var(--sidebar-w); margin-top: 60px; flex: 1; padding: 24px; overflow-y: auto; }
-
-        /* Modal */
-        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 100; }
-        .modal { background: #fff; padding: 24px; border-radius: 12px; width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        .modal h3 { margin-top: 0; }
-        .db-list { max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; margin: 12px 0; }
-        .db-item { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
-        .db-item:hover { background: #f8fafc; }
-        .db-item.active { background: #eff6ff; font-weight: 500; }
-        .actions { display: flex; gap: 8px; margin-top: 16px; }
-        button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; }
-        .btn-primary { background: var(--primary); color: #fff; }
-        .btn-danger { background: #ef4444; color: #fff; }
-        .btn-secondary { background: #e2e8f0; }
-        input[type="text"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
-        .modal-overlay.active {
-            display: flex !important;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
+
+        :root {
+            --bg-body: #f1f5f9;
+            --bg-sidebar: #0f172a;
+            --bg-card: #ffffff;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --warning: #f59e0b;
+            --success: #10b981;
+            --sidebar-width: 260px;
+            --header-height: 64px;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --radius-md: 0.75rem;
+            --radius-sm: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-body);
+            color: var(--text-primary);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ========= SIDEBAR ========= */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-sidebar);
+            color: #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+
+        .sidebar-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+        }
+
+        .sidebar-header p {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            color: #cbd5e1;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        .nav-item i { font-style: normal; font-size: 1.25rem; width: 24px; text-align: center; }
+        .nav-item:hover { background: #1e293b; color: white; }
+        .nav-item.active {
+            background: #1e293b;
+            color: white;
+            border-left: 3px solid var(--primary);
+        }
+
+        /* ========= HEADER ========= */
+        .header {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            height: var(--header-height);
+            background: var(--bg-card);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding: 0 28px;
+            z-index: 10;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .db-status {
+            background: #f1f5f9;
+            padding: 6px 14px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .db-status span:first-child { font-weight: 500; color: var(--text-primary); }
+        .db-badge { width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; }
+        .settings-btn {
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f8fafc;
+            margin-left: 16px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        .settings-btn:hover { background: #e2e8f0; color: var(--text-primary); }
+
+        /* ========= MAIN ========= */
+        .main {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px 32px;
+        }
+
+        /* ========= MODAL ========= */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--bg-card);
+            padding: 28px;
+            border-radius: var(--radius-md);
+            width: 480px;
+            max-width: 90%;
+            box-shadow: var(--shadow-md);
+            animation: fadeInUp 0.2s ease;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .modal h3 { font-size: 1.4rem; margin-bottom: 20px; color: var(--text-primary); }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+        .db-list {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            max-height: 200px;
+            overflow-y: auto;
+            background: #fafcff;
+        }
+        .db-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            border-bottom: 1px solid #f0f2f5;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+        .db-item:hover { background: #f1f5f9; }
+        .db-item.active { background: #eef2ff; font-weight: 500; border-left: 3px solid var(--primary); }
+        .btn-danger-sm {
+            background: none;
+            border: none;
+            color: var(--danger);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 20px;
+        }
+        .btn-danger-sm:hover { background: #fee2e2; color: #b91c1c; }
+        .actions { display: flex; gap: 12px; margin-top: 24px; justify-content: flex-end; }
+        button {
+            padding: 8px 18px;
+            border-radius: 40px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+            font-size: 0.9rem;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-secondary { background: #e2e8f0; color: #1e293b; }
+        .btn-secondary:hover { background: #cbd5e1; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: var(--danger-hover); }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+        input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        small { color: var(--text-muted); font-size: 0.75rem; }
     </style>
 </head>
 <body>
-    <aside>
-        <h2>FFModeling++</h2>
-        <nav>
-        <a href="/">Главная</a>
-        <a href="/blades">Лопатки</a>
-        <a href="/approximation">Аппроксимация</a> <!-- НОВОЕ -->
-        <a href="/materials">Материалы и сплавы</a>
-        <a href="/simulation">Моделирование</a>
+
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h1>FF Pro</h1>
+        <p>моделирование лопаток ГТД</p>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="/" class="nav-item" data-path="/">🏠 Главная</a>
+        <a href="/blades" class="nav-item" data-path="/blades">🗂️ Лопатки</a>
+        <a href="/approximation" class="nav-item" data-path="/approximation">📈 Аппроксимация</a>
+        <a href="/materials" class="nav-item" data-path="/materials">🧪 Материалы</a>
+        <a href="/simulation" class="nav-item" data-path="/simulation">⚡ Моделирование</a>
+        <!-- Two-Blade будет добавлен позже, пока скрыт -->
+        <!-- <a href="/two-blade" class="nav-item" data-path="/two-blade">🔄 Двухлопаточная</a> -->
     </nav>
-    </aside>
+</aside>
 
-    <header>
-        <span id="db-status" style="font-size: 14px; color: #64748b;">БД не выбрана</span>
-        <div class="settings-btn" onclick="openModal('settingsModal')">⚙️ Настройки БД</div>
-    </header>
+<header class="header">
+    <div class="db-status">
+        <span class="db-badge"></span>
+        <span id="db-status-text">БД не выбрана</span>
+    </div>
+    <div class="settings-btn" onclick="openModal('settingsModal')">
+        ⚙️ Настройки
+    </div>
+</header>
 
-    <main>
+<main class="main">
     {% block content %}
-    <div style="text-align: center; padding: 40px; color: #64748b;">
-        <h2>Добро пожаловать в WGKM Modeling</h2>
+    <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+        <h2>Добро пожаловать в FF Pro</h2>
         <p>Выберите раздел в меню слева для начала работы</p>
-        {% if not currentDb %}
-        <p style="color: #ef4444; font-weight: 500;">⚠️ Сначала выберите или создайте базу данных в настройках</p>
-        {% endif %}
+        <!-- Предупреждение будет показано через JS, если БД не выбрана -->
     </div>
     {% endblock %}
 </main>
 
-    <!-- Settings Modal -->
-    <!-- Settings Modal -->
-    <div class="modal-overlay" id="settingsModal">
-        <div class="modal">
-            <h3>⚙️ Настройки</h3>
-
-            <div class="form-group">
-                <label>📁 База данных</label>
-                <div class="db-list" id="dbList"></div>
-                <div style="display:flex; gap:8px; margin-top:8px;">
-                    <input type="text" id="newDbName" placeholder="Имя новой БД..." style="flex:1;">
-                    <button class="btn-primary" onclick="createDb()">Создать</button>
-                </div>
-            </div>
-
-            <div class="form-group" style="margin-top:16px;">
-                <label>🔧 Путь к FreeFEM++</label>
-                <input type="text" id="freefemPath" placeholder="Например: C:\Program Files\FreeFem++\FreeFem++.exe">
-                <small style="color:#64748b;">Оставьте пустым, если FreeFEM добавлен в PATH системы</small>
-            </div>
-
-            <div class="actions">
-                <button class="btn-secondary" onclick="closeModal('settingsModal')">Закрыть</button>
-                <button class="btn-primary" onclick="saveSettings()">💾 Сохранить настройки</button>
+<!-- Modal Настройки -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+        <h3>⚙️ Настройки FF Pro</h3>
+        <div class="form-group">
+            <label>📁 База данных</label>
+            <div class="db-list" id="dbList"></div>
+            <div class="flex-between" style="margin-top: 12px;">
+                <input type="text" id="newDbName" placeholder="Имя новой БД..." style="flex:1;">
+                <button class="btn-primary" onclick="createDb()" style="white-space: nowrap;">Создать</button>
             </div>
         </div>
+        <div class="form-group">
+            <label>🖥️ Путь к FreeFEM++</label>
+            <input type="text" id="freefemPath" placeholder="C:\Program Files\FreeFem++\FreeFem++.exe">
+            <small>Оставьте пустым, если FreeFEM добавлен в PATH</small>
+        </div>
+        <div class="actions">
+            <button class="btn-secondary" onclick="closeModal('settingsModal')">Отмена</button>
+            <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
+        </div>
     </div>
+</div>
 
-    <script>
+<script>
     let currentDb = null;
 
-    // ================= ЕДИНАЯ ФУНКЦИЯ ЗАГРУЗКИ =================
     async function loadConfig() {
         try {
-            // 1. Настройки FreeFEM
-            const settingsRes = await fetch('/api/settings');
+            const [settingsRes, dbsRes] = await Promise.all([
+                fetch('/api/settings'),
+                fetch('/api/settings/dbs')
+            ]);
             const settingsData = await settingsRes.json();
-            if (settingsData.freefem_path) {
-                document.getElementById('freefemPath').value = settingsData.freefem_path;
-            }
+            const dbData = await dbsRes.json();
 
-            // 2. Список БД
-            const dbRes = await fetch('/api/settings/dbs');
-            const dbData = await dbRes.json();
+            const freefemPath = settingsData.freefem_path || '';
+            document.getElementById('freefemPath').value = freefemPath;
 
             const dbs = dbData.databases || [];
-            const current = dbData.current_db || null;
-
-            currentDb = current;
+            currentDb = dbData.current_db || null;
             renderDbList(dbs);
-
-            document.getElementById('db-status').textContent = current
-                ? `Активна: ${current}`
-                : 'БД не выбрана';
-
-            if (!current) openModal('settingsModal');
+            updateDbStatus();
+            if (!currentDb) {
+                // Принудительно открываем модалку выбора БД
+                openModal('settingsModal');
+            }
         } catch (e) {
             console.error('Ошибка загрузки:', e);
-            document.getElementById('dbList').innerHTML =
-                `<div class="db-item" style="color:#ef4444">Ошибка: ${e.message}</div>`;
+            document.getElementById('dbList').innerHTML = `<div class="db-item" style="color:red;">Ошибка загрузки</div>`;
+        }
+    }
+
+    function updateDbStatus() {
+        const statusSpan = document.getElementById('db-status-text');
+        if (currentDb) {
+            statusSpan.innerHTML = `✅ Активна: ${currentDb}`;
+        } else {
+            statusSpan.innerHTML = `❌ БД не выбрана`;
         }
     }
 
     function renderDbList(dbs) {
-        if (!dbs || !Array.isArray(dbs) || dbs.length === 0) {
-            document.getElementById('dbList').innerHTML =
-                '<div class="db-item">Нет доступных баз данных</div>';
+        const container = document.getElementById('dbList');
+        if (!dbs.length) {
+            container.innerHTML = '<div class="db-item">Нет доступных баз данных</div>';
             return;
         }
-
-        // 🔥 Удаляем дубликаты на фронтенде (на всякий случай)
-        const uniqueDbs = [...new Set(dbs)];
-
-        const list = document.getElementById('dbList');
-        list.innerHTML = uniqueDbs.map(db => `
+        const unique = [...new Set(dbs)];
+        container.innerHTML = unique.map(db => `
             <div class="db-item ${db === currentDb ? 'active' : ''}" onclick="selectDb('${db}')">
-                <span>${db}</span>
-                <button class="btn-danger" style="padding:2px 8px;font-size:12px"
-                        onclick="event.stopPropagation(); deleteDb('${db}')">✕</button>
+                <span>📄 ${db}</span>
+                <button class="btn-danger-sm" onclick="event.stopPropagation(); deleteDb('${db}')">✕</button>
             </div>
         `).join('');
     }
 
     async function createDb() {
         const name = document.getElementById('newDbName').value.trim();
-        if (!name) return alert('Введите имя');
-
+        if (!name) return alert('Введите имя базы данных');
         const res = await fetch('/api/settings/create', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({name})
         });
-        const data = await res.json();
-
         if (res.ok) {
             document.getElementById('newDbName').value = '';
-            loadConfig();
+            await loadConfig();
         } else {
-            alert('Ошибка: ' + (data.error || 'Неизвестная'));
+            const err = await res.json();
+            alert('Ошибка: ' + (err.error || 'Неизвестная'));
         }
     }
 
@@ -179,87 +381,92 @@
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({name})
         });
-        if (res.ok) loadConfig();
-        else alert('Ошибка выбора БД');
+        if (res.ok) {
+            await loadConfig();
+            location.reload(); // обновляем страницу для применения новой БД
+        } else {
+            alert('Ошибка выбора БД');
+        }
     }
 
     async function deleteDb(name) {
-        if (!confirm(`Удалить ${name}? Это действие необратимо.`)) return;
-
+        if (!confirm(`Удалить базу данных "${name}"? Все данные будут потеряны.`)) return;
         const res = await fetch(`/api/settings/delete/${name}`, { method: 'DELETE' });
-        if (res.ok) loadConfig();
-        else alert('Ошибка удаления');
+        if (res.ok) {
+            await loadConfig();
+        } else {
+            alert('Ошибка удаления');
+        }
     }
 
     async function saveSettings() {
         const freefemPath = document.getElementById('freefemPath').value.trim();
-        try {
-            const res = await fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ freefem_path: freefemPath })
-            });
-            if (res.ok) {
-                alert('✅ Настройки сохранены!');
-                closeModal('settingsModal');
-            } else {
-                const err = await res.json();
-                alert('❌ Ошибка: ' + (err.error || 'Неизвестная'));
-            }
-        } catch(e) {
-            alert('❌ Ошибка сети: ' + e.message);
+        const res = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ freefem_path: freefemPath })
+        });
+        if (res.ok) {
+            alert('Настройки сохранены');
+            closeModal('settingsModal');
+        } else {
+            const err = await res.json();
+            alert('Ошибка: ' + (err.error || 'Неизвестная'));
         }
     }
 
-    // ================= МОДАЛКИ =================
-    function openModal(modalId = 'settingsModal') {
-        const modal = document.getElementById(modalId);
+    function openModal(id) {
+        const modal = document.getElementById(id);
         if (modal) {
             modal.classList.add('active');
-            modal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
         }
     }
 
-    function closeModal(modalId = 'settingsModal') {
-        if (modalId === 'settingsModal' && !currentDb) {
-            return alert('⚠️ Необходимо выбрать или создать базу данных!');
-        }
-        const modal = document.getElementById(modalId);
+    function closeModal(id) {
+        const modal = document.getElementById(id);
         if (modal) {
             modal.classList.remove('active');
-            modal.style.display = 'none';
             document.body.style.overflow = '';
+        }
+        // Если БД всё ещё не выбрана, не даём закрыть (но пользователь может нажать "Отмена"?)
+        if (id === 'settingsModal' && !currentDb) {
+            setTimeout(() => {
+                if (!currentDb) openModal('settingsModal');
+            }, 100);
         }
     }
 
     // Закрытие по клику на оверлей
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', (e) => {
         document.querySelectorAll('.modal-overlay.active').forEach(overlay => {
-            const modalContent = overlay.querySelector('.modal');
-            if (e.target === overlay && !modalContent?.contains(e.target)) {
-                closeModal(overlay.id);
-            }
+            if (e.target === overlay) closeModal(overlay.id);
         });
     });
-
-    // Закрытие по Escape
-    document.addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-            document.querySelectorAll('.modal-overlay.active').forEach(overlay => {
-                closeModal(overlay.id);
-            });
+            document.querySelectorAll('.modal-overlay.active').forEach(overlay => closeModal(overlay.id));
         }
     });
+    document.querySelectorAll('.modal').forEach(modal => modal.addEventListener('click', e => e.stopPropagation()));
 
-    // Предотвращаем закрытие при клике внутри модалки
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.addEventListener('click', function(e) { e.stopPropagation(); });
+    // Подсветка активного пункта меню
+    function highlightActiveNav() {
+        const currentPath = window.location.pathname;
+        document.querySelectorAll('.nav-item').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href === currentPath || (href !== '/' && currentPath.startsWith(href))) {
+                link.classList.add('active');
+            } else {
+                link.classList.remove('active');
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadConfig();
+        highlightActiveNav();
     });
-
-    // ================= ИНИЦИАЛИЗАЦИЯ =================
-    // 🔥 Вызываем ТОЛЬКО ОДИН раз
-    document.addEventListener('DOMContentLoaded', loadConfig);
 </script>
 </body>
 </html>
