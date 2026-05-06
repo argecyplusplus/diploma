@@ -3,15 +3,28 @@
 <div class="greeting-container">
     {% if currentDb %}
         <div class="welcome-card">
-            <div class="welcome-icon">✅</div>
-            <h2>Добро пожаловать в FF Pro</h2>
-            <p>Активная база данных: <strong>{{ currentDb }}</strong></p>
+            <div class="welcome-icon">⚙️</div>
+            <h2>Активная база данных: <strong>{{ currentDb }}</strong></h2>
             <p>Выберите нужный раздел в боковом меню, чтобы начать работу.</p>
             <div class="quick-actions">
-                <a href="/blades" class="big-btn">🗂️ Лопатки</a>
-                <a href="/materials" class="big-btn">🧪 Материалы</a>
-                <a href="/simulation" class="big-btn">⚡ Моделирование</a>
+                <a href="/blades" class="big-btn">Лопатки</a>
+                <a href="/materials" class="big-btn">Материалы</a>
+                <a href="/simulation" class="big-btn">Моделирование</a>
             </div>
+        </div>
+        <div class="info-section">
+            <h3>О программе FF Pro</h3>
+            <p><strong>FF Pro</strong> – это приложение для компьютерного моделирования процессов формирования и свойств порошковых покрытий газотурбинных двигателей. Программа позволяет:</p>
+            <ul>
+                <li>Создавать и редактировать геометрические профили лопаток.</li>
+                <li>Управлять базой данных материалов с расчётом эффективных свойств сплавов по правилу смесей.</li>
+                <li>Настраивать начальные условия и физические параметры.</li>
+                <li>Запускать нестационарные расчёты теплообмена и газодинамики с помощью FreeFEM++.</li>
+                <li>Просматривать и скачивать результаты моделирования.</li>
+            </ul>
+            <p>Все данные хранятся в выбранной SQLite базе данных, файлы результатов – в папке <code>uploads/</code></p>
+            <p>Ход работы с программой: выберите или создайте базу данных в настройках (кнопка в правом верхнем углу). Далее загрузите профиль лопатки, выполните аппроксимацию, создайте материалы, начальные условия и запустите расчёт.</p>
+            <p>Версия: 1.0.0 | Разработчик: Чернюк Артём Иванович, ЯГТУ, 2026</p>
         </div>
     {% else %}
         <div class="setup-card">
@@ -19,8 +32,8 @@
             <h2>Первый запуск FF Pro</h2>
             <p>Для начала работы необходимо выбрать или создать базу данных.</p>
             <div class="setup-actions">
-                <button class="big-btn primary" onclick="openModal('settingsModal')">📂 Выбрать базу данных</button>
-                <button class="big-btn secondary" onclick="openModal('settingsModal')">➕ Создать новую БД</button>
+                <button class="big-btn primary" onclick="openModal('settingsModal')">Выбрать базу данных</button>
+                <button class="big-btn secondary" onclick="openModal('settingsModal')">Создать новую БД</button>
             </div>
             <hr>
             <div class="instruction">
@@ -32,7 +45,7 @@
                     <li>Создайте материалы и сплавы в разделе «Материалы».</li>
                     <li>Настройте начальные условия и запустите моделирование в разделе «Моделирование».</li>
                 </ol>
-                <p>Все результаты сохраняются в выбранной базе данных и в папке `uploads/`.</p>
+                <p>Все результаты сохраняются в выбранной базе данных и в папке <code>uploads/</code>.</p>
             </div>
         </div>
     {% endif %}
@@ -40,7 +53,7 @@
 
 <style>
     .greeting-container {
-        max-width: 900px;
+        max-width: 1000px;
         margin: 0 auto;
         padding: 20px;
     }
@@ -50,10 +63,12 @@
         padding: 32px;
         box-shadow: var(--shadow-md);
         text-align: center;
+        margin-bottom: 32px;
     }
     .welcome-icon, .setup-icon {
-        font-size: 4rem;
+        font-size: 2.5rem;
         margin-bottom: 16px;
+        color: var(--primary);
     }
     .quick-actions, .setup-actions {
         display: flex;
@@ -63,11 +78,9 @@
         flex-wrap: wrap;
     }
     .big-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 14px 28px;
-        font-size: 1.1rem;
+        display: inline-block;
+        padding: 12px 24px;
+        font-size: 1rem;
         font-weight: 600;
         background: #e2e8f0;
         color: #1e293b;
@@ -116,6 +129,32 @@
     }
     .instruction li {
         margin-bottom: 8px;
+    }
+    .info-section {
+        background: var(--bg-card);
+        border-radius: var(--radius-md);
+        padding: 32px;
+        margin-top: 20px;
+        box-shadow: var(--shadow-sm);
+    }
+    .info-section h3 {
+        margin-bottom: 16px;
+        color: var(--text-primary);
+        border-left: 4px solid var(--primary);
+        padding-left: 16px;
+    }
+    .info-section p, .info-section ul {
+        margin-bottom: 16px;
+        line-height: 1.5;
+    }
+    .info-section ul {
+        padding-left: 24px;
+    }
+    .info-section code {
+        background: #f1f5f9;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: monospace;
     }
 </style>
 {% endblock %}
