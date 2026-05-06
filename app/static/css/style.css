@@ -574,3 +574,73 @@ body {
     width: 700px;
     max-width: 90vw;
 }
+
+/* ... существующие стили ... */
+
+/* ========= СПЕЦИФИЧЕСКИЕ КОМПОНЕНТЫ ДЛЯ МАТЕРИАЛОВ ========= */
+.materials-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0;
+}
+
+/* Сетка свойств сплава */
+.properties-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    background: #f8fafc;
+    padding: 16px;
+    border-radius: var(--radius-md);
+    margin: 12px 0;
+}
+.properties-grid div {
+    font-size: 0.9rem;
+}
+.properties-grid b {
+    color: var(--text-primary);
+}
+
+/* Строка компонента сплава */
+.comp-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+.comp-row select {
+    flex: 2;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+.comp-row input {
+    flex: 1;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+.btn-remove {
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: 0.2s;
+}
+.btn-remove:hover {
+    background: var(--danger-hover);
+}
+
+/* Сообщение об ошибке суммы компонентов */
+.error-msg {
+    color: var(--danger);
+    font-size: 13px;
+    margin: 8px 0;
+    display: none;
+}
+.error-msg.show {
+    display: block;
+}
