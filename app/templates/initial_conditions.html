@@ -122,6 +122,16 @@
                 </div>
             </details>
 
+            <!-- 📊 Значения Ei (модуль упругости) -->
+<details>
+    <summary>📊 Значения Ei (модуль упругости)</summary>
+    <div id="ei-values-list">
+        <!-- Строки добавляются через JS -->
+    </div>
+    <button type="button" class="btn-sm" onclick="addEiRow()">+ Добавить Ei</button>
+</details>
+
+
             <!-- 📊 Параметры вывода напряжений -->
             <details>
                 <summary>📊 Параметры вывода данных о напряжениях</summary>
@@ -388,7 +398,7 @@ async function loadICsTable() {
                     <td>${ic.initial_conditions_id}</td>
                     <td>${escapeHtml(ic.name)}</td>
                     <td>
-                        <button class="btn-view" onclick="viewIC(${ic.initial_conditions_id})">👁️</button>
+                        <button class="btn-edit" onclick="editIC(${ic.initial_conditions_id})">✏️</button>
                         <button class="btn-delete" onclick="deleteIC(${ic.initial_conditions_id})">🗑️</button>
                     </td>
                 </tr>
@@ -407,6 +417,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadICsTable();  // ← добавить
     ['boundaries-list', 'chords-list', 'initial-temps-list'].forEach(id => {
         updateRemoveButtons(id);
+        if (id === 'ei-values-list') addEiRow();
     });
 });
 
@@ -415,6 +426,245 @@ document.addEventListener('DOMContentLoaded', async () => {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Глобальный массив материалов (уже есть materialsList)
+function addEiRow(selectedId = '', value = '') {
+    const container = document.getElementById('ei-values-list');
+    const index = container.querySelectorAll('.dynamic-row').length;
+    const row = document.createElement('div');
+    row.className = 'dynamic-row';
+    row.innerHTML = `
+        <select name="ei_values[${index}].material_id" style="flex:2;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+            ${getMaterialOptions()}
+        </select>
+        <input type="number" step="any" name="ei_values[${index}].value" placeholder="Ei, МПа" value="${value}" style="flex:1;">
+        <button type="button" class="btn-remove" onclick="this.parentElement.remove();">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+// Обновите createIC, чтобы добавить обработку ei_values
+// Внутри createIC после парсинга other массивов добавьте:
+const eiValues = [];
+document.querySelectorAll('#ei-values-list .dynamic-row').forEach(row => {
+    const select = row.querySelector('select');
+    const input = row.querySelector('input[type="number"]');
+    if (select && select.value && input && input.value) {
+        eiValues.push({
+            material_id: parseInt(select.value),
+            value: parseFloat(input.value)
+        });
+    }
+});
+payload.ei_values = eiValues;
+
+async function editIC(id) {
+    try {
+        const res = await fetch(`/initial-conditions/api/${id}`);
+        if (!res.ok) throw new Error('Ошибка загрузки');
+        const data = await res.json();
+
+        // Заполняем основную форму
+        document.querySelector('form#icForm input[name="name"]').value = data.name;
+
+        // Заполняем временные параметры
+        document.querySelector('input[name="time_parameters.time"]').value = data.time_parameters.time;
+        document.querySelector('input[name="time_parameters.dt"]').value = data.time_parameters.dt;
+        document.querySelector('input[name="time_parameters.nbT"]').value = data.time_parameters.nbT;
+        document.querySelector('input[name="time_parameters.Nplot"]').value = data.time_parameters.Nplot;
+
+        // Потенциальный поток
+        document.querySelector('input[name="potential_flow.beta"]').value = data.potential_flow.beta;
+        document.querySelector('input[name="potential_flow.B"]').value = data.potential_flow.B;
+
+        // Параметры построения
+        document.querySelector('input[name="construction.NC"]').value = data.construction.NC;
+        document.querySelector('input[name="construction.NSp"]').value = data.construction.NSp;
+        document.querySelector('input[name="construction.NSm"]').value = data.construction.NSm;
+        document.querySelector('input[name="construction.NSpn"]').value = data.construction.NSpn;
+        document.querySelector('input[name="construction.NSpm"]').value = data.construction.NSpm;
+
+        // Параметры упругости
+        document.querySelector('input[name="elasticity.b"]').value = data.elasticity.b;
+        document.querySelector('input[name="elasticity.nu"]').value = data.elasticity.nu;
+        document.querySelector('input[name="elasticity.KLT"]').value = data.elasticity.KLT;
+
+        // Параметры вывода напряжений
+        document.querySelector('input[name="stress_output.coef"]').value = data.stress_output.coef;
+        document.querySelector('input[name="stress_output.delt"]').value = data.stress_output.delt;
+        document.querySelector('input[name="stress_output.Npt"]').value = data.stress_output.Npt;
+
+        // Очищаем и заполняем динамические списки
+        function fillDynamicList(containerId, items, fieldMapping) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            items.forEach((item, idx) => {
+                const row = document.createElement('div');
+                row.className = 'dynamic-row';
+                let html = '';
+                for (const [key, value] of Object.entries(fieldMapping)) {
+                    const inputValue = item[value.field] ?? '';
+                    html += `<input type="${value.type}" step="${value.step}" name="${containerId.split('-')[0]}[${idx}].${key}" value="${inputValue}" placeholder="${value.placeholder}" ${value.required ? 'required' : ''}>`;
+                }
+                html += `<button type="button" class="btn-remove" onclick="removeRow(this)">✕</button>`;
+                row.innerHTML = html;
+                container.appendChild(row);
+            });
+            updateRemoveButtons(containerId);
+        }
+
+        // Границы
+        fillDynamicList('boundaries-list', data.boundaries, {
+            name: {type: 'text', step: '1', placeholder: 'Имя', required: true, field: 'name'},
+            value: {type: 'number', step: 'any', placeholder: 'Значение', required: true, field: 'value'}
+        });
+        // Хорды
+        fillDynamicList('chords-list', data.chords, {
+            name: {type: 'text', step: '1', placeholder: 'Имя', required: true, field: 'name'},
+            value: {type: 'number', step: 'any', placeholder: 'Значение', required: true, field: 'value'}
+        });
+        // Начальные температуры
+        const initTempsContainer = document.getElementById('initial-temps-list');
+        initTempsContainer.innerHTML = '';
+        data.initial_temps.forEach((t, idx) => {
+            const row = document.createElement('div');
+            row.className = 'dynamic-row';
+            row.innerHTML = `
+                <select name="initial_temps[${idx}].material_id" style="flex:1;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+                    ${getMaterialOptionsWithSelected(t.material_id)}
+                </select>
+                <input type="number" step="any" name="initial_temps[${idx}].value" value="${t.value}" placeholder="T, °C" required>
+                <button type="button" class="btn-remove" onclick="removeRow(this)">✕</button>
+            `;
+            initTempsContainer.appendChild(row);
+        });
+        updateRemoveButtons('initial-temps-list');
+        // Ei значения
+        const eiContainer = document.getElementById('ei-values-list');
+        eiContainer.innerHTML = '';
+        if (data.ei_values) {
+            data.ei_values.forEach((ei, idx) => {
+                const row = document.createElement('div');
+                row.className = 'dynamic-row';
+                row.innerHTML = `
+                    <select name="ei_values[${idx}].material_id" style="flex:2;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+                        ${getMaterialOptionsWithSelected(ei.material_id)}
+                    </select>
+                    <input type="number" step="any" name="ei_values[${idx}].value" value="${ei.value}" placeholder="Ei, МПа" style="flex:1;">
+                    <button type="button" class="btn-remove" onclick="this.parentElement.remove();">✕</button>
+                `;
+                eiContainer.appendChild(row);
+            });
+        } else {
+            // Добавить одну пустую строку для удобства
+            addEiRow();
+        }
+
+        // Меняем заголовок кнопки и обработчик отправки формы
+        const form = document.getElementById('icForm');
+        // Сохраняем ID редактируемого набора
+        form.dataset.editId = id;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.textContent = '💾 Обновить набор';
+        // Убираем предыдущий обработчик и вешаем новый
+        form.onsubmit = (e) => updateIC(e, id);
+        // Прокручиваем к форме
+        form.scrollIntoView({ behavior: 'smooth' });
+    } catch (err) {
+        alert('Ошибка загрузки данных: ' + err.message);
+    }
+}
+function getMaterialOptionsWithSelected(selectedId) {
+    if (materialsList.length === 0) return '<option value="">Материалы не загружены</option>';
+    let options = '<option value="">-- Выберите материал --</option>';
+    materialsList.forEach(m => {
+        const selected = (m.material_id === selectedId) ? 'selected' : '';
+        options += `<option value="${m.material_id}" ${selected}>${escapeHtml(m.name)}</option>`;
+    });
+    return options;
+}
+
+async function updateIC(e, id) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+
+    // Собираем payload так же, как в createIC
+    const payload = {
+        name: formData.get('name'),
+        time_parameters: {},
+        potential_flow: {},
+        construction: {},
+        elasticity: {},
+        stress_output: {},
+        boundaries: [],
+        initial_temps: [],
+        chords: [],
+        ei_values: []
+    };
+
+    function setNested(obj, path, value) {
+        const parts = path.split('.');
+        let current = obj;
+        for (let i = 0; i < parts.length - 1; i++) {
+            if (!current[parts[i]]) current[parts[i]] = {};
+            current = current[parts[i]];
+        }
+        const key = parts[parts.length - 1];
+        current[key] = isNaN(value) ? value : parseFloat(value);
+    }
+
+    for (const [key, value] of formData.entries()) {
+        if (key === 'name') continue;
+        const arrayMatch = key.match(/^([a-z_]+)\[(\d+)\]\.([a-z_]+)$/);
+        if (arrayMatch) {
+            const [, arrayName, idx, field] = arrayMatch;
+            const index = parseInt(idx);
+            if (!payload[arrayName][index]) payload[arrayName][index] = {};
+            payload[arrayName][index][field] = isNaN(value) ? value : parseFloat(value);
+        } else {
+            setNested(payload, key, value);
+        }
+    }
+
+    // Очистка массивов от пустых элементов
+    ['boundaries', 'initial_temps', 'chords', 'ei_values'].forEach(key => {
+        if (payload[key]) {
+            payload[key] = payload[key].filter(item => item && Object.keys(item).length);
+        }
+    });
+
+    // Дополнительно собираем ei_values, если они не попали в formData (из-за того, что у них нет стандартного name)
+    const eiRows = document.querySelectorAll('#ei-values-list .dynamic-row');
+    payload.ei_values = [];
+    eiRows.forEach(row => {
+        const select = row.querySelector('select');
+        const input = row.querySelector('input[type="number"]');
+        if (select && select.value && input && input.value) {
+            payload.ei_values.push({
+                material_id: parseInt(select.value),
+                value: parseFloat(input.value)
+            });
+        }
+    });
+
+    try {
+        const res = await fetch(`/initial-conditions/api/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            alert('Набор обновлён');
+            location.reload(); // или обновить таблицу и сбросить форму
+        } else {
+            const err = await res.json();
+            alert('Ошибка: ' + JSON.stringify(err.error));
+        }
+    } catch (err) {
+        alert('Ошибка сети: ' + err.message);
+    }
 }
 
 </script>

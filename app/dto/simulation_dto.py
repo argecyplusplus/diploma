@@ -29,6 +29,9 @@ class StressOutParamRequest(BaseModel):
     coef: float; delt: float; Npt: float
 class BladeChordRequest(BaseModel):
     name: str; value: float
+class EiValueRequest(BaseModel):
+    material_id: int
+    value: float
 
 class InitialConditionCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -40,6 +43,7 @@ class InitialConditionCreateRequest(BaseModel):
     elasticity: ElasticityParamRequest
     stress_output: StressOutParamRequest
     chords: List[BladeChordRequest] = []
+    ei_values: List[EiValueRequest] = []   #
     model_config = ConfigDict(from_attributes=True)
 
 class SimulationResponse(BaseModel):

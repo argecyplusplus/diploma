@@ -7,6 +7,7 @@ from ..models.simulation import (
     BoundaryIdentifier, ConstructionParameter, InitialTemperature,
     ElasticityParameter, StressOutputParameter, BladeChord
 )
+from ..models.material import ElValue
 
 
 class SimulationRepository:
@@ -56,7 +57,12 @@ class SimulationRepository:
         self.session.add(TimeParameter(initial_conditions_id=ic_id, **data['time_parameters']))
         self.session.add(PotentialFlowParameter(initial_conditions_id=ic_id, **data['potential_flow']))
         self.session.add(ConstructionParameter(initial_conditions_id=ic_id, **data['construction']))
-        self.session.add(ElasticityParameter(initial_conditions_id=ic_id, **data['elasticity']))
+
+        # Создаём ElasticityParameter и сразу сохраняем ссылку на него
+        elastic_param = ElasticityParameter(initial_conditions_id=ic_id, **data['elasticity'])
+        self.session.add(elastic_param)
+        self.session.flush()  # чтобы получить elastic_param.elasticity_parameters_id
+
         self.session.add(StressOutputParameter(initial_conditions_id=ic_id, **data['stress_output']))
 
         for b in data['boundaries']:
@@ -65,6 +71,14 @@ class SimulationRepository:
             self.session.add(InitialTemperature(initial_conditions_id=ic_id, **t))
         for c in data['chords']:
             self.session.add(BladeChord(initial_conditions_id=ic_id, **c))
+
+        # Добавляем Ei (el_values)
+        for ei in data.get('ei_values', []):
+            self.session.add(ElValue(
+                elasticity_parameters_id=elastic_param.elasticity_parameters_id,
+                material_id=ei['material_id'],
+                value=ei['value']
+            ))
 
         self.session.flush()
         return ic
