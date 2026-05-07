@@ -644,3 +644,488 @@ body {
 .error-msg.show {
     display: block;
 }
+
+/* ... существующие стили ... */
+
+/* ========= КАРТОЧКИ ========= */
+.card {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 32px;
+    overflow: hidden;
+}
+.card-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    background: #fafcff;
+}
+.card-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+.card-hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+.form-actions {
+    padding: 20px 24px;
+    background: #fafcff;
+    border-top: 1px solid var(--border);
+    text-align: right;
+}
+.btn-lg {
+    padding: 10px 24px;
+    font-size: 1rem;
+}
+
+/* ========= СЕТКИ ФОРМ ========= */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    padding: 24px;
+}
+.full-width {
+    grid-column: 1 / -1;
+}
+.input-with-action {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.input-with-action select {
+    flex: 1;
+}
+.btn-action {
+    background: #e2e8f0;
+    color: #1e293b;
+    border: none;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s;
+}
+.btn-action:hover {
+    background: #cbd5e1;
+}
+
+/* ========= ЗАДАЧИ (карточки) ========= */
+.task-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+}
+.task-card {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.task-card:hover {
+    background: #f1f5f9;
+    border-color: var(--primary);
+}
+.task-card input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    margin: 0;
+    flex-shrink: 0;
+}
+.task-content {
+    flex: 1;
+}
+.task-content strong {
+    display: block;
+    font-size: 0.95rem;
+    margin-bottom: 2px;
+}
+.task-content small {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+.task-icon {
+    font-size: 1.5rem;
+}
+
+/* ========= БЕЙДЖИ СТАТУСОВ ========= */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 40px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+}
+.badge-success {
+    background: #dcfce7;
+    color: #15803d;
+}
+.badge-warning {
+    background: #fef9c3;
+    color: #854d0e;
+}
+.badge-danger {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+.badge-secondary {
+    background: #e2e8f0;
+    color: #475569;
+}
+
+/* ========= ЧЕКБОКСЫ МАТЕРИАЛОВ ========= */
+.checkbox-scroll-box {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    background: var(--bg-card);
+}
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: 0.15s;
+}
+.checkbox-item:hover {
+    background: #f8fafc;
+}
+.checkbox-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+}
+.cb-name {
+    flex: 1;
+    font-size: 14px;
+}
+.cb-tag {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+.cb-tag.element {
+    background: #dbeafe;
+    color: #1e40af;
+}
+.cb-tag.alloy {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+/* ========= ИСТОРИЯ РАСЧЁТОВ ========= */
+.history-section {
+    margin-top: 20px;
+}
+.id-badge {
+    font-family: monospace;
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+/* ========= НАЧАЛЬНЫЕ УСЛОВИЯ ========= */
+.ic-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Карточка формы */
+.card {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 24px;
+    padding: 20px;
+}
+.card h3 {
+    margin: 0 0 16px 0;
+    color: var(--text-primary);
+}
+
+/* Сворачиваемые блоки (details) */
+details {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+details summary {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-weight: 600;
+    color: #334155;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    transition: 0.2s;
+}
+details summary:hover {
+    background: #f1f5f9;
+}
+details[open] summary {
+    border-bottom-color: #cbd5e1;
+}
+
+/* Динамические строки */
+.dynamic-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.dynamic-row input,
+.dynamic-row select {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+.btn-remove {
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: 0.2s;
+}
+.btn-remove:hover {
+    background: var(--danger-hover);
+}
+.btn-sm {
+    background: #e2e8f0;
+    color: #1e293b;
+    border: none;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 13px;
+    margin: 8px 16px;
+}
+.btn-sm:hover {
+    background: #cbd5e1;
+}
+
+/* Таблица сохранённых наборов */
+#icTableBody .btn-edit,
+#icTableBody .btn-delete {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 4px 8px;
+    transition: 0.2s;
+}
+#icTableBody .btn-edit { color: var(--primary); }
+#icTableBody .btn-delete { color: var(--danger); }
+#icTableBody .btn-edit:hover { background: #eef2ff; border-radius: 4px; }
+#icTableBody .btn-delete:hover { background: #fee2e2; border-radius: 4px; }
+
+/* ========= АППРОКСИМАЦИЯ ========= */
+.approx-container {
+    max-width: 900px;
+}
+.control-panel {
+    background: var(--bg-card);
+    padding: 20px;
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.control-panel label {
+    font-weight: 500;
+    margin-right: 10px;
+}
+#bladeSelect {
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    min-width: 200px;
+}
+.tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid var(--border);
+}
+.tab-btn {
+    padding: 10px 16px;
+    border: none;
+    background: #f1f5f9;
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+.tab-btn:hover {
+    background: #e2e8f0;
+}
+.tab-btn.active {
+    background: var(--primary);
+    color: #fff;
+}
+.tab-content {
+    display: none;
+    background: var(--bg-card);
+    padding: 16px;
+    border-radius: 0 var(--radius-md) var(--radius-md) var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+.tab-content.active {
+    display: block;
+}
+#tab-plot {
+    text-align: center;
+}
+#plotImg {
+    max-width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+}
+.loading-indicator {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+}
+.error-message {
+    padding: 12px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-sm);
+    color: var(--danger);
+    margin-bottom: 16px;
+    display: none;
+}
+
+/* ========= ГЛАВНАЯ СТРАНИЦА ========= */
+.greeting-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+.welcome-card, .setup-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 32px;
+    box-shadow: var(--shadow-md);
+    text-align: center;
+    margin-bottom: 32px;
+}
+.welcome-icon, .setup-icon {
+    font-size: 2.5rem;
+    margin-bottom: 16px;
+    color: var(--primary);
+}
+.quick-actions, .setup-actions {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 30px 0 20px;
+    flex-wrap: wrap;
+}
+.big-btn {
+    display: inline-block;
+    padding: 12px 24px;
+    font-size: 1rem;
+    font-weight: 600;
+    background: #e2e8f0;
+    color: #1e293b;
+    border-radius: 60px;
+    text-decoration: none;
+    transition: 0.2s;
+    border: none;
+    cursor: pointer;
+}
+.big-btn.primary {
+    background: var(--primary);
+    color: white;
+}
+.big-btn.primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-2px);
+}
+.big-btn.secondary {
+    background: #f1f5f9;
+    border: 1px solid var(--border);
+}
+.big-btn.secondary:hover {
+    background: #e2e8f0;
+    transform: translateY(-2px);
+}
+.big-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+hr {
+    margin: 30px 0;
+    border: none;
+    border-top: 1px solid var(--border);
+}
+.instruction {
+    text-align: left;
+    color: var(--text-secondary);
+}
+.instruction h3 {
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+.instruction ol {
+    padding-left: 20px;
+    margin-bottom: 20px;
+}
+.instruction li {
+    margin-bottom: 8px;
+}
+.info-section {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 32px;
+    margin-top: 20px;
+    box-shadow: var(--shadow-sm);
+}
+.info-section h3 {
+    margin-bottom: 16px;
+    color: var(--text-primary);
+    border-left: 4px solid var(--primary);
+    padding-left: 16px;
+}
+.info-section p, .info-section ul {
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+.info-section ul {
+    padding-left: 24px;
+}
+.info-section code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+}

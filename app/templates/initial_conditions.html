@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+
 {% block content %}
 <div class="ic-container">
     <div class="section-header">
@@ -6,61 +7,37 @@
         <a href="/simulation" class="btn-secondary">← К моделированию</a>
     </div>
 
-    <!-- Форма создания набора -->
     <div class="card">
         <h3>🆕 Создать новый набор</h3>
-        <form id="icForm" onsubmit="createIC(event)">
-
-            <!-- Название -->
+        <form id="icForm">
             <div class="form-group">
                 <label>Название набора *</label>
-                <input type="text" name="name" required placeholder="Например: Базовый_расчет_Ступень1" style="width:100%;">
+                <input type="text" name="name" required placeholder="Например: Базовый_расчет_Ступень1">
             </div>
 
-            <!-- ⏱️ Временные параметры -->
             <details open>
                 <summary>⏱️ Временные параметры</summary>
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label>Time, с</label>
-                        <input type="number" step="any" name="time_parameters.time" required placeholder="0.01">
-                    </div>
-                    <div class="form-group">
-                        <label>dt, с</label>
-                        <input type="number" step="any" name="time_parameters.dt" required placeholder="0.001">
-                    </div>
-                    <div class="form-group">
-                        <label>nbT (кол-во шагов)</label>
-                        <input type="number" step="1" name="time_parameters.nbT" required placeholder="1000">
-                    </div>
-                    <div class="form-group">
-                        <label>Nplot (частота вывода)</label>
-                        <input type="number" step="1" name="time_parameters.Nplot" required placeholder="100">
-                    </div>
+                    <div class="form-group"><label>Time, с</label><input type="number" step="any" name="time_parameters.time" required></div>
+                    <div class="form-group"><label>dt, с</label><input type="number" step="any" name="time_parameters.dt" required></div>
+                    <div class="form-group"><label>nbT (кол-во шагов)</label><input type="number" step="1" name="time_parameters.nbT" required></div>
+                    <div class="form-group"><label>Nplot (частота вывода)</label><input type="number" step="1" name="time_parameters.Nplot" required></div>
                 </div>
             </details>
 
-            <!-- 🌊 Потенциальный поток -->
             <details>
                 <summary>🌊 Параметры потенциального потока</summary>
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label>beta, °</label>
-                        <input type="number" step="any" name="potential_flow.beta" required placeholder="0">
-                    </div>
-                    <div class="form-group">
-                        <label>B</label>
-                        <input type="number" step="any" name="potential_flow.B" required placeholder="1">
-                    </div>
+                    <div class="form-group"><label>beta, °</label><input type="number" step="any" name="potential_flow.beta" required></div>
+                    <div class="form-group"><label>B</label><input type="number" step="any" name="potential_flow.B" required></div>
                 </div>
             </details>
 
-            <!-- 🔗 Идентификаторы границ (динамические) -->
             <details>
                 <summary>🔗 Идентификаторы границ</summary>
                 <div id="boundaries-list">
                     <div class="dynamic-row">
-                        <input type="text" name="boundaries[0].name" placeholder="Имя (напр. S1)" value="S1" required>
+                        <input type="text" name="boundaries[0].name" placeholder="Имя" value="S1" required>
                         <input type="number" step="any" name="boundaries[0].value" placeholder="Значение" value="100" required>
                         <button type="button" class="btn-remove" onclick="removeRow(this)" style="display:none;">✕</button>
                     </div>
@@ -68,29 +45,21 @@
                 <button type="button" class="btn-sm" onclick="addDynamicRow('boundaries-list', ['name','value'], {name:'S', value:100})">+ Добавить границу</button>
             </details>
 
-            <!-- 🔨 Параметры построения -->
             <details>
                 <summary>🔨 Параметры для построения сетки</summary>
                 <div class="form-grid">
                     {% for p in ['NC','NSp','NSm','NSpn','NSpm'] %}
-                    <div class="form-group">
-                        <label>{{ p }}</label>
-                        <input type="number" step="1" name="construction.{{ p }}" required placeholder="50">
-                    </div>
+                    <div class="form-group"><label>{{ p }}</label><input type="number" step="1" name="construction.{{ p }}" required></div>
                     {% endfor %}
                 </div>
             </details>
 
-            <!-- 🌡️ Начальные температуры (динамические) -->
             <details>
-    <summary>🌡️ Начальные температуры материалов</summary>
-    <div id="initial-temps-list">
-        <!-- Строки добавляются через JS -->
-    </div>
-    <button type="button" class="btn-sm" onclick="addTempRow()">+ Добавить материал</button>
-</details>
+                <summary>🌡️ Начальные температуры материалов</summary>
+                <div id="initial-temps-list"></div>
+                <button type="button" class="btn-sm" onclick="addTempRow()">+ Добавить материал</button>
+            </details>
 
-            <!-- 📐 Хорда лопасти (динамические) -->
             <details>
                 <summary>📐 Хорда лопасти</summary>
                 <div id="chords-list">
@@ -103,569 +72,44 @@
                 <button type="button" class="btn-sm" onclick="addDynamicRow('chords-list', ['name','value'], {name:'Chord', value:0.1})">+ Добавить хорду</button>
             </details>
 
-            <!-- 🔥 Параметры упругости -->
             <details>
                 <summary>🔥 Параметры материала и функции упругости</summary>
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label>b</label>
-                        <input type="number" step="any" name="elasticity.b" required placeholder="1e-5">
-                    </div>
-                    <div class="form-group">
-                        <label>nu (коэфф. Пуассона)</label>
-                        <input type="number" step="any" name="elasticity.nu" required placeholder="0.3">
-                    </div>
-                    <div class="form-group">
-                        <label>KLT, 10⁻⁶/К</label>
-                        <input type="number" step="any" name="elasticity.KLT" required placeholder="12">
-                    </div>
+                    <div class="form-group"><label>b</label><input type="number" step="any" name="elasticity.b" required></div>
+                    <div class="form-group"><label>nu (коэфф. Пуассона)</label><input type="number" step="any" name="elasticity.nu" required></div>
+                    <div class="form-group"><label>KLT, 10⁻⁶/К</label><input type="number" step="any" name="elasticity.KLT" required></div>
                 </div>
             </details>
 
-            <!-- 📊 Значения Ei (модуль упругости) -->
-<details>
-    <summary>📊 Значения Ei (модуль упругости)</summary>
-    <div id="ei-values-list">
-        <!-- Строки добавляются через JS -->
-    </div>
-    <button type="button" class="btn-sm" onclick="addEiRow()">+ Добавить Ei</button>
-</details>
+            <details>
+                <summary>📊 Значения Ei (модуль упругости)</summary>
+                <div id="ei-values-list"></div>
+                <button type="button" class="btn-sm" onclick="addEiRow()">+ Добавить Ei</button>
+            </details>
 
-
-            <!-- 📊 Параметры вывода напряжений -->
             <details>
                 <summary>📊 Параметры вывода данных о напряжениях</summary>
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label>coef</label>
-                        <input type="number" step="any" name="stress_output.coef" required placeholder="1">
-                    </div>
-                    <div class="form-group">
-                        <label>delt</label>
-                        <input type="number" step="any" name="stress_output.delt" required placeholder="0.1">
-                    </div>
-                    <div class="form-group">
-                        <label>Npt</label>
-                        <input type="number" step="1" name="stress_output.Npt" required placeholder="100">
-                    </div>
+                    <div class="form-group"><label>coef</label><input type="number" step="any" name="stress_output.coef" required></div>
+                    <div class="form-group"><label>delt</label><input type="number" step="any" name="stress_output.delt" required></div>
+                    <div class="form-group"><label>Npt</label><input type="number" step="1" name="stress_output.Npt" required></div>
                 </div>
             </details>
 
-            <div style="margin-top:20px; text-align:right;">
+            <div class="form-actions" style="margin-top:20px; text-align:right;">
                 <button type="submit" class="btn-primary">💾 Сохранить набор</button>
             </div>
         </form>
     </div>
 
-    <!-- Список сохранённых наборов -->
-<h3 style="margin-top:30px">📋 Сохранённые наборы</h3>
-<div class="table-wrapper">
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Название</th>
-                <th>Действия</th>
-            </tr>
-        </thead>
-        <tbody id="icTableBody">
-            <tr><td colspan="3" class="text-center">Загрузка...</td></tr>
-        </tbody>
-    </table>
-</div>
+    <h3 style="margin-top:30px">📋 Сохранённые наборы</h3>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead><tr><th>ID</th><th>Название</th><th>Действия</th></tr></thead>
+            <tbody id="icTableBody"><tr><td colspan="3" class="text-center">Загрузка...</td></tr></tbody>
+        </table>
+    </div>
 </div>
 
-<style>
-    .ic-container { max-width: 1000px; margin: 0 auto; padding: 20px; }
-    .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
-
-    .card { background:#fff; padding:20px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.1); margin-bottom:20px; }
-    .card h3 { margin:0 0 16px 0; color:#1e293b; }
-
-    details { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:12px; overflow:hidden; }
-    details summary { padding:12px 16px; cursor:pointer; font-weight:600; color:#334155; background:#fff; border-bottom:1px solid #e2e8f0; }
-    details summary:hover { background:#f1f5f9; }
-    details[open] summary { border-bottom-color:#cbd5e1; }
-
-    .form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; padding:16px; }
-    .form-group { display:flex; flex-direction:column; gap:4px; }
-    .form-group label { font-size:13px; color:#475569; font-weight:500; }
-    .form-group input { padding:8px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px; }
-    .form-group input:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
-
-    .dynamic-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
-    .dynamic-row input { flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:6px; }
-    .btn-remove { background:#ef4444; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; }
-    .btn-remove:hover { background:#dc2626; }
-
-    .btn-sm { background:#e2e8f0; color:#1e293b; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:13px; margin:8px 16px; }
-    .btn-sm:hover { background:#cbd5e1; }
-
-    .text-center { text-align:center; padding:20px; color:#64748b; }
-</style>
-
-<script>
-
-    let materialsList = []; // глобальный массив материалов
-
-// Загрузка списка материалов (элементов и сплавов)
-async function loadMaterialsForIC() {
-    try {
-        const elementsRes = await fetch('/api/elements');
-        const elements = elementsRes.ok ? await elementsRes.json() : [];
-        const alloysRes = await fetch('/api/alloys');
-        const alloys = alloysRes.ok ? await alloysRes.json() : [];
-        materialsList = [...elements, ...alloys];
-    } catch (e) {
-        console.error('Ошибка загрузки материалов:', e);
-        materialsList = [];
-    }
-}
-
-// Функция генерации options для селекта
-function getMaterialOptions() {
-    if (materialsList.length === 0) {
-        return '<option value="">Материалы не загружены</option>';
-    }
-    let options = '<option value="">-- Выберите материал --</option>';
-    materialsList.forEach(m => {
-        options += `<option value="${m.material_id}">${escapeHtml(m.name)}</option>`;
-    });
-    return options;
-}
-
-    // ================= ДИНАМИЧЕСКИЕ СТРОКИ =================
-
-    function addDynamicRow(containerId, fields, defaults = {}) {
-        const container = document.getElementById(containerId);
-        const index = container.querySelectorAll('.dynamic-row').length;
-        const row = document.createElement('div');
-        row.className = 'dynamic-row';
-
-        let html = '';
-        fields.forEach(field => {
-            const defaultValue = defaults[field] || '';
-            const nameAttr = `${containerId.split('-')[0]}[${index}].${field}`;
-            html += `<input type="${field==='name'?'text':'number'}" step="${field==='name'?'1':'any'}"
-                          name="${nameAttr}" placeholder="${field}" value="${defaultValue}" required>`;
-        });
-        html += `<button type="button" class="btn-remove" onclick="removeRow(this)">✕</button>`;
-
-        row.innerHTML = html;
-        container.appendChild(row);
-
-        // Показываем кнопки удаления, если строк > 1
-        updateRemoveButtons(containerId);
-    }
-
-    function addTempRow() {
-    const container = document.getElementById('initial-temps-list');
-    const index = container.querySelectorAll('.dynamic-row').length;
-    const row = document.createElement('div');
-    row.className = 'dynamic-row';
-    row.innerHTML = `
-        <select name="initial_temps[${index}].material_id" style="flex:1;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
-            ${getMaterialOptions()}
-        </select>
-        <input type="number" step="any" name="initial_temps[${index}].value" placeholder="T, °C" required>
-        <button type="button" class="btn-remove" onclick="removeRow(this)">✕</button>
-    `;
-    container.appendChild(row);
-    updateRemoveButtons('initial-temps-list');
-}
-
-    function removeRow(btn) {
-        const row = btn.closest('.dynamic-row');
-        const container = row.parentElement;
-        row.remove();
-        updateRemoveButtons(container.id);
-    }
-
-    function updateRemoveButtons(containerId) {
-        const container = document.getElementById(containerId);
-        const rows = container.querySelectorAll('.dynamic-row');
-        rows.forEach((row, i) => {
-            const btn = row.querySelector('.btn-remove');
-            if (btn) btn.style.display = rows.length > 1 ? 'block' : 'none';
-        });
-    }
-
-    // ================= ОТПРАВКА ФОРМЫ =================
-
-    async function createIC(e) {
-    e.preventDefault();
-    const form = e.target;
-    const formData = new FormData(form);
-
-    // Базовая структура
-    const payload = {
-        name: formData.get('name'),
-        time_parameters: {},
-        potential_flow: {},
-        construction: {},
-        elasticity: {},
-        stress_output: {},
-        boundaries: [],
-        initial_temps: [],
-        chords: []
-    };
-
-    // Вспомогательная функция для заполнения вложенных полей по префиксу
-    function setNested(obj, path, value) {
-        const parts = path.split('.');
-        let current = obj;
-        for (let i = 0; i < parts.length - 1; i++) {
-            if (!current[parts[i]]) current[parts[i]] = {};
-            current = current[parts[i]];
-        }
-        const key = parts[parts.length - 1];
-        current[key] = isNaN(value) ? value : parseFloat(value);
-    }
-
-    for (const [key, value] of formData.entries()) {
-        if (key === 'name') continue;
-
-        // Обработка массивов (boundaries, initial_temps, chords)
-        const arrayMatch = key.match(/^([a-z_]+)\[(\d+)\]\.([a-z_]+)$/);
-        if (arrayMatch) {
-            const [, arrayName, idx, field] = arrayMatch;
-            const index = parseInt(idx);
-            if (!payload[arrayName][index]) payload[arrayName][index] = {};
-            payload[arrayName][index][field] = isNaN(value) ? value : parseFloat(value);
-        } else {
-            // Вложенные объекты (time_parameters.time, potential_flow.beta, ...)
-            setNested(payload, key, value);
-        }
-    }
-
-    // Очистка пустых массивов
-    ['boundaries', 'initial_temps', 'chords'].forEach(key => {
-        payload[key] = payload[key].filter(item => item && Object.keys(item).length);
-    });
-
-    try {
-        const res = await fetch('/initial-conditions/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (res.ok) {
-            alert('✅ Набор сохранён!');
-            location.reload();
-        } else {
-            alert('❌ Ошибка: ' + JSON.stringify(data.error || 'Неизвестная'));
-        }
-    } catch (err) {
-        alert('❌ Ошибка сети: ' + err.message);
-    }
-}
-
-    // ================= ПРОСМОТР / УДАЛЕНИЕ =================
-
-    async function viewIC(id) {
-        // TODO: Реализовать модальное окно просмотра
-        alert('Просмотр набора #' + id + '\n(Функция в разработке)');
-    }
-
-    async function deleteIC(id) {
-        if (!confirm('Удалить этот набор начальных условий?')) return;
-        try {
-            const res = await fetch(`/initial-conditions/${id}`, { method: 'DELETE' });
-            if (res.ok) {
-                alert('✅ Удалено');
-                location.reload();
-            } else {
-                alert('❌ Ошибка удаления');
-            }
-        } catch (e) {
-            alert('❌ Ошибка: ' + e.message);
-        }
-    }
-
-    // Загрузка списка наборов начальных условий
-async function loadICsTable() {
-    const tbody = document.getElementById('icTableBody');
-    try {
-        const res = await fetch('/initial-conditions/api/list');
-        if (!res.ok) throw new Error('Ошибка загрузки');
-        const ics = await res.json();
-        if (ics.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center">Наборы не найдены</td></tr>';
-        } else {
-            tbody.innerHTML = ics.map(ic => `
-                <tr>
-                    <td>${ic.initial_conditions_id}</td>
-                    <td>${escapeHtml(ic.name)}</td>
-                    <td>
-                        <button class="btn-edit" onclick="editIC(${ic.initial_conditions_id})">✏️</button>
-                        <button class="btn-delete" onclick="deleteIC(${ic.initial_conditions_id})">🗑️</button>
-                    </td>
-                </tr>
-            `).join('');
-        }
-    } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center" style="color:#ef4444">Ошибка загрузки</td></tr>';
-        console.error(e);
-    }
-}
-
-
-    // Инициализация: скрываем кнопки удаления, если строка одна
-document.addEventListener('DOMContentLoaded', async () => {
-    await loadMaterialsForIC();
-    await loadICsTable();  // ← добавить
-    ['boundaries-list', 'chords-list', 'initial-temps-list'].forEach(id => {
-        updateRemoveButtons(id);
-        if (id === 'ei-values-list') addEiRow();
-    });
-});
-
-    function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Глобальный массив материалов (уже есть materialsList)
-function addEiRow(selectedId = '', value = '') {
-    const container = document.getElementById('ei-values-list');
-    const index = container.querySelectorAll('.dynamic-row').length;
-    const row = document.createElement('div');
-    row.className = 'dynamic-row';
-    row.innerHTML = `
-        <select name="ei_values[${index}].material_id" style="flex:2;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
-            ${getMaterialOptions()}
-        </select>
-        <input type="number" step="any" name="ei_values[${index}].value" placeholder="Ei, МПа" value="${value}" style="flex:1;">
-        <button type="button" class="btn-remove" onclick="this.parentElement.remove();">✕</button>
-    `;
-    container.appendChild(row);
-}
-
-// Обновите createIC, чтобы добавить обработку ei_values
-// Внутри createIC после парсинга other массивов добавьте:
-const eiValues = [];
-document.querySelectorAll('#ei-values-list .dynamic-row').forEach(row => {
-    const select = row.querySelector('select');
-    const input = row.querySelector('input[type="number"]');
-    if (select && select.value && input && input.value) {
-        eiValues.push({
-            material_id: parseInt(select.value),
-            value: parseFloat(input.value)
-        });
-    }
-});
-payload.ei_values = eiValues;
-
-async function editIC(id) {
-    try {
-        const res = await fetch(`/initial-conditions/api/${id}`);
-        if (!res.ok) throw new Error('Ошибка загрузки');
-        const data = await res.json();
-
-        // Заполняем основную форму
-        document.querySelector('form#icForm input[name="name"]').value = data.name;
-
-        // Заполняем временные параметры
-        document.querySelector('input[name="time_parameters.time"]').value = data.time_parameters.time;
-        document.querySelector('input[name="time_parameters.dt"]').value = data.time_parameters.dt;
-        document.querySelector('input[name="time_parameters.nbT"]').value = data.time_parameters.nbT;
-        document.querySelector('input[name="time_parameters.Nplot"]').value = data.time_parameters.Nplot;
-
-        // Потенциальный поток
-        document.querySelector('input[name="potential_flow.beta"]').value = data.potential_flow.beta;
-        document.querySelector('input[name="potential_flow.B"]').value = data.potential_flow.B;
-
-        // Параметры построения
-        document.querySelector('input[name="construction.NC"]').value = data.construction.NC;
-        document.querySelector('input[name="construction.NSp"]').value = data.construction.NSp;
-        document.querySelector('input[name="construction.NSm"]').value = data.construction.NSm;
-        document.querySelector('input[name="construction.NSpn"]').value = data.construction.NSpn;
-        document.querySelector('input[name="construction.NSpm"]').value = data.construction.NSpm;
-
-        // Параметры упругости
-        document.querySelector('input[name="elasticity.b"]').value = data.elasticity.b;
-        document.querySelector('input[name="elasticity.nu"]').value = data.elasticity.nu;
-        document.querySelector('input[name="elasticity.KLT"]').value = data.elasticity.KLT;
-
-        // Параметры вывода напряжений
-        document.querySelector('input[name="stress_output.coef"]').value = data.stress_output.coef;
-        document.querySelector('input[name="stress_output.delt"]').value = data.stress_output.delt;
-        document.querySelector('input[name="stress_output.Npt"]').value = data.stress_output.Npt;
-
-        // Очищаем и заполняем динамические списки
-        function fillDynamicList(containerId, items, fieldMapping) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
-            items.forEach((item, idx) => {
-                const row = document.createElement('div');
-                row.className = 'dynamic-row';
-                let html = '';
-                for (const [key, value] of Object.entries(fieldMapping)) {
-                    const inputValue = item[value.field] ?? '';
-                    html += `<input type="${value.type}" step="${value.step}" name="${containerId.split('-')[0]}[${idx}].${key}" value="${inputValue}" placeholder="${value.placeholder}" ${value.required ? 'required' : ''}>`;
-                }
-                html += `<button type="button" class="btn-remove" onclick="removeRow(this)">✕</button>`;
-                row.innerHTML = html;
-                container.appendChild(row);
-            });
-            updateRemoveButtons(containerId);
-        }
-
-        // Границы
-        fillDynamicList('boundaries-list', data.boundaries, {
-            name: {type: 'text', step: '1', placeholder: 'Имя', required: true, field: 'name'},
-            value: {type: 'number', step: 'any', placeholder: 'Значение', required: true, field: 'value'}
-        });
-        // Хорды
-        fillDynamicList('chords-list', data.chords, {
-            name: {type: 'text', step: '1', placeholder: 'Имя', required: true, field: 'name'},
-            value: {type: 'number', step: 'any', placeholder: 'Значение', required: true, field: 'value'}
-        });
-        // Начальные температуры
-        const initTempsContainer = document.getElementById('initial-temps-list');
-        initTempsContainer.innerHTML = '';
-        data.initial_temps.forEach((t, idx) => {
-            const row = document.createElement('div');
-            row.className = 'dynamic-row';
-            row.innerHTML = `
-                <select name="initial_temps[${idx}].material_id" style="flex:1;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
-                    ${getMaterialOptionsWithSelected(t.material_id)}
-                </select>
-                <input type="number" step="any" name="initial_temps[${idx}].value" value="${t.value}" placeholder="T, °C" required>
-                <button type="button" class="btn-remove" onclick="removeRow(this)">✕</button>
-            `;
-            initTempsContainer.appendChild(row);
-        });
-        updateRemoveButtons('initial-temps-list');
-        // Ei значения
-        const eiContainer = document.getElementById('ei-values-list');
-        eiContainer.innerHTML = '';
-        if (data.ei_values) {
-            data.ei_values.forEach((ei, idx) => {
-                const row = document.createElement('div');
-                row.className = 'dynamic-row';
-                row.innerHTML = `
-                    <select name="ei_values[${idx}].material_id" style="flex:2;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
-                        ${getMaterialOptionsWithSelected(ei.material_id)}
-                    </select>
-                    <input type="number" step="any" name="ei_values[${idx}].value" value="${ei.value}" placeholder="Ei, МПа" style="flex:1;">
-                    <button type="button" class="btn-remove" onclick="this.parentElement.remove();">✕</button>
-                `;
-                eiContainer.appendChild(row);
-            });
-        } else {
-            // Добавить одну пустую строку для удобства
-            addEiRow();
-        }
-
-        // Меняем заголовок кнопки и обработчик отправки формы
-        const form = document.getElementById('icForm');
-        // Сохраняем ID редактируемого набора
-        form.dataset.editId = id;
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.textContent = '💾 Обновить набор';
-        // Убираем предыдущий обработчик и вешаем новый
-        form.onsubmit = (e) => updateIC(e, id);
-        // Прокручиваем к форме
-        form.scrollIntoView({ behavior: 'smooth' });
-    } catch (err) {
-        alert('Ошибка загрузки данных: ' + err.message);
-    }
-}
-function getMaterialOptionsWithSelected(selectedId) {
-    if (materialsList.length === 0) return '<option value="">Материалы не загружены</option>';
-    let options = '<option value="">-- Выберите материал --</option>';
-    materialsList.forEach(m => {
-        const selected = (m.material_id === selectedId) ? 'selected' : '';
-        options += `<option value="${m.material_id}" ${selected}>${escapeHtml(m.name)}</option>`;
-    });
-    return options;
-}
-
-async function updateIC(e, id) {
-    e.preventDefault();
-    const form = e.target;
-    const formData = new FormData(form);
-
-    // Собираем payload так же, как в createIC
-    const payload = {
-        name: formData.get('name'),
-        time_parameters: {},
-        potential_flow: {},
-        construction: {},
-        elasticity: {},
-        stress_output: {},
-        boundaries: [],
-        initial_temps: [],
-        chords: [],
-        ei_values: []
-    };
-
-    function setNested(obj, path, value) {
-        const parts = path.split('.');
-        let current = obj;
-        for (let i = 0; i < parts.length - 1; i++) {
-            if (!current[parts[i]]) current[parts[i]] = {};
-            current = current[parts[i]];
-        }
-        const key = parts[parts.length - 1];
-        current[key] = isNaN(value) ? value : parseFloat(value);
-    }
-
-    for (const [key, value] of formData.entries()) {
-        if (key === 'name') continue;
-        const arrayMatch = key.match(/^([a-z_]+)\[(\d+)\]\.([a-z_]+)$/);
-        if (arrayMatch) {
-            const [, arrayName, idx, field] = arrayMatch;
-            const index = parseInt(idx);
-            if (!payload[arrayName][index]) payload[arrayName][index] = {};
-            payload[arrayName][index][field] = isNaN(value) ? value : parseFloat(value);
-        } else {
-            setNested(payload, key, value);
-        }
-    }
-
-    // Очистка массивов от пустых элементов
-    ['boundaries', 'initial_temps', 'chords', 'ei_values'].forEach(key => {
-        if (payload[key]) {
-            payload[key] = payload[key].filter(item => item && Object.keys(item).length);
-        }
-    });
-
-    // Дополнительно собираем ei_values, если они не попали в formData (из-за того, что у них нет стандартного name)
-    const eiRows = document.querySelectorAll('#ei-values-list .dynamic-row');
-    payload.ei_values = [];
-    eiRows.forEach(row => {
-        const select = row.querySelector('select');
-        const input = row.querySelector('input[type="number"]');
-        if (select && select.value && input && input.value) {
-            payload.ei_values.push({
-                material_id: parseInt(select.value),
-                value: parseFloat(input.value)
-            });
-        }
-    });
-
-    try {
-        const res = await fetch(`/initial-conditions/api/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-            alert('Набор обновлён');
-            location.reload(); // или обновить таблицу и сбросить форму
-        } else {
-            const err = await res.json();
-            alert('Ошибка: ' + JSON.stringify(err.error));
-        }
-    } catch (err) {
-        alert('Ошибка сети: ' + err.message);
-    }
-}
-
-</script>
+<script src="{{ url_for('static', filename='js/initial_conditions.js') }}"></script>
 {% endblock %}
