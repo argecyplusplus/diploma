@@ -54,7 +54,9 @@ body {
 .settings-btn { background: transparent; border: 1px solid var(--border); padding: 6px 10px; border-radius: var(--radius); font-size: 0.8125rem; color: var(--text-muted); cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
 .settings-btn:hover { border-color: var(--border-strong); color: var(--text-main); background: #f9fafb; }
 
-.main { margin-left: 260px; margin-top: 56px; flex: 1; overflow-y: auto; padding: 28px 32px; background: var(--bg-canvas); }
+.main {
+   /*margin-left: 260px; */
+  margin-top: 56px; flex: 1; overflow-y: auto; padding: 28px 32px; background: var(--bg-canvas); }
 
 /* ========= DASHBOARD (NEW STRUCTURE) ========= */
 .dashboard { max-width: 1200px; margin: 0 auto; }
@@ -194,4 +196,470 @@ body {
   .dashboard-header { flex-direction: column; gap: 16px; }
   .workflow-grid { grid-template-columns: 1fr; }
   .modal { width: 100%; height: 100%; max-height: 100%; border-radius: 0; }
+}
+
+/* ========= УЛУЧШЕННЫЙ СПИСОК БД В МОДАЛКЕ ========= */
+.db-grid {
+    display: grid;
+    gap: 8px;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px;
+    margin: 8px 0;
+}
+
+.db-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: #fff;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+}
+
+.db-card:hover {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+    transform: translateX(2px);
+}
+
+.db-card.active {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, var(--primary-soft), #fff);
+    box-shadow: 0 2px 8px rgba(59,130,246,0.15);
+}
+
+.db-card.pulse {
+    animation: pulseHighlight 0.4s ease;
+}
+
+@keyframes pulseHighlight {
+    0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
+    70% { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
+    100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+}
+
+.db-card-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.db-icon {
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.db-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.db-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.db-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.db-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.db-badge-active {
+    font-size: 0.7rem;
+    color: var(--success);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.db-btn-delete {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: #fee2e2;
+    color: #dc2626;
+    border-radius: 50%;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    opacity: 0.7;
+}
+
+.db-btn-delete:hover {
+    background: var(--danger);
+    color: #fff;
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.db-create-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.db-create-row .form-input {
+    flex: 1;
+}
+
+.db-empty, .db-error {
+    text-align: center;
+    padding: 24px 16px;
+    color: var(--text-muted);
+    background: #f8fafc;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--border);
+}
+
+.db-error {
+    color: var(--danger);
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.db-empty small {
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+/* Поиск */
+#dbSearch {
+    width: 100%;
+}
+
+/* Статус БД в хедере */
+.db-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+}
+
+.db-status.connected {
+    color: var(--success);
+    font-weight: 500;
+}
+
+/* Адаптив для модалки */
+@media (max-width: 640px) {
+    .db-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .db-card-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+    .db-create-row {
+        flex-direction: column;
+    }
+}
+
+/* ========= КОМПОНЕНТЫ СПЛАВА — УТОЧНЁННЫЕ СТИЛИ ========= */
+/* Контейнер строки */
+#alloyComponents .comp-row,
+#assemblyComponents .comp-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+#alloyComponents .comp-row:hover,
+#assemblyComponents .comp-row:hover {
+    border-color: var(--accent);
+    box-shadow: 0 1px 4px rgba(37, 99, 235, 0.08);
+}
+
+/* Выпадающий список материала */
+#alloyComponents .comp-select,
+#assemblyComponents .comp-select {
+    flex: 2;
+    min-width: 180px;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    font-size: 0.875rem;
+    color: var(--text-main);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    padding-right: 28px;
+}
+
+#alloyComponents .comp-select:focus,
+#assemblyComponents .comp-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* Поле процента */
+#alloyComponents .comp-frac,
+#assemblyComponents .comp-frac {
+    flex: 1;
+    min-width: 80px;
+    max-width: 100px;
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    font-size: 0.875rem;
+    color: var(--text-main);
+    text-align: right;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+#alloyComponents .comp-frac:focus,
+#assemblyComponents .comp-frac:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+#alloyComponents .comp-frac::placeholder,
+#assemblyComponents .comp-frac::placeholder {
+    color: var(--text-muted);
+    text-align: right;
+}
+
+/* Кнопка удаления */
+#alloyComponents .btn-remove,
+#assemblyComponents .btn-remove {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    background: #fee2e2;
+    color: #dc2626;
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+#alloyComponents .btn-remove:hover,
+#assemblyComponents .btn-remove:hover {
+    background: var(--status-err);
+    color: #fff;
+    transform: scale(1.05);
+}
+
+/* Адаптив: на мобильных — вертикальное расположение */
+@media (max-width: 640px) {
+    #alloyComponents .comp-row,
+    #assemblyComponents .comp-row {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    #alloyComponents .comp-select,
+    #assemblyComponents .comp-select {
+        flex: 1 1 100%;
+        min-width: unset;
+    }
+    #alloyComponents .comp-frac,
+    #assemblyComponents .comp-frac {
+        flex: 1;
+        min-width: 70px;
+    }
+    #alloyComponents .btn-remove,
+    #assemblyComponents .btn-remove {
+        margin-left: auto;
+    }
+}
+
+/* Подсветка при ошибке валидации */
+#alloyComponents .comp-row.error,
+#assemblyComponents .comp-row.error {
+    border-color: var(--status-err);
+    background: #fef2f2;
+}
+
+#alloyComponents .comp-frac.invalid,
+#assemblyComponents .comp-frac.invalid {
+    border-color: var(--status-err);
+    background: #fef2f2;
+}
+
+/* ========= ДИНАМИЧЕСКИЕ СТРОКИ — УТОЧНЁННЫЕ СТИЛИ ========= */
+.dynamic-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dynamic-row:hover {
+    border-color: var(--accent);
+    box-shadow: 0 1px 4px rgba(37, 99, 235, 0.08);
+}
+
+/* Поля ввода в динамических строках */
+.dynamic-row input[type="text"],
+.dynamic-row input[type="number"] {
+    flex: 1;
+    min-width: 100px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    font-size: 0.875rem;
+    color: var(--text-main);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.dynamic-row input[type="text"] {
+    flex: 2;
+}
+
+.dynamic-row input[type="number"] {
+    text-align: right;
+}
+
+.dynamic-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* Выпадающие списки в динамических строках */
+.dynamic-row select {
+    flex: 2;
+    min-width: 180px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    font-size: 0.875rem;
+    color: var(--text-main);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    padding-right: 28px;
+}
+
+.dynamic-row select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* Кнопка удаления в динамической строке */
+.dynamic-row .btn-remove {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    background: #fee2e2;
+    color: #dc2626;
+    border-radius: var(--radius-sm);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+}
+
+.dynamic-row .btn-remove:hover {
+    background: var(--status-err);
+    color: #fff;
+    transform: scale(1.05);
+}
+
+/* Таблица начальных условий — кнопки действий */
+#icTableBody .btn-edit,
+#icTableBody .btn-delete {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#icTableBody .btn-edit {
+    color: var(--accent);
+}
+
+#icTableBody .btn-edit:hover {
+    background: var(--primary-soft);
+    color: var(--accent-hover);
+}
+
+#icTableBody .btn-delete {
+    color: var(--status-err);
+}
+
+#icTableBody .btn-delete:hover {
+    background: #fef2f2;
+    color: var(--status-err);
+}
+
+/* Адаптив: на мобильных — вертикальное расположение */
+@media (max-width: 640px) {
+    .dynamic-row {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .dynamic-row input,
+    .dynamic-row select {
+        flex: 1 1 100%;
+        min-width: unset;
+    }
+    .dynamic-row .btn-remove {
+        margin-left: auto;
+    }
 }

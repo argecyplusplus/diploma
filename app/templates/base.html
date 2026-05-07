@@ -28,58 +28,77 @@
         <span class="db-badge"></span>
         <span id="dbStatusText">БД не выбрана</span>
     </div>
-    <button class="settings-btn" onclick="openSettings()">⚙️ Настройки</button>
+    <button class="settings-btn" onclick="openModal('settingsModal')">⚙️ Настройки</button>
 </header>
 
 <main class="main">
-    {% block content %}{% endblock %}
+    {% block content %}
+    <div class="greeting-container">
+        <div class="welcome-card">
+            <div class="welcome-icon">🚀</div>
+            <h2>Добро пожаловать в FF Pro</h2>
+            <p>Профессиональная платформа для параметрического моделирования, аппроксимации и прочностного анализа лопаток ГТД на базе FreeFEM++.</p>
+            <div class="quick-actions">
+                <a href="/blades" class="big-btn primary">📐 Лопатки</a>
+                <a href="/materials" class="big-btn secondary">🧪 Материалы</a>
+                <a href="/approximation" class="big-btn secondary">📊 Аппроксимация</a>
+                <a href="/simulation" class="big-btn secondary">🖥️ Моделирование</a>
+            </div>
+        </div>
+        {% if not currentDb %}
+        <div class="setup-card">
+            <div class="setup-icon">⚠️</div>
+            <h3>Требуется настройка</h3>
+            <p>Для начала работы выберите или создайте базу данных в настройках.</p>
+            <button class="big-btn secondary" onclick="openModal('settingsModal')">⚙️ Открыть настройки</button>
+        </div>
+        {% endif %}
+    </div>
+    {% endblock %}
 </main>
 
-<!-- Модальное окно настроек -->
-<div id="settingsModal" class="modal-overlay">
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
     <div class="modal modal-wide">
         <h3>⚙️ Настройки FF Pro</h3>
+
+        <!-- Вкладка: Базы данных -->
         <div class="form-group">
             <label>📁 База данных</label>
-            <select id="dbSelect">
-                <option value="">Выберите или создайте БД</option>
-            </select>
-            <button class="btn-primary" style="margin-top:8px; width:100%;">Создать</button>
+
+            <!-- Поиск по списку БД -->
+            <input type="text" id="dbSearch" class="form-input" placeholder="🔍 Найти базу данных..." style="margin-bottom:10px;">
+
+            <!-- Список БД -->
+            <div class="db-grid" id="dbList">
+                <!-- Заполняется через JS -->
+            </div>
+
+            <!-- Создание новой БД -->
+            <div class="db-create-row">
+                <input type="text" id="newDbName" class="form-input" placeholder="Имя новой базы данных...">
+                <button class="btn-primary" onclick="createDb()">+ Создать</button>
+            </div>
+            <small>Имя может содержать латинские буквы, цифры и подчёркивание</small>
         </div>
-        <div class="form-group">
-            <label>🖥️ Путь к FreeFEM++</label>
-            <input type="text" id="freefemPath" placeholder="Оставьте пустым, если FreeFEM добавлен в PATH">
-            <small>Укажите полный путь к исполняемому файлу FreeFEM++</small>
+
+        <!-- Вкладка: FreeFEM -->
+        <div class="form-group" style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
+            <label>🔧 Путь к FreeFEM++</label>
+            <input type="text" id="freefemPath" class="form-input" placeholder="C:\Program Files\FreeFem++\FreeFem++.exe">
+            <small>Оставьте пустым, если FreeFEM уже добавлен в PATH системы</small>
         </div>
+
         <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeSettings()">Отмена</button>
-            <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
+            <button class="btn-secondary" onclick="closeModal('settingsModal')">Закрыть</button>
+            <button class="btn-primary" onclick="saveSettings()">💾 Сохранить</button>
         </div>
     </div>
 </div>
 
-<!-- Подключаем скрипты -->
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<!-- Подключаем вынесенный JS -->
+<script src="{{ url_for('static', filename='js/base.js') }}"></script>
 {% block scripts %}{% endblock %}
 
-<!-- === ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ МОДАЛОК === -->
-<script>
-    window.openSettings = function() {
-        const modal = document.getElementById('settingsModal');
-        if (modal) modal.classList.add('active');
-        if (typeof initSettingsModal === 'function') initSettingsModal();
-    };
-    window.closeSettings = function() {
-        const modal = document.getElementById('settingsModal');
-        if (modal) modal.classList.remove('active');
-    };
-    window.saveSettings = function() {
-        // Если в main.js есть обработчик сохранения — вызываем его
-        if (typeof handleSettingsSave === 'function') {
-            handleSettingsSave();
-        } else {
-            // Fallback: просто закрываем
-            closeSettings();
-            alert('Настройки сохранены (требуется перезагрузка)');
-        }
-    };
+</body>
+</html>

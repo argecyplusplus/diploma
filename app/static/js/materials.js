@@ -204,10 +204,20 @@ function validateMassSum() {
         const v = parseFloat(val);
         if (!isNaN(v)) sum += v;
     });
+
+    // Обновляем число в сообщении
     document.getElementById('massSum').textContent = sum.toFixed(2);
+
+    // Показываем/скрываем сообщение явно через style.display
     const err = document.getElementById('massSumError');
     const isValid = Math.abs(sum - 100) <= 0.1;
-    err.classList.toggle('show', !isValid);
+
+    if (isValid) {
+        err.style.display = 'none';  // ✅ Скрыть, если всё ок
+    } else {
+        err.style.display = 'block'; // ❌ Показать ошибку
+    }
+
     return isValid;
 }
 

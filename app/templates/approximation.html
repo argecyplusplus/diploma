@@ -1,60 +1,115 @@
 {% extends "base.html" %}
-
+{% block title %}Аппроксимация — FF Pro{% endblock %}
 {% block content %}
-<div class="approx-container">
-    <div class="section-header">
-        <h2>Аппроксимация профиля</h2>
+<div class="section-header">
+    <div>
+        <h2 class="page-title">Аппроксимация профиля</h2>
+        <p class="page-subtitle">Сглаживание контуров, вычисление полиномов Лежандра и расчёт геометрических параметров</p>
     </div>
+</div>
 
-    <div class="control-panel">
-        <label for="bladeSelect">Выберите лопатку:</label>
-        <select id="bladeSelect" onchange="onBladeSelect(this.value)">
-            <option value="">-- Выберите лопатку --</option>
-        </select>
-        <button class="btn-secondary" id="retryBtn" style="display:none;" onclick="executeApproximation()">🔄 Повторить</button>
+<!-- Панель управления -->
+<div class="card">
+    <div class="card-header">
+        <h3>Управление расчётом</h3>
     </div>
-
-    <div id="loading" class="loading-indicator" style="display:none;">⏳ Выполняется расчет и сохранение в БД...</div>
-    <div id="error" class="error-message"></div>
-
-    <div id="results" style="display:none;">
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('plot')">📊 График</button>
-            <button class="tab-btn" onclick="switchTab('coords')">📐 Координаты</button>
-            <button class="tab-btn" onclick="switchTab('coeffs')">🔢 Коэффициенты Лежандра</button>
-            <button class="tab-btn" onclick="switchTab('params')">📈 Параметры</button>
+    <div style="padding: 20px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 240px;">
+            <label for="bladeSelect">Выберите лопатку</label>
+            <select id="bladeSelect" onchange="onBladeSelect(this.value)">
+                <option value="">-- Загрузка списка --</option>
+            </select>
         </div>
-
-        <div id="tab-plot" class="tab-content active">
-            <img id="plotImg" src="" alt="График аппроксимации">
-            <button class="btn-secondary" onclick="savePlot()" style="margin-top:10px;">💾 Сохранить график (PNG)</button>
-        </div>
-
-        <div id="tab-coords" class="tab-content">
-            <table class="data-table">
-                <thead><tr><th>Тип</th><th>X</th><th>Y</th></tr></thead>
-                <tbody id="coordsBody"></tbody>
-            </table>
-            <button class="btn-secondary" onclick="saveTable('coords')">💾 Сохранить CSV</button>
-        </div>
-
-        <div id="tab-coeffs" class="tab-content">
-            <table class="data-table">
-                <thead><tr><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr></thead>
-                <tbody id="coeffsBody"></tbody>
-            </table>
-            <button class="btn-secondary" onclick="saveTable('coeffs')">💾 Сохранить CSV</button>
-        </div>
-
-        <div id="tab-params" class="tab-content">
-            <table class="data-table">
-                <thead><tr><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R²</th></tr></thead>
-                <tbody id="paramsBody"></tbody>
-            </table>
-            <button class="btn-secondary" onclick="saveTable('params')">💾 Сохранить CSV</button>
+        <button class="btn-secondary" id="retryBtn" onclick="executeApproximation()" style="display:none;">🔄 Повторить</button>
+        <div id="loading" style="display:none; padding: 8px 12px; background: var(--primary-soft); color: var(--accent); border-radius: var(--radius); font-size: 0.8125rem; font-weight: 500;">
+            ⏳ Выполняется расчёт...
         </div>
     </div>
 </div>
 
+<div id="error" class="error-message" style="display:none;"></div>
+
+<!-- Результаты (скрыты до завершения расчёта) -->
+<div id="results" style="display:none;">
+
+    <!-- Табы -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('plot')">📊 График</button>
+        <button class="tab-btn" onclick="switchTab('coords')">📐 Координаты</button>
+        <button class="tab-btn" onclick="switchTab('coeffs')">🔢 Коэффициенты</button>
+        <button class="tab-btn" onclick="switchTab('params')">📈 Параметры</button>
+    </div>
+
+    <!-- 1. График -->
+    <div id="tab-plot" class="tab-content active">
+        <div class="card">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Визуализация профиля</h3>
+                <button class="btn-secondary btn-sm" onclick="savePlot()">💾 Сохранить PNG</button>
+            </div>
+            <div style="padding: 24px; text-align: center; background: #fafbfc; border-bottom: 1px solid var(--border);">
+                <img id="plotImg" src="" alt="График аппроксимации" style="max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius); background: #fff;">
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Координаты -->
+    <div id="tab-coords" class="tab-content">
+        <div class="card">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Сглаженные координаты</h3>
+                <button class="btn-secondary btn-sm" onclick="saveTable('coords')">💾 Сохранить CSV</button>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead><tr><th>Тип профиля</th><th style="width:30%">X</th><th style="width:30%">Y</th></tr></thead>
+                    <tbody id="coordsBody">
+                        <tr><td colspan="3" class="status-message">Нет данных</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Коэффициенты Лежандра -->
+    <div id="tab-coeffs" class="tab-content">
+        <div class="card">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Коэффициенты полиномов Лежандра</h3>
+                <button class="btn-secondary btn-sm" onclick="saveTable('coeffs')">💾 Сохранить CSV</button>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead><tr><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr></thead>
+                    <tbody id="coeffsBody">
+                        <tr><td colspan="3" class="status-message">Нет данных</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Параметры -->
+    <div id="tab-params" class="tab-content">
+        <div class="card">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Расчётные параметры</h3>
+                <button class="btn-secondary btn-sm" onclick="saveTable('params')">💾 Сохранить CSV</button>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead><tr><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R² (точность)</th></tr></thead>
+                    <tbody id="paramsBody">
+                        <tr><td colspan="4" class="status-message">Нет данных</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script src="{{ url_for('static', filename='js/approximation.js') }}"></script>
 {% endblock %}

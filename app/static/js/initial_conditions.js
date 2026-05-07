@@ -2,21 +2,7 @@
 
 let materialsList = [];
 
-// ================= ЗАГРУЗКА МАТЕРИАЛОВ =================
-async function loadMaterialsForIC() {
-    try {
-        const [elementsRes, alloysRes] = await Promise.all([
-            fetch('/api/elements'),
-            fetch('/api/alloys')
-        ]);
-        const elements = elementsRes.ok ? await elementsRes.json() : [];
-        const alloys = alloysRes.ok ? await alloysRes.json() : [];
-        materialsList = [...elements, ...alloys];
-    } catch (e) {
-        console.error('Ошибка загрузки материалов:', e);
-        materialsList = [];
-    }
-}
+
 
 function getMaterialOptions(selectedId = null) {
     if (materialsList.length === 0) {
@@ -418,6 +404,40 @@ async function deleteIC(id) {
         }
     } catch (e) {
         alert('❌ Ошибка: ' + e.message);
+    }
+}
+
+
+// ================= ОБНОВЛЕНИЕ ВЫПАДАЮЩИХ СПИСКОВ =================
+function refreshMaterialSelects() {
+    // Обновляем select в "Начальные температуры"
+    document.querySelectorAll('#initial-temps-list select[name*="material_id"]').forEach(select => {
+        const selectedValue = select.value;
+        select.innerHTML = getMaterialOptions(selectedValue);
+    });
+    // Обновляем select в "Ei значения"
+    document.querySelectorAll('#ei-values-list select[name*="material_id"]').forEach(select => {
+        const selectedValue = select.value;
+        select.innerHTML = getMaterialOptions(selectedValue);
+    });
+}
+
+// В loadMaterialsForIC() добавь вызов после загрузки:
+async function loadMaterialsForIC() {
+    try {
+        const [elementsRes, alloysRes] = await Promise.all([
+            fetch('/api/elements'),
+            fetch('/api/alloys')
+        ]);
+        const elements = elementsRes.ok ? await elementsRes.json() : [];
+        const alloys = alloysRes.ok ? await alloysRes.json() : [];
+        materialsList = [...elements, ...alloys];
+
+        // 🔥 ОБНОВЛЯЕМ ВСЕ СУЩЕСТВУЮЩИЕ SELECT
+        refreshMaterialSelects();
+    } catch (e) {
+        console.error('Ошибка загрузки материалов:', e);
+        materialsList = [];
     }
 }
 

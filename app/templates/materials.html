@@ -1,40 +1,83 @@
 {% extends "base.html" %}
-
+{% block title %}Материалы — FF Pro{% endblock %}
 {% block content %}
-<div class="materials-container">
-    <div class="section-header">
-        <h2>🧪 Химические элементы / Материалы</h2>
-        <button class="btn-primary" onclick="openMaterialModal()">+ Добавить материал</button>
+<div class="section-header">
+    <div>
+        <h2 class="page-title">Материалы и сплавы</h2>
+        <p class="page-subtitle">Библиотека химических элементов, материалов и расчётных сплавов для прочностного анализа</p>
     </div>
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead><tr><th>ID</th><th>Название</th><th>Тип</th><th>ρ, кг/м³</th><th>λ</th><th>Cp</th><th>Действия</th></tr></thead>
-            <tbody id="elementsTable"><tr><td colspan="7" class="text-center">Загрузка...</td></tr></tbody>
-        </table>
+    <div class="header-actions">
+        <button class="btn-primary" onclick="openMaterialModal()">+ Элемент</button>
+        <button class="btn-secondary" onclick="openAlloyModal()">🔩 Сплав</button>
     </div>
+</div>
 
-    <!-- БЛОК СПЛАВЫ -->
-    <div class="section-header section-header-top">
-        <h2>🔩 Сплавы</h2>
-        <button class="btn-primary" onclick="openAlloyModal()">+ Создать сплав</button>
+<!-- Химические элементы / Материалы -->
+<div class="card">
+    <div class="card-header">
+        <h3>Химические элементы / Материалы</h3>
+        <p class="card-hint">Базовые материалы с физико-механическими свойствами</p>
     </div>
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
-                <tr><th>ID</th><th>Название</th><th>ρ, кг/м³</th><th>Tпл</th><th>Действия</th></tr>
+                <tr>
+                    <th style="width:60px">ID</th>
+                    <th>Название</th>
+                    <th style="width:100px">Тип</th>
+                    <th style="width:90px; text-align:right;">ρ, кг/м³</th>
+                    <th style="width:80px; text-align:right;">λ</th>
+                    <th style="width:80px; text-align:right;">Cp</th>
+                    <th style="width:180px; text-align:right;">Действия</th>
+                </tr>
             </thead>
-            <tbody id="alloysTable"><tr><td colspan="5" class="text-center">Загрузка...</td></tr></tbody>
+            <tbody id="elementsTable">
+                <tr><td colspan="7" class="status-message">⏳ Загрузка...</td></tr>
+            </tbody>
         </table>
     </div>
 </div>
 
-<!-- Модалка: Материал -->
+<!-- Сплавы -->
+<div class="section-header section-header-top">
+    <h2 class="page-title">Сплавы</h2>
+    <button class="btn-secondary" onclick="openAlloyModal()">+ Создать сплав</button>
+</div>
+<div class="card">
+    <div class="card-header">
+        <h3>Расчётные сплавы</h3>
+        <p class="card-hint">Композиционные материалы с автоматическим расчётом свойств</p>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width:60px">ID</th>
+                    <th>Название</th>
+                    <th style="width:90px; text-align:right;">ρ, кг/м³</th>
+                    <th style="width:90px; text-align:right;">Tпл, °C</th>
+                    <th style="width:180px; text-align:right;">Действия</th>
+                </tr>
+            </thead>
+            <tbody id="alloysTable">
+                <tr><td colspan="5" class="status-message">⏳ Загрузка...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ================= МОДАЛКА: МАТЕРИАЛ ================= -->
 <div class="modal-overlay" id="materialModal">
-    <div class="modal">
+    <div class="modal modal-lg">
         <h3 id="matModalTitle">Добавить материал</h3>
         <form id="matForm">
             <input type="hidden" id="matId">
-            <div class="form-group"><label>Название *</label><input type="text" id="matName" required></div>
+
+            <div class="form-group">
+                <label>Название *</label>
+                <input type="text" id="matName" placeholder="Например: Титан ВТ6" required>
+            </div>
+
             <div class="form-group">
                 <label>Тип элемента *</label>
                 <select id="elementType" required>
@@ -48,64 +91,103 @@
                     <option value="Газ">Газ</option>
                 </select>
             </div>
-            <div class="form-row">
-                <div class="form-group"><label>ρ, кг/м³ *</label><input type="number" id="matDensity" step="0.1" required></div>
-                <div class="form-group"><label>Твердость, HV</label><input type="number" id="matHardness" step="0.1"></div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>ρ, кг/м³ *</label>
+                    <input type="number" step="any" id="matDensity" placeholder="Плотность" required>
+                </div>
+                <div class="form-group">
+                    <label>Твердость, HV</label>
+                    <input type="number" step="any" id="matHardness" placeholder="Твёрдость">
+                </div>
+                <div class="form-group">
+                    <label>λ, Вт/м·К *</label>
+                    <input type="number" step="any" id="matLambda" placeholder="Теплопроводность" required>
+                </div>
+                <div class="form-group">
+                    <label>Cp, Дж/кг·К *</label>
+                    <input type="number" step="any" id="matCp" placeholder="Теплоёмкость" required>
+                </div>
+                <div class="form-group">
+                    <label>Tпл, °C</label>
+                    <input type="number" step="any" id="matTmelt" placeholder="Температура плавления">
+                </div>
+                <div class="form-group">
+                    <label>КТР, 10⁻⁶/К *</label>
+                    <input type="number" step="any" id="matKLT" placeholder="Коэфф. теплового расширения" required>
+                </div>
             </div>
-            <div class="form-row">
-                <div class="form-group"><label>λ, Вт/мК *</label><input type="number" id="matLambda" step="0.01" required></div>
-                <div class="form-group"><label>Cp, Дж/кгК *</label><input type="number" id="matCp" step="0.1" required></div>
-            </div>
-            <div class="form-row">
-                <div class="form-group"><label>Tпл, °С</label><input type="number" id="matTmelt" step="0.1"></div>
-                <div class="form-group"><label>КТР, 10⁻⁶/К *</label><input type="number" id="matKLT" step="0.01" required></div>
-            </div>
+
             <div class="modal-actions">
+                <button type="button" class="btn-danger" id="matDeleteBtn" style="display:none; margin-right:auto;" onclick="deleteMaterial()">Удалить</button>
                 <button type="button" class="btn-secondary" onclick="closeModal('materialModal')">Отмена</button>
                 <button type="submit" class="btn-primary">Сохранить</button>
-                <button type="button" class="btn-danger" id="matDeleteBtn" onclick="deleteMaterial()">Удалить</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Модалка: Сплав -->
+<!-- ================= МОДАЛКА: СОЗДАНИЕ СПЛАВА ================= -->
 <div class="modal-overlay" id="alloyModal">
-    <div class="modal modal-lg">
+    <div class="modal modal-xl">
         <h3 id="alloyModalTitle">Создать сплав</h3>
         <form id="alloyForm">
             <input type="hidden" id="alloyId">
-            <div class="form-group"><label>Название сплава *</label><input type="text" id="alloyName" required></div>
-            <h4>Компоненты (сумма = 100%)</h4>
-            <div id="alloyComponents"></div>
-            <button type="button" class="btn-secondary btn-sm" onclick="addAlloyComponentRow()">+ Компонент</button>
-            <div id="massSumError" class="error-msg">⚠️ Сумма должна быть 100% (сейчас: <span id="massSum">0</span>%)</div>
+
+            <div class="form-group">
+                <label>Название сплава *</label>
+                <input type="text" id="alloyName" placeholder="Например: ЭИ698" required>
+            </div>
+
+            <div class="form-section">
+                <h4>Компоненты (сумма = 100%)</h4>
+                <div id="alloyComponents">
+                    <!-- Динамические строки компонентов -->
+                </div>
+                <button type="button" class="btn-secondary btn-sm" onclick="addAlloyComponentRow()">+ Компонент</button>
+                <div class="error-msg" id="massSumError" style="margin-top:8px; display:none;">⚠️ Сумма должна быть 100% (сейчас: <span id="massSum">0</span>%)</div>
+            </div>
+
             <div class="modal-actions">
+                <button type="button" class="btn-danger" id="alloyDeleteBtn" style="display:none; margin-right:auto;" onclick="deleteAlloy()">Удалить</button>
                 <button type="button" class="btn-secondary" onclick="closeModal('alloyModal')">Отмена</button>
                 <button type="submit" class="btn-primary">Рассчитать и сохранить</button>
-                <button type="button" class="btn-danger" id="alloyDeleteBtn" onclick="deleteAlloy()">Удалить</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Модалка: Просмотр сплава -->
+<!-- ================= МОДАЛКА: ПРОСМОТР СПЛАВА ================= -->
 <div class="modal-overlay" id="viewAlloyModal">
-    <div class="modal">
+    <div class="modal modal-wide">
         <h3>Сплав: <span id="viewAlloyName"></span></h3>
+
         <div class="properties-grid">
-            <div><b>ρ:</b> <span id="viewDensity"></span> кг/м³</div>
-            <div><b>λ:</b> <span id="viewLambda"></span> Вт/мК</div>
-            <div><b>Cp:</b> <span id="viewCp"></span> Дж/кгК</div>
-            <div><b>Tпл:</b> <span id="viewTmelt"></span> °С</div>
-            <div><b>КТР:</b> <span id="viewKLT"></span> 10⁻⁶/К</div>
-            <div><b>Твердость:</b> <span id="viewHardness"></span> HV</div>
+            <div><b>ρ</b> <span id="viewDensity">—</span> кг/м³</div>
+            <div><b>λ</b> <span id="viewLambda">—</span> Вт/м·К</div>
+            <div><b>Cp</b> <span id="viewCp">—</span> Дж/кг·К</div>
+            <div><b>Tпл</b> <span id="viewTmelt">—</span> °C</div>
+            <div><b>КТР</b> <span id="viewKLT">—</span> 10⁻⁶/К</div>
+            <div><b>Твердость</b> <span id="viewHardness">—</span> HV</div>
         </div>
-        <h4>Состав:</h4>
-        <table class="data-table"><thead><tr><th>Компонент</th><th>Доля, %</th></tr></thead><tbody id="viewAlloyComps"></tbody></table>
-        <div class="modal-actions"><button class="btn-secondary" onclick="closeModal('viewAlloyModal')">Закрыть</button></div>
+
+        <h4 style="margin:16px 0 10px;">Состав:</h4>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead><tr><th>Компонент</th><th style="width:120px; text-align:right;">Доля, %</th></tr></thead>
+                <tbody id="viewAlloyComps"></tbody>
+            </table>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn-secondary" onclick="closeModal('viewAlloyModal')">Закрыть</button>
+            <button type="button" class="btn-danger" onclick="deleteAlloy()">🗑️ Удалить</button>
+        </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script src="{{ url_for('static', filename='js/materials.js') }}"></script>
 {% endblock %}

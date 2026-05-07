@@ -1,123 +1,128 @@
 {% extends "base.html" %}
-
+{% block title %}Лопатки — FF Pro{% endblock %}
 {% block content %}
-<div class="blades-container">
-    <div class="section-header">
-        <h2>Лопатки</h2>
-        <div class="header-actions">
-            <button class="btn-primary" onclick="openCreateBladeModal()">+ Создать лопатку</button>
-            <button class="btn-secondary" onclick="openMergeModal()">🔗 Объединить</button>
-        </div>
+<div class="section-header">
+    <div>
+        <h2 class="page-title">Управление лопатками</h2>
+        <p class="page-subtitle">Параметрические профили, координаты и сборки для прочностного анализа</p>
     </div>
+    <div class="header-actions">
+        <button class="btn-primary" onclick="openCreateBladeModal()">+ Создать профиль</button>
+        <button class="btn-secondary" onclick="openMergeModal()">🔗 Сборка</button>
+    </div>
+</div>
 
+<!-- База профилей -->
+<div class="card">
+    <div class="card-header">
+        <h3>База профилей</h3>
+        <p class="card-hint">Сохранённые геометрии лопаток</p>
+    </div>
+    <div id="loadingStatus" class="status-message" style="display:none;">⏳ Загрузка данных...</div>
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
-                <tr><th>ID</th><th>Наименование</th><th>Действия</th></tr>
+                <tr><th style="width:60px">ID</th><th>Наименование</th><th style="width:280px; text-align:right;">Действия</th></tr>
             </thead>
             <tbody id="bladesTableBody"></tbody>
         </table>
     </div>
+</div>
 
-    <div class="section-header section-header-top">
-        <h2>🔗 Объединения лопаток</h2>
-        <div class="header-actions">
-            <button class="btn-primary" onclick="openCreateAssemblyModal()">+ Создать объединение</button>
-        </div>
+<!-- Сборки -->
+<div class="section-header section-header-top">
+    <h2 class="page-title">Сборки лопаток</h2>
+    <button class="btn-secondary" onclick="openMergeModal()">+ Создать сборку</button>
+</div>
+<div class="card">
+    <div class="card-header">
+        <h3>Пакетные группы</h3>
+        <p class="card-hint">Группировка профилей для массовой аппроксимации</p>
     </div>
-
     <div class="table-wrapper">
         <table class="data-table">
-            <thead><tr><th>ID</th><th>Наименование</th><th>Действия</th></tr></thead>
+            <thead>
+                <tr><th style="width:60px">ID</th><th>Наименование сборки</th><th style="width:200px; text-align:right;">Действия</th></tr>
+            </thead>
             <tbody id="assembliesTableBody"></tbody>
         </table>
     </div>
-
-    <div id="loadingStatus" class="status-message" style="display: none;">Загрузка...</div>
 </div>
 
-<!-- ================= МОДАЛКИ ================= -->
+<!-- ================= МОДАЛКА: ЛОПАТКА ================= -->
 <div class="modal-overlay" id="bladeModal">
     <div class="modal modal-lg">
         <h3 id="bladeModalTitle">Создать лопатку</h3>
-        <form id="bladeForm" onsubmit="event.preventDefault()">
-            <input type="hidden" id="bladeId">
-            <div class="form-group">
-                <label>Наименование *</label>
-                <input type="text" id="bladeName" required maxlength="100" placeholder="Например: Лопатка_Ступень_1">
+        <input type="hidden" id="bladeId">
+        <div class="form-group">
+            <label>Наименование *</label>
+            <input type="text" id="bladeName" placeholder="Например: НС-1-5">
+        </div>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchCoordTab('upper', event)">Верхний профиль</button>
+            <button class="tab-btn" onclick="switchCoordTab('lower', event)">Нижний профиль</button>
+        </div>
+        <div id="upperTab" class="tab-content active">
+            <div class="coords-actions">
+                <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">📥 Загрузить файл
+                    <input type="file" hidden onchange="loadCoordsFromFile('upper', this)">
+                </label>
+                <button class="btn-secondary btn-sm" onclick="addCoordPointToTable('upper')">+ Точка</button>
             </div>
-            <div class="form-section">
-                <h4>Координаты профиля</h4>
-                <div class="tabs">
-                    <button type="button" class="tab-btn active" onclick="switchCoordTab('upper', event)">Верхний профиль</button>
-                    <button type="button" class="tab-btn" onclick="switchCoordTab('lower', event)">Нижний профиль</button>
-                </div>
-                <div id="upperTab" class="tab-content active">
-                    <div class="coords-actions">
-                        <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput-upper').click()">📥 Загрузить из файла</button>
-                        <input type="file" id="fileInput-upper" accept=".csv,.txt" style="display: none;" onchange="loadCoordsFromFile('upper', this)">
-                        <button type="button" class="btn-secondary" onclick="addCoordPointToTable('upper')">+ Добавить точку</button>
-                    </div>
-                    <div class="table-wrapper">
-                        <table class="data-table">
-                            <thead><tr><th>#</th><th>X</th><th>Y</th><th>Действия</th></tr></thead>
-                            <tbody id="upperCoordsTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-                <div id="lowerTab" class="tab-content">
-                    <div class="coords-actions">
-                        <button type="button" class="btn-secondary" onclick="document.getElementById('fileInput-lower').click()">📥 Загрузить из файла</button>
-                        <input type="file" id="fileInput-lower" accept=".csv,.txt" style="display: none;" onchange="loadCoordsFromFile('lower', this)">
-                        <button type="button" class="btn-secondary" onclick="addCoordPointToTable('lower')">+ Добавить точку</button>
-                    </div>
-                    <div class="table-wrapper">
-                        <table class="data-table">
-                            <thead><tr><th>#</th><th>X</th><th>Y</th><th>Действия</th></tr></thead>
-                            <tbody id="lowerCoordsTableBody"></tbody>
-                        </table>
-                    </div>
-                </div>
+            <table class="data-table coords-table">
+                <thead><tr><th style="width:40px">#</th><th>X</th><th>Y</th><th style="width:50px"></th></tr></thead>
+                <tbody id="upperCoordsTableBody"></tbody>
+            </table>
+        </div>
+        <div id="lowerTab" class="tab-content">
+            <div class="coords-actions">
+                <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">📥 Загрузить файл
+                    <input type="file" hidden onchange="loadCoordsFromFile('lower', this)">
+                </label>
+                <button class="btn-secondary btn-sm" onclick="addCoordPointToTable('lower')">+ Точка</button>
             </div>
-        </form>
+            <table class="data-table coords-table">
+                <thead><tr><th style="width:40px">#</th><th>X</th><th>Y</th><th style="width:50px"></th></tr></thead>
+                <tbody id="lowerCoordsTableBody"></tbody>
+            </table>
+        </div>
         <div class="modal-actions">
+            <button class="btn-danger" id="deleteBladeBtn" style="display:none; margin-right:auto;" onclick="confirmDeleteBlade(document.getElementById('bladeId').value)">Удалить</button>
             <button class="btn-secondary" onclick="closeModal('bladeModal')">Отмена</button>
             <button class="btn-primary" onclick="saveBlade()">Сохранить</button>
-            <button class="btn-danger" id="deleteBladeBtn" style="display: none;" onclick="deleteBlade()">Удалить</button>
         </div>
     </div>
 </div>
 
+<!-- ================= МОДАЛКА: СБОРКА ================= -->
 <div class="modal-overlay" id="mergeModal">
-    <div class="modal">
-        <h3>Объединить лопатки</h3>
-        <form id="mergeForm" onsubmit="event.preventDefault()">
-            <input type="hidden" id="mergeAssemblyId">
-            <div class="form-group">
-                <label>Наименование сборки *</label>
-                <input type="text" id="mergeName" required maxlength="100" placeholder="Например: Ротор_Ступень_1">
-            </div>
-            <div class="form-group">
-                <label>Выберите лопатки</label>
-                <input type="text" id="mergeBladesSearch" placeholder="🔍 Поиск лопатки..." class="search-input" oninput="filterMergeBlades()">
-                <div id="mergeBladesList" class="checkbox-list"></div>
-                <small>Выберите одну или несколько лопаток</small>
-            </div>
-        </form>
+    <div class="modal modal-xl">
+        <h3 id="mergeModalTitle">Создать сборку</h3>
+        <input type="hidden" id="mergeAssemblyId">
+        <div class="form-group">
+            <label>Наименование сборки *</label>
+            <input type="text" id="mergeName" placeholder="Например: Ступень РНД">
+        </div>
+        <div class="form-group">
+            <label>Выберите профили</label>
+            <input type="text" class="search-input" id="mergeBladesSearch" placeholder="Поиск по наименованию..." oninput="filterMergeBlades()">
+            <div class="checkbox-scroll-box" id="mergeBladesList"></div>
+        </div>
         <div class="modal-actions">
+            <button class="btn-danger" id="deleteMergeBtn" style="display:none; margin-right:auto;" onclick="deleteMerge(document.getElementById('mergeAssemblyId').value)">Удалить</button>
             <button class="btn-secondary" onclick="closeModal('mergeModal')">Отмена</button>
-            <button class="btn-primary" onclick="saveMerge()">Сохранить сборку</button>
-            <button class="btn-danger" id="deleteMergeBtn" style="display: none;" onclick="deleteMerge()">Удалить сборку</button>
+            <button class="btn-primary" onclick="saveMerge()">Создать</button>
         </div>
     </div>
 </div>
 
+<!-- ================= МОДАЛКА: ПРОСМОТР КООРДИНАТ ================= -->
 <div class="modal-overlay" id="viewCoordsModal">
-    <div class="modal modal-xl">
-        <h3>Координаты профиля: <span id="viewProfileName"></span></h3>
-        <div class="table-wrapper">
+    <div class="modal modal-lg">
+        <h3>Координаты: <span id="viewProfileName"></span></h3>
+        <div class="table-wrapper" style="max-height:60vh;">
             <table class="data-table">
-                <thead><tr><th>#</th><th>X</th><th>Y</th><th>Тип</th></tr></thead>
+                <thead><tr><th style="width:50px">#</th><th>X</th><th>Y</th><th>Тип</th></tr></thead>
                 <tbody id="viewCoordsBody"></tbody>
             </table>
         </div>
@@ -128,44 +133,27 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="assemblyCreateModal">
-    <div class="modal modal-lg">
-        <h3>Создать объединение лопаток</h3>
-        <div class="form-group">
-            <label>Наименование *</label>
-            <input type="text" id="assemblyName" placeholder="Например: Ступень_1_Комплект" maxlength="100">
-        </div>
-        <div class="form-group">
-            <label>Выберите лопатки</label>
-            <input type="text" id="assemblyBladesSearch" placeholder="🔍 Поиск лопатки..." class="search-input" oninput="filterAssemblyBlades()">
-            <div id="assemblyBladesList" class="checkbox-list"></div>
-            <small>Выберите одну или несколько лопаток</small>
-        </div>
-        <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeModal('assemblyCreateModal')">Отмена</button>
-            <button class="btn-primary" onclick="saveAssembly()">Создать</button>
-        </div>
-    </div>
-</div>
-
+<!-- ================= МОДАЛКА: ПРОСМОТР СБОРКИ ================= -->
 <div class="modal-overlay" id="assemblyViewModal">
-    <div class="modal modal-wide" onclick="event.stopPropagation()">
-        <h3>Состав объединения: <span id="viewAssemblyName"></span></h3>
+    <div class="modal modal-xl">
+        <h3>Сборка: <span id="viewAssemblyName"></span></h3>
         <input type="hidden" id="viewAssemblyId">
-        <table class="data-table" style="margin:10px 0;">
-            <thead><tr><th>ID</th><th>Наименование</th><th>Действия</th></tr></thead>
-            <tbody id="viewAssemblyBlades"></tbody>
-        </table>
-        <div style="background:#fffbeb;border:1px solid #fcd34d;padding:8px;border-radius:6px;font-size:13px;margin-bottom:12px;">
-            💡 <b>Примечание:</b> Аппроксимация выполняется для каждой лопатки отдельно.
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead><tr><th style="width:50px">ID</th><th>Профиль</th><th style="width:140px; text-align:right;">Действия</th></tr></thead>
+                <tbody id="viewAssemblyBlades"></tbody>
+            </table>
         </div>
+        <div class="info-section" style="margin:16px 0;">💡 Аппроксимация выполняется для каждой лопатки отдельно.</div>
         <div class="modal-actions">
             <button class="btn-secondary" onclick="closeModal('assemblyViewModal')">Закрыть</button>
             <button class="btn-warning" onclick="approximateAllInAssembly()">⚡ Аппроксимировать все</button>
-            <button class="btn-danger" onclick="deleteAssembly()">🗑️ Удалить сборку</button>
+            <button class="btn-danger" onclick="deleteAssembly()">🗑️ Удалить</button>
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script src="{{ url_for('static', filename='js/blades.js') }}"></script>
 {% endblock %}
