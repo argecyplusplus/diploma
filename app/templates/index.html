@@ -1,54 +1,73 @@
 {% extends "base.html" %}
-
+{% block title %}Главная — FF Pro{% endblock %}
 {% block content %}
-<div class="greeting-container">
-    {% if currentDb %}
-        <div class="welcome-card">
-            <div class="welcome-icon">⚙️</div>
-            <h2>Активная база данных: <strong>{{ currentDb }}</strong></h2>
-            <p>Выберите нужный раздел в боковом меню, чтобы начать работу.</p>
+<div class="dashboard">
+    <header class="dashboard-header">
+        <div class="header-main">
+            <h1 class="page-title">Рабочий стол</h1>
+            <p class="page-subtitle">Параметрическое моделирование, аппроксимация и прочностной анализ лопаток ГТД на базе FreeFEM++</p>
+        </div>
+        <div class="system-status">
+            <div class="status-item">
+                <span class="status-dot"></span>
+                <span>FreeFEM: <code>ready</code></span>
+            </div>
+            <div class="status-item warning">
+                <span class="status-dot"></span>
+                <span>БД: <code>подключена</code></span>
+            </div>
+        </div>
+    </header>
+
+    <section class="workflow-grid">
+        <div class="workflow-card primary">
+            <div class="card-label">01. Геометрия</div>
+            <h3>Лопатки</h3>
+            <p>Создание, импорт и параметризация профилей. Управление координатами и сечениями.</p>
+            <a href="/blades" class="action-link">Перейти в модуль →</a>
+        </div>
+        <div class="workflow-card">
+            <div class="card-label">02. Аппроксимация</div>
+            <h3>Подготовка сетки</h3>
+            <p>Сглаживание контуров, генерация узлов, экспорт для расчётных моделей.</p>
+            <a href="/approximation" class="action-link">Запустить →</a>
+        </div>
+        <div class="workflow-card">
+            <div class="card-label">03. Материалы</div>
+            <h3>Свойства и сплавы</h3>
+            <p>Библиотека материалов, температурные зависимости, состав сплавов.</p>
+            <a href="/materials" class="action-link">Открыть →</a>
+        </div>
+        <div class="workflow-card">
+            <div class="card-label">04. Расчёт</div>
+            <h3>Моделирование</h3>
+            <p>Конечно-элементный анализ, граничные условия, визуализация результатов.</p>
+            <a href="/simulation" class="action-link">Начать →</a>
+        </div>
+    </section>
+
+    <section class="quick-panel">
+        <div class="panel-block">
+            <h4>⚙️ Окружение</h4>
+            <div class="env-row">
+                <span>Путь к FreeFEM++</span>
+                <code id="freefem-path">/usr/bin/FreeFem++</code>
+                <button class="btn-ghost" onclick="openSettings()">Изменить</button>
+            </div>
+            <div class="env-row">
+                <span>Активная база данных</span>
+                <code id="db-name">default_ffpro.db</code>
+                <button class="btn-ghost" onclick="openSettings()">Сменить</button>
+            </div>
+        </div>
+        <div class="panel-block">
+            <h4>📋 Быстрые действия</h4>
             <div class="quick-actions">
-                <a href="/blades" class="big-btn">Лопатки</a>
-                <a href="/materials" class="big-btn">Материалы</a>
-                <a href="/simulation" class="big-btn">Моделирование</a>
+                <button class="btn-outline">Импорт профиля</button>
+                <button class="btn-outline">Новый расчёт</button>
+                <button class="btn-outline">Экспорт данных</button>
             </div>
         </div>
-        <div class="info-section">
-            <h3>О программе FF Pro</h3>
-            <p><strong>FF Pro</strong> – это приложение для компьютерного моделирования процессов формирования и свойств порошковых покрытий газотурбинных двигателей. Программа позволяет:</p>
-            <ul>
-                <li>Создавать и редактировать геометрические профили лопаток.</li>
-                <li>Управлять базой данных материалов с расчётом эффективных свойств сплавов по правилу смесей.</li>
-                <li>Настраивать начальные условия и физические параметры.</li>
-                <li>Запускать нестационарные расчёты теплообмена и газодинамики с помощью FreeFEM++.</li>
-                <li>Просматривать и скачивать результаты моделирования.</li>
-            </ul>
-            <p>Все данные хранятся в выбранной SQLite базе данных, файлы результатов – в папке <code>uploads/</code></p>
-            <p>Ход работы с программой: выберите или создайте базу данных в настройках (кнопка в правом верхнем углу). Далее загрузите профиль лопатки, выполните аппроксимацию, создайте материалы, начальные условия и запустите расчёт.</p>
-            <p>Версия: 1.0.0 | Разработчик: Чернюк Артём Иванович, ЯГТУ, 2026</p>
-        </div>
-    {% else %}
-        <div class="setup-card">
-            <div class="setup-icon">⚙️</div>
-            <h2>Первый запуск FF Pro</h2>
-            <p>Для начала работы необходимо выбрать или создать базу данных.</p>
-            <div class="setup-actions">
-                <button class="big-btn primary" onclick="openModal('settingsModal')">Выбрать базу данных</button>
-                <button class="big-btn secondary" onclick="openModal('settingsModal')">Создать новую БД</button>
-            </div>
-            <hr>
-            <div class="instruction">
-                <h3>Краткая инструкция</h3>
-                <ol>
-                    <li>Создайте или выберите базу данных (кнопка «Настройки» в шапке).</li>
-                    <li>Загрузите координаты профиля лопатки (CSV-файлы) в разделе «Лопатки».</li>
-                    <li>Выполните аппроксимацию профиля в разделе «Аппроксимация».</li>
-                    <li>Создайте материалы и сплавы в разделе «Материалы».</li>
-                    <li>Настройте начальные условия и запустите моделирование в разделе «Моделирование».</li>
-                </ol>
-                <p>Все результаты сохраняются в выбранной базе данных и в папке <code>uploads/</code>.</p>
-            </div>
-        </div>
-    {% endif %}
+    </section>
 </div>
 {% endblock %}

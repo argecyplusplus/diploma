@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FF Pro — моделирование лопаток ГТД</title>
+    <title>{% block title %}FF Pro — моделирование лопаток ГТД{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -14,59 +15,71 @@
         <p>моделирование лопаток ГТД</p>
     </div>
     <nav class="sidebar-nav">
-        <a href="/" class="nav-item" data-path="/">Главная</a>
-        <a href="/blades" class="nav-item" data-path="/blades">Лопатки</a>
-        <a href="/approximation" class="nav-item" data-path="/approximation">Аппроксимация</a>
-        <a href="/materials" class="nav-item" data-path="/materials">Материалы</a>
-        <a href="/simulation" class="nav-item" data-path="/simulation">Моделирование</a>
-        <!-- Two-Blade будет добавлен позже, пока скрыт -->
-        <!-- <a href="/two-blade" class="nav-item" data-path="/two-blade">Двухлопаточная</a> -->
+        <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}"><i>🏠</i> <span>Главная</span></a>
+        <a href="/blades" class="nav-item {% if 'blades' in request.path %}active{% endif %}"><i>📐</i> <span>Лопатки</span></a>
+        <a href="/approximation" class="nav-item {% if 'approximation' in request.path %}active{% endif %}"><i>📊</i> <span>Аппроксимация</span></a>
+        <a href="/materials" class="nav-item {% if 'materials' in request.path %}active{% endif %}"><i>🧪</i> <span>Материалы</span></a>
+        <a href="/simulation" class="nav-item {% if 'simulation' in request.path %}active{% endif %}"><i>⚙️</i> <span>Моделирование</span></a>
     </nav>
 </aside>
 
 <header class="header">
     <div class="db-status">
         <span class="db-badge"></span>
-        <span id="db-status-text">БД не выбрана</span>
+        <span id="dbStatusText">БД не выбрана</span>
     </div>
-    <div class="settings-btn" onclick="openModal('settingsModal')">
-        ⚙️ Настройки
-    </div>
+    <button class="settings-btn" onclick="openSettings()">⚙️ Настройки</button>
 </header>
 
 <main class="main">
-    {% block content %}
-    <div style="text-align: center; padding: 40px; color: var(--text-muted);">
-        <h2>Добро пожаловать в FF Pro</h2>
-        <p>Выберите раздел в меню слева для начала работы</p>
-    </div>
-    {% endblock %}
+    {% block content %}{% endblock %}
 </main>
 
-<!-- Modal Настройки -->
-<div class="modal-overlay" id="settingsModal">
-    <div class="modal">
+<!-- Модальное окно настроек -->
+<div id="settingsModal" class="modal-overlay">
+    <div class="modal modal-wide">
         <h3>⚙️ Настройки FF Pro</h3>
         <div class="form-group">
             <label>📁 База данных</label>
-            <div class="db-list" id="dbList"></div>
-            <div class="flex-between" style="margin-top: 12px;">
-                <input type="text" id="newDbName" placeholder="Имя новой БД..." style="flex:1;">
-                <button class="btn-primary" onclick="createDb()" style="white-space: nowrap;">Создать</button>
-            </div>
+            <select id="dbSelect">
+                <option value="">Выберите или создайте БД</option>
+            </select>
+            <button class="btn-primary" style="margin-top:8px; width:100%;">Создать</button>
         </div>
         <div class="form-group">
             <label>🖥️ Путь к FreeFEM++</label>
-            <input type="text" id="freefemPath" placeholder="C:\Program Files\FreeFem++\FreeFem++.exe">
-            <small>Оставьте пустым, если FreeFEM добавлен в PATH</small>
+            <input type="text" id="freefemPath" placeholder="Оставьте пустым, если FreeFEM добавлен в PATH">
+            <small>Укажите полный путь к исполняемому файлу FreeFEM++</small>
         </div>
-        <div class="actions">
-            <button class="btn-secondary" onclick="closeModal('settingsModal')">Отмена</button>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeSettings()">Отмена</button>
             <button class="btn-primary" onclick="saveSettings()">Сохранить</button>
         </div>
     </div>
 </div>
 
+<!-- Подключаем скрипты -->
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-</body>
-</html>
+{% block scripts %}{% endblock %}
+
+<!-- === ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ МОДАЛОК === -->
+<script>
+    window.openSettings = function() {
+        const modal = document.getElementById('settingsModal');
+        if (modal) modal.classList.add('active');
+        if (typeof initSettingsModal === 'function') initSettingsModal();
+    };
+    window.closeSettings = function() {
+        const modal = document.getElementById('settingsModal');
+        if (modal) modal.classList.remove('active');
+    };
+    window.saveSettings = function() {
+        // Если в main.js есть обработчик сохранения — вызываем его
+        if (typeof handleSettingsSave === 'function') {
+            handleSettingsSave();
+        } else {
+            // Fallback: просто закрываем
+            closeSettings();
+            alert('Настройки сохранены (требуется перезагрузка)');
+        }
+    };
