@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Главная — FF Pro{% endblock %}
+{% block content %}
+<div class="dashboard">
+    <header class="dashboard-header">
+        <div class="header-main">
+            <h1 class="page-title">Рабочий стол</h1>
+            <p class="page-subtitle">Параметрическое моделирование, аппроксимация и прочностной анализ лопаток ГТД на базе FreeFEM++</p>
+        </div>
+        <div class="system-status">
+            <div class="status-item">
+                <span class="status-dot"></span>
+                <span>FreeFEM: <code>ready</code></span>
+            </div>
+            <div class="status-item warning">
+                <span class="status-dot"></span>
+                <span>БД: <code>подключена</code></span>
+            </div>
+        </div>
+    </header>
+
+    <section class="workflow-grid">
+        <div class="workflow-card primary">
+            <div class="card-label">01. Геометрия</div>
+            <h3>Лопатки</h3>
+            <p>Создание, импорт и параметризация профилей. Управление координатами и сечениями.</p>
+            <a href="/blades" class="action-link">Перейти в модуль →</a>
+        </div>
+        <div class="workflow-card">
+            <div class="card-label">02. Аппроксимация</div>
+            <h3>Подготовка сетки</h3>
+            <p>Сглаживание контуров, генерация узлов, экспорт для расчётных моделей.</p>
+            <a href="/approximation" class="action-link">Запустить →</a>
+        </div>
+        <div class="workflow-card">
+            <div class="card-label">03. Материалы</div>
+            <h3>Свойства и сплавы</h3>
+            <p>Библиотека материалов, температурные зависимости, состав сплавов.</p>
+            <a href="/materials" class="action-link">Открыть →</a>
+        </div>
+        <div class="workflow-card">
+            <div class="card-label">04. Расчёт</div>
+            <h3>Моделирование</h3>
+            <p>Конечно-элементный анализ, граничные условия, визуализация результатов.</p>
+            <a href="/simulation" class="action-link">Начать →</a>
+        </div>
+    </section>
+</div>
+{% endblock %}

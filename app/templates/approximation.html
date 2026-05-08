@@ -1,244 +1,115 @@
 {% extends "base.html" %}
+{% block title %}Аппроксимация — FF Pro{% endblock %}
 {% block content %}
-<div class="approx-container">
-    <div class="section-header">
-        <h2>Аппроксимация профиля</h2>
+<div class="section-header">
+    <div>
+        <h2 class="page-title">Аппроксимация профиля</h2>
+        <p class="page-subtitle">Сглаживание контуров, вычисление полиномов Лежандра и расчёт геометрических параметров</p>
     </div>
+</div>
 
-    <div class="control-panel" style="background:#fff; padding:20px; border-radius:8px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-        <label style="font-weight:500; margin-right:10px;">Выберите лопатку:</label>
-        <select id="bladeSelect" onchange="onBladeSelect(this.value)" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; min-width:200px;">
-            <option value="">-- Выберите лопатку --</option>
-        </select>
-        <!-- Кнопка оставлена как опциональная для повторного запуска -->
-        <button class="btn-secondary" onclick="executeApproximation()" style="margin-left:10px; display:none;" id="retryBtn">🔄 Повторить</button>
+<!-- Панель управления -->
+<div class="card">
+    <div class="card-header">
+        <h3>Управление расчётом</h3>
     </div>
-
-    <div id="loading" style="text-align:center; padding:20px; display:none; color:#64748b;">
-        ⏳ Выполняется расчет и сохранение в БД...
-    </div>
-
-    <div id="error" style="display:none; padding:12px; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; color:#dc2626; margin-bottom:16px;"></div>
-
-    <div id="results" style="display:none;">
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('plot')">📊 График</button>
-            <button class="tab-btn" onclick="switchTab('coords')">📐 Координаты</button>
-            <button class="tab-btn" onclick="switchTab('coeffs')">🔢 Коэффициенты Лежандра</button>
-            <button class="tab-btn" onclick="switchTab('params')">📈 Параметры</button>
+    <div style="padding: 20px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="margin: 0; flex: 1; min-width: 240px;">
+            <label for="bladeSelect">Выберите лопатку</label>
+            <select id="bladeSelect" onchange="onBladeSelect(this.value)">
+                <option value="">-- Загрузка списка --</option>
+            </select>
         </div>
-
-        <div id="tab-plot" class="tab-content active" style="text-align:center;">
-            <img id="plotImg" src="" alt="График аппроксимации" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
-            <button class="btn-secondary" onclick="savePlot()" style="margin-top:10px;">💾 Сохранить график (PNG)</button>
-        </div>
-
-        <div id="tab-coords" class="tab-content">
-            <table class="data-table"><thead><tr><th>Тип</th><th>X</th><th>Y</th></tr></thead><tbody id="coordsBody"></tbody></table>
-            <button class="btn-secondary" onclick="saveTable('coords')" style="margin-top:10px;">💾 Сохранить CSV</button>
-        </div>
-
-        <div id="tab-coeffs" class="tab-content">
-            <table class="data-table"><thead><tr><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr></thead><tbody id="coeffsBody"></tbody></table>
-            <button class="btn-secondary" onclick="saveTable('coeffs')" style="margin-top:10px;">💾 Сохранить CSV</button>
-        </div>
-
-        <div id="tab-params" class="tab-content">
-            <table class="data-table"><thead><tr><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R²</th></tr></thead><tbody id="paramsBody"></tbody></table>
-            <button class="btn-secondary" onclick="saveTable('params')" style="margin-top:10px;">💾 Сохранить CSV</button>
+        <button class="btn-secondary" id="retryBtn" onclick="executeApproximation()" style="display:none;">🔄 Повторить</button>
+        <div id="loading" style="display:none; padding: 8px 12px; background: var(--primary-soft); color: var(--accent); border-radius: var(--radius); font-size: 0.8125rem; font-weight: 500;">
+            ⏳ Выполняется расчёт...
         </div>
     </div>
 </div>
 
-<style>
-    .approx-container { max-width: 900px; }
-    .control-panel { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
-    .tabs { display:flex; gap:4px; margin-bottom:16px; border-bottom:2px solid #e2e8f0; }
-    .tab-btn { padding:10px 16px; border:none; background:#f1f5f9; border-radius:6px 6px 0 0; cursor:pointer; font-weight:500; transition:background 0.2s; }
-    .tab-btn:hover { background:#e2e8f0; }
-    .tab-btn.active { background:#2563eb; color:#fff; }
-    .tab-content { display:none; background:#fff; padding:16px; border-radius:0 8px 8px 8px; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
-    .tab-content.active { display:block; }
-    .data-table { width:100%; border-collapse:collapse; margin-bottom:10px; }
-    .data-table th, .data-table td { padding:10px; border-bottom:1px solid #e2e8f0; text-align:left; }
-    .data-table th { background:#f8fafc; font-weight:600; }
-</style>
+<div id="error" class="error-message" style="display:none;"></div>
 
-<script>
-    let currentData = { coords: [], coeffs: [], params: [] };
-    let currentBladeId = null;
+<!-- Результаты (скрыты до завершения расчёта) -->
+<div id="results" style="display:none;">
 
-    document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Сначала загружаем список лопаток
-    await loadBladesList();
+    <!-- Табы -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('plot')">📊 График</button>
+        <button class="tab-btn" onclick="switchTab('coords')">📐 Координаты</button>
+        <button class="tab-btn" onclick="switchTab('coeffs')">🔢 Коэффициенты</button>
+        <button class="tab-btn" onclick="switchTab('params')">📈 Параметры</button>
+    </div>
 
-    // 2. Небольшая задержка для гарантии, что DOM обновился
-    await new Promise(resolve => setTimeout(resolve, 100));
+    <!-- 1. График -->
+    <div id="tab-plot" class="tab-content active">
+        <div class="card">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Визуализация профиля</h3>
+                <button class="btn-secondary btn-sm" onclick="savePlot()">💾 Сохранить PNG</button>
+            </div>
+            <div style="padding: 24px; text-align: center; background: #fafbfc; border-bottom: 1px solid var(--border);">
+                <img id="plotImg" src="" alt="График аппроксимации" style="max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius); background: #fff;">
+            </div>
+        </div>
+    </div>
 
-    // 3. Теперь проверяем параметр URL и выбираем лопатку
-    const urlParams = new URLSearchParams(window.location.search);
-    const preselectBladeId = urlParams.get('blade_id');
+    <!-- 2. Координаты -->
+    <div id="tab-coords" class="tab-content">
+        <div class="card">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Сглаженные координаты</h3>
+                <button class="btn-secondary btn-sm" onclick="saveTable('coords')">💾 Сохранить CSV</button>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead><tr><th>Тип профиля</th><th style="width:30%">X</th><th style="width:30%">Y</th></tr></thead>
+                    <tbody id="coordsBody">
+                        <tr><td colspan="3" class="status-message">Нет данных</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-    if (preselectBladeId) {
-        const select = document.getElementById('bladeSelect');
-        if (select && select.querySelector(`option[value="${preselectBladeId}"]`)) {
-            select.value = preselectBladeId;
-            // Запускаем аппроксимацию автоматически
-            if (typeof onBladeSelect === 'function') {
-                onBladeSelect(preselectBladeId);
-            }
-            // Очищаем параметр из URL, чтобы при обновлении страницы не запускалось повторно
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-    }
-});
+    <!-- 3. Коэффициенты Лежандра -->
+    <div id="tab-coeffs" class="tab-content">
+        <div class="card">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Коэффициенты полиномов Лежандра</h3>
+                <button class="btn-secondary btn-sm" onclick="saveTable('coeffs')">💾 Сохранить CSV</button>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead><tr><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr></thead>
+                    <tbody id="coeffsBody">
+                        <tr><td colspan="3" class="status-message">Нет данных</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-    async function loadBladesList() {
-        try {
-            const res = await fetch('/approximation/blades');
-            if (!res.ok) throw new Error('Ошибка загрузки списка');
-            const blades = await res.json();
+    <!-- 4. Параметры -->
+    <div id="tab-params" class="tab-content">
+        <div class="card">
+            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Расчётные параметры</h3>
+                <button class="btn-secondary btn-sm" onclick="saveTable('params')">💾 Сохранить CSV</button>
+            </div>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead><tr><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R² (точность)</th></tr></thead>
+                    <tbody id="paramsBody">
+                        <tr><td colspan="4" class="status-message">Нет данных</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-            const sel = document.getElementById('bladeSelect');
-            sel.innerHTML = '<option value="">-- Выберите лопатку --</option>' +
-                blades.map(b => `<option value="${b.id}">${escapeHtml(b.name)} (ID: ${b.id})</option>`).join('');
-        } catch (err) {
-            console.error('Ошибка:', err);
-            showError('Не удалось загрузить список лопаток');
-        }
-    }
+</div>
+{% endblock %}
 
-    // ✅ Главный обработчик: выбор → авто-аппроксимация
-    async function onBladeSelect(bladeId) {
-        if (!bladeId) {
-            document.getElementById('results').style.display = 'none';
-            document.getElementById('retryBtn').style.display = 'none';
-            return;
-        }
-
-        currentBladeId = bladeId;
-        await executeApproximation();
-    }
-
-    async function executeApproximation() {
-        if (!currentBladeId) return;
-
-        document.getElementById('loading').style.display = 'block';
-        document.getElementById('results').style.display = 'none';
-        document.getElementById('error').style.display = 'none';
-        document.getElementById('retryBtn').style.display = 'none';
-
-        try {
-            const res = await fetch(`/approximation/execute/${currentBladeId}`, { method: 'POST' });
-            const data = await res.json();
-
-            if (!res.ok) throw new Error(data.error || 'Ошибка выполнения аппроксимации');
-
-            await loadResults(currentBladeId);
-        } catch (e) {
-            showError('Ошибка: ' + e.message);
-            document.getElementById('retryBtn').style.display = 'inline-block';
-        } finally {
-            document.getElementById('loading').style.display = 'none';
-        }
-    }
-
-    async function loadResults(bladeId) {
-        try {
-            const [resData, resPlot] = await Promise.all([
-                fetch(`/approximation/results/${bladeId}`).then(async r => {
-                    if (!r.ok) throw new Error('Ошибка загрузки результатов');
-                    return r.json();
-                }),
-                fetch(`/approximation/plot/${bladeId}`).then(async r => {
-                    if (!r.ok) throw new Error('Ошибка загрузки графика');
-                    return r.json();
-                })
-            ]);
-
-            // График
-            document.getElementById('plotImg').src = resPlot.image;
-
-            // Координаты
-            document.getElementById('coordsBody').innerHTML = resData.transformed_coords.map(c =>
-                `<tr><td>${c.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${c.x.toFixed(6)}</td><td>${c.y.toFixed(6)}</td></tr>`
-            ).join('') || '<tr><td colspan="3" style="text-align:center;color:#64748b">Нет данных</td></tr>';
-
-            // Коэффициенты
-            document.getElementById('coeffsBody').innerHTML = resData.legendre_coeffs.map(c =>
-                `<tr><td>${c.idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`
-            ).join('') || '<tr><td colspan="3" style="text-align:center;color:#64748b">Нет данных</td></tr>';
-
-            // Параметры
-            document.getElementById('paramsBody').innerHTML = resData.approximation_params.map(p =>
-                `<tr><td>${p.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${p.max_val?.toFixed(4) || '—'}</td><td>${p.x_max?.toFixed(4) || '—'}</td><td>${p.r2?.toFixed(4) || '—'}</td></tr>`
-            ).join('') || '<tr><td colspan="4" style="text-align:center;color:#64748b">Нет данных</td></tr>';
-
-            // Сохраняем данные для экспорта
-            currentData.coords = resData.transformed_coords;
-            currentData.coeffs = resData.legendre_coeffs;
-            currentData.params = resData.approximation_params;
-
-            document.getElementById('results').style.display = 'block';
-            switchTab('plot');
-
-        } catch (e) {
-            showError('Ошибка загрузки данных: ' + e.message);
-            document.getElementById('results').style.display = 'none';
-            document.getElementById('retryBtn').style.display = 'inline-block';
-        }
-    }
-
-    function switchTab(tabName) {
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-        const tabMap = ['plot', 'coords', 'coeffs', 'params'];
-        const index = tabMap.indexOf(tabName);
-        if (index !== -1) {
-            document.querySelectorAll('.tab-btn')[index].classList.add('active');
-            document.querySelectorAll('.tab-content')[index].classList.add('active');
-        }
-    }
-
-    function showError(message) {
-        const el = document.getElementById('error');
-        el.textContent = message;
-        el.style.display = 'block';
-    }
-
-    function savePlot() {
-        const link = document.createElement('a');
-        link.href = document.getElementById('plotImg').src;
-        link.download = 'approximation_plot.png';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-
-    function saveTable(type) {
-        const headers = type === 'coords' ? ['Type','X','Y'] :
-                        type === 'coeffs' ? ['Index','Upper','Lower'] :
-                        ['Type','Max_Y','X_at_Max','R2'];
-        const data = currentData[type];
-        let csv = headers.join(',') + '\n';
-
-        if (type === 'coords') data.forEach(r => csv += `${r.type},${r.x},${r.y}\n`);
-        if (type === 'coeffs') data.forEach(r => csv += `${r.idx},${r.upper},${r.lower}\n`);
-        if (type === 'params') data.forEach(r => csv += `${r.type},${r.max_val??''},${r.x_max??''},${r.r2??''}\n`);
-
-        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `approx_${type}.csv`;
-        link.click();
-        URL.revokeObjectURL(link.href);
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-</script>
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/approximation.js') }}"></script>
 {% endblock %}

@@ -1,265 +1,105 @@
-<!-- app/templates/base.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WGKM Modeling</title>
-    <style>
-        :root { --primary: #2563eb; --bg: #f8fafc; --sidebar-w: 240px; }
-        body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); display: flex; height: 100vh; }
-
-        /* Header */
-        header { position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: 60px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 10; }
-        .settings-btn { cursor: pointer; padding: 8px; border-radius: 8px; transition: 0.2s; }
-        .settings-btn:hover { background: #e2e8f0; }
-
-        /* Sidebar */
-        aside { width: var(--sidebar-w); background: #1e293b; color: #fff; display: flex; flex-direction: column; padding-top: 20px; }
-        aside h2 { text-align: center; margin-bottom: 30px; font-size: 18px; }
-        aside nav a { display: block; padding: 12px 24px; color: #cbd5e1; text-decoration: none; transition: 0.2s; }
-        aside nav a:hover, aside nav a.active { background: #334155; color: #fff; border-left: 3px solid var(--primary); }
-
-        /* Main Content */
-        main { margin-left: var(--sidebar-w); margin-top: 60px; flex: 1; padding: 24px; overflow-y: auto; }
-
-        /* Modal */
-        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 100; }
-        .modal { background: #fff; padding: 24px; border-radius: 12px; width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        .modal h3 { margin-top: 0; }
-        .db-list { max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 6px; margin: 12px 0; }
-        .db-item { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
-        .db-item:hover { background: #f8fafc; }
-        .db-item.active { background: #eff6ff; font-weight: 500; }
-        .actions { display: flex; gap: 8px; margin-top: 16px; }
-        button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; }
-        .btn-primary { background: var(--primary); color: #fff; }
-        .btn-danger { background: #ef4444; color: #fff; }
-        .btn-secondary { background: #e2e8f0; }
-        input[type="text"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
-        .modal-overlay.active {
-            display: flex !important;
-        }
-    </style>
+    <title>{% block title %}FF Pro — моделирование лопаток ГТД{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <aside>
-        <h2>FFModeling++</h2>
-        <nav>
-        <a href="/">Главная</a>
-        <a href="/blades">Лопатки</a>
-        <a href="/approximation">Аппроксимация</a> <!-- НОВОЕ -->
-        <a href="/materials">Материалы и сплавы</a>
-        <a href="/simulation">Моделирование</a>
+
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h1>FF Pro</h1>
+        <p>моделирование лопаток ГТД</p>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}"><i>🏠</i> <span>Главная</span></a>
+        <a href="/blades" class="nav-item {% if 'blades' in request.path %}active{% endif %}"><i>📐</i> <span>Лопатки</span></a>
+        <a href="/approximation" class="nav-item {% if 'approximation' in request.path %}active{% endif %}"><i>📊</i> <span>Аппроксимация</span></a>
+        <a href="/materials" class="nav-item {% if 'materials' in request.path %}active{% endif %}"><i>🧪</i> <span>Материалы</span></a>
+        <a href="/simulation" class="nav-item {% if 'simulation' in request.path %}active{% endif %}"><i>⚙️</i> <span>Моделирование</span></a>
     </nav>
-    </aside>
+</aside>
 
-    <header>
-        <span id="db-status" style="font-size: 14px; color: #64748b;">БД не выбрана</span>
-        <div class="settings-btn" onclick="openModal('settingsModal')">⚙️ Настройки БД</div>
-    </header>
+<header class="header">
+    <div class="db-status">
+        <span class="db-badge"></span>
+        <span id="dbStatusText">БД не выбрана</span>
+    </div>
+    <button class="settings-btn" onclick="openModal('settingsModal')">⚙️ Настройки</button>
+</header>
 
-    <main>
+<main class="main">
     {% block content %}
-    <div style="text-align: center; padding: 40px; color: #64748b;">
-        <h2>Добро пожаловать в WGKM Modeling</h2>
-        <p>Выберите раздел в меню слева для начала работы</p>
+    <div class="greeting-container">
+        <div class="welcome-card">
+            <div class="welcome-icon">🚀</div>
+            <h2>Добро пожаловать в FF Pro</h2>
+            <p>Профессиональная платформа для параметрического моделирования, аппроксимации и прочностного анализа лопаток ГТД на базе FreeFEM++.</p>
+            <div class="quick-actions">
+                <a href="/blades" class="big-btn primary">📐 Лопатки</a>
+                <a href="/materials" class="big-btn secondary">🧪 Материалы</a>
+                <a href="/approximation" class="big-btn secondary">📊 Аппроксимация</a>
+                <a href="/simulation" class="big-btn secondary">🖥️ Моделирование</a>
+            </div>
+        </div>
         {% if not currentDb %}
-        <p style="color: #ef4444; font-weight: 500;">⚠️ Сначала выберите или создайте базу данных в настройках</p>
+        <div class="setup-card">
+            <div class="setup-icon">⚠️</div>
+            <h3>Требуется настройка</h3>
+            <p>Для начала работы выберите или создайте базу данных в настройках.</p>
+            <button class="big-btn secondary" onclick="openModal('settingsModal')">⚙️ Открыть настройки</button>
+        </div>
         {% endif %}
     </div>
     {% endblock %}
 </main>
 
-    <!-- Settings Modal -->
-    <!-- Settings Modal -->
-    <div class="modal-overlay" id="settingsModal">
-        <div class="modal">
-            <h3>⚙️ Настройки</h3>
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal modal-wide">
+        <h3>⚙️ Настройки FF Pro</h3>
 
-            <div class="form-group">
-                <label>📁 База данных</label>
-                <div class="db-list" id="dbList"></div>
-                <div style="display:flex; gap:8px; margin-top:8px;">
-                    <input type="text" id="newDbName" placeholder="Имя новой БД..." style="flex:1;">
-                    <button class="btn-primary" onclick="createDb()">Создать</button>
-                </div>
+        <!-- Вкладка: Базы данных -->
+        <div class="form-group">
+            <label>📁 База данных</label>
+
+            <!-- Поиск по списку БД -->
+            <input type="text" id="dbSearch" class="form-input" placeholder="🔍 Найти базу данных..." style="margin-bottom:10px;">
+
+            <!-- Список БД -->
+            <div class="db-grid" id="dbList">
+                <!-- Заполняется через JS -->
             </div>
 
-            <div class="form-group" style="margin-top:16px;">
-                <label>🔧 Путь к FreeFEM++</label>
-                <input type="text" id="freefemPath" placeholder="Например: C:\Program Files\FreeFem++\FreeFem++.exe">
-                <small style="color:#64748b;">Оставьте пустым, если FreeFEM добавлен в PATH системы</small>
+            <!-- Создание новой БД -->
+            <div class="db-create-row">
+                <input type="text" id="newDbName" class="form-input" placeholder="Имя новой базы данных...">
+                <button class="btn-primary" onclick="createDb()">+ Создать</button>
             </div>
+            <small>Имя может содержать латинские буквы, цифры и подчёркивание</small>
+        </div>
 
-            <div class="actions">
-                <button class="btn-secondary" onclick="closeModal('settingsModal')">Закрыть</button>
-                <button class="btn-primary" onclick="saveSettings()">💾 Сохранить настройки</button>
-            </div>
+        <!-- Вкладка: FreeFEM -->
+        <div class="form-group" style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);">
+            <label>🔧 Путь к FreeFEM++</label>
+            <input type="text" id="freefemPath" class="form-input" placeholder="C:\Program Files\FreeFem++\FreeFem++.exe">
+            <small>Оставьте пустым, если FreeFEM уже добавлен в PATH системы</small>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal('settingsModal')">Закрыть</button>
+            <button class="btn-primary" onclick="saveSettings()">💾 Сохранить</button>
         </div>
     </div>
+</div>
 
-    <script>
-    let currentDb = null;
+<!-- Подключаем вынесенный JS -->
+<script src="{{ url_for('static', filename='js/base.js') }}"></script>
+{% block scripts %}{% endblock %}
 
-    // ================= ЕДИНАЯ ФУНКЦИЯ ЗАГРУЗКИ =================
-    async function loadConfig() {
-        try {
-            // 1. Настройки FreeFEM
-            const settingsRes = await fetch('/api/settings');
-            const settingsData = await settingsRes.json();
-            if (settingsData.freefem_path) {
-                document.getElementById('freefemPath').value = settingsData.freefem_path;
-            }
-
-            // 2. Список БД
-            const dbRes = await fetch('/api/settings/dbs');
-            const dbData = await dbRes.json();
-
-            const dbs = dbData.databases || [];
-            const current = dbData.current_db || null;
-
-            currentDb = current;
-            renderDbList(dbs);
-
-            document.getElementById('db-status').textContent = current
-                ? `Активна: ${current}`
-                : 'БД не выбрана';
-
-            if (!current) openModal('settingsModal');
-        } catch (e) {
-            console.error('Ошибка загрузки:', e);
-            document.getElementById('dbList').innerHTML =
-                `<div class="db-item" style="color:#ef4444">Ошибка: ${e.message}</div>`;
-        }
-    }
-
-    function renderDbList(dbs) {
-        if (!dbs || !Array.isArray(dbs) || dbs.length === 0) {
-            document.getElementById('dbList').innerHTML =
-                '<div class="db-item">Нет доступных баз данных</div>';
-            return;
-        }
-
-        // 🔥 Удаляем дубликаты на фронтенде (на всякий случай)
-        const uniqueDbs = [...new Set(dbs)];
-
-        const list = document.getElementById('dbList');
-        list.innerHTML = uniqueDbs.map(db => `
-            <div class="db-item ${db === currentDb ? 'active' : ''}" onclick="selectDb('${db}')">
-                <span>${db}</span>
-                <button class="btn-danger" style="padding:2px 8px;font-size:12px"
-                        onclick="event.stopPropagation(); deleteDb('${db}')">✕</button>
-            </div>
-        `).join('');
-    }
-
-    async function createDb() {
-        const name = document.getElementById('newDbName').value.trim();
-        if (!name) return alert('Введите имя');
-
-        const res = await fetch('/api/settings/create', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name})
-        });
-        const data = await res.json();
-
-        if (res.ok) {
-            document.getElementById('newDbName').value = '';
-            loadConfig();
-        } else {
-            alert('Ошибка: ' + (data.error || 'Неизвестная'));
-        }
-    }
-
-    async function selectDb(name) {
-        const res = await fetch('/api/settings/select', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name})
-        });
-        if (res.ok) loadConfig();
-        else alert('Ошибка выбора БД');
-    }
-
-    async function deleteDb(name) {
-        if (!confirm(`Удалить ${name}? Это действие необратимо.`)) return;
-
-        const res = await fetch(`/api/settings/delete/${name}`, { method: 'DELETE' });
-        if (res.ok) loadConfig();
-        else alert('Ошибка удаления');
-    }
-
-    async function saveSettings() {
-        const freefemPath = document.getElementById('freefemPath').value.trim();
-        try {
-            const res = await fetch('/api/settings', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ freefem_path: freefemPath })
-            });
-            if (res.ok) {
-                alert('✅ Настройки сохранены!');
-                closeModal('settingsModal');
-            } else {
-                const err = await res.json();
-                alert('❌ Ошибка: ' + (err.error || 'Неизвестная'));
-            }
-        } catch(e) {
-            alert('❌ Ошибка сети: ' + e.message);
-        }
-    }
-
-    // ================= МОДАЛКИ =================
-    function openModal(modalId = 'settingsModal') {
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.classList.add('active');
-            modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden';
-        }
-    }
-
-    function closeModal(modalId = 'settingsModal') {
-        if (modalId === 'settingsModal' && !currentDb) {
-            return alert('⚠️ Необходимо выбрать или создать базу данных!');
-        }
-        const modal = document.getElementById(modalId);
-        if (modal) {
-            modal.classList.remove('active');
-            modal.style.display = 'none';
-            document.body.style.overflow = '';
-        }
-    }
-
-    // Закрытие по клику на оверлей
-    document.addEventListener('click', function(e) {
-        document.querySelectorAll('.modal-overlay.active').forEach(overlay => {
-            const modalContent = overlay.querySelector('.modal');
-            if (e.target === overlay && !modalContent?.contains(e.target)) {
-                closeModal(overlay.id);
-            }
-        });
-    });
-
-    // Закрытие по Escape
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            document.querySelectorAll('.modal-overlay.active').forEach(overlay => {
-                closeModal(overlay.id);
-            });
-        }
-    });
-
-    // Предотвращаем закрытие при клике внутри модалки
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.addEventListener('click', function(e) { e.stopPropagation(); });
-    });
-
-    // ================= ИНИЦИАЛИЗАЦИЯ =================
-    // 🔥 Вызываем ТОЛЬКО ОДИН раз
-    document.addEventListener('DOMContentLoaded', loadConfig);
-</script>
 </body>
 </html>

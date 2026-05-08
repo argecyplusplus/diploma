@@ -55,12 +55,10 @@ class SimulationService:
         sim_data['status'] = 'pending'
         sim = self.repo.create(**sim_data)
         sim_id = sim.simulation_id
-
         self.repo.add_materials(sim_id, data.material_ids)
         self.repo.add_tasks(sim_id, [t.model_dump() for t in data.tasks])
-        self.session.commit()   # сохраняем, чтобы запись была до фоновой задачи
+        self.session.commit()  # фиксируем запись до генерации
 
-        # Создаём папку и генерируем .edp (синхронно)
         sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
         os.makedirs(sim_dir, exist_ok=True)
         edp_path = os.path.join(sim_dir, "blade_sim.edp")
@@ -68,17 +66,18 @@ class SimulationService:
         try:
             self._generate_freefem_code(sim_id, sim_dir, edp_path)
         except Exception as e:
-            # Если генерация кода упала, помечаем симуляцию как failed
+            # Ошибка генерации скрипта → сохраняем сообщение и помечаем как failed
             sim.status = 'failed'
+            sim.error_message = f"Ошибка генерации .edp: {str(e)}"
             self.session.commit()
-            raise e
+            # Возвращаем ID, клиент увидит в статусе failed
+            return sim_id
 
-        # Запускаем фоновый поток для выполнения FreeFEM
+        # Запускаем фоновый поток
         thread = threading.Thread(target=self._run_simulation_background,
-                                   args=(sim_id, edp_path, sim_dir),
-                                   daemon=True)
+                                  args=(sim_id, edp_path, sim_dir),
+                                  daemon=True)
         thread.start()
-
         return sim_id
 
     def _run_simulation_background(self, sim_id: int, edp_path: str, sim_dir: str):
@@ -87,48 +86,44 @@ class SimulationService:
         from ..repositories.simulation_repository import SimulationRepository
 
         engine = get_engine()
-        Session = sessionmaker(bind=engine)
-        session = Session()
+        SessionLocal = sessionmaker(bind=engine)
+        session = SessionLocal()
         try:
             sim = session.get(Simulation, sim_id)
             if not sim:
-                logger.error(f"Simulation {sim_id} not found in background")
                 return
-
             sim.status = "running"
+            sim.progress = 30
             session.commit()
 
-            logger.info(f"🚀 Запуск FreeFEM++ для симуляции {sim_id}...")
             result = self._run_freefem(edp_path, sim_dir)
 
             # Сохраняем лог
             log_path = os.path.join(sim_dir, "console.log")
             with open(log_path, 'w', encoding='utf-8') as f:
-                f.write(result.get('stdout', '') + '\n--- ERROR OUTPUT ---\n' + result.get('stderr', ''))
+                f.write(result.get('stdout', '') + '\n--- STDERR ---\n' + result.get('stderr', ''))
 
-            # Используем репозиторий с нашей сессией
             repo = SimulationRepository(session)
             repo.add_result(sim_id, "log", log_path, "FreeFEM++ console output")
 
             if result['success']:
                 sim.status = "completed"
+                sim.progress = 100
                 vtk_path = os.path.join(sim_dir, "result.vtk")
                 if os.path.exists(vtk_path):
                     repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
             else:
                 sim.status = "failed"
-                logger.error(f"❌ Симуляция {sim_id} завершилась с ошибкой: {result.get('error')}")
-
+                sim.error_message = result.get('stderr') or result.get('error') or "FreeFEM завершился с ошибкой"
+                logger.error(f"❌ Симуляция {sim_id} ошибка: {sim.error_message}")
             session.commit()
         except Exception as e:
-            logger.error(f"💥 Ошибка в фоновой задаче симуляции {sim_id}: {e}", exc_info=True)
-            try:
-                sim = session.get(Simulation, sim_id)
-                if sim:
-                    sim.status = "failed"
-                    session.commit()
-            except:
-                pass
+            logger.error(f"💥 Ошибка в фоновой задаче: {e}", exc_info=True)
+            sim = session.get(Simulation, sim_id)
+            if sim:
+                sim.status = "failed"
+                sim.error_message = f"Внутренняя ошибка: {str(e)}"
+                session.commit()
         finally:
             session.close()
 

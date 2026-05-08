@@ -1,386 +1,160 @@
 {% extends "base.html" %}
+{% block title %}Моделирование — FF Pro{% endblock %}
 {% block content %}
-<div class="sim-container">
-    <div class="section-header">
-        <h2>🚀 Моделирование</h2>
+
+<!-- Заголовок раздела -->
+<div class="section-header">
+    <div>
+        <h2 class="page-title">Моделирование</h2>
+        <p class="page-subtitle">Конечно-элементный анализ: газодинамика, температурные поля, механические напряжения</p>
+    </div>
+    <div class="header-actions">
         <a href="/initial-conditions" class="btn-secondary">⚙️ Начальные условия</a>
     </div>
-
-    <div class="card">
-        <div class="card-header">
-            <h3>📝 Создать новый расчет</h3>
-            <span class="card-hint">Заполните параметры и выберите задачи для запуска</span>
-        </div>
-
-        <form id="simForm" onsubmit="createSimulation(event)">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label for="sim-name">Название расчета</label>
-                    <input type="text" id="sim-name" name="name" placeholder="Например: Ступень1_Нагрев" required>
-                </div>
-               <div class="form-group">
-    <label for="blade_id">Лопатка</label>
-    <select id="blade_id" name="blade_id" required>
-        <option value="" disabled selected>Загрузка лопаток...</option>
-    </select>
 </div>
 
-<!-- Объединение (опц.) -->
-<div class="form-group">
-    <label for="assembly_id">Объединение (опц.)</label>
-    <select id="assembly_id" name="assembly_id">
-        <option value="" selected>Не выбрано</option>
-    </select>
-</div>
-
-                <div class="form-group ic-group">
-    <label for="initial_conditions_id">Начальные условия</label>
-    <div class="input-with-action">
-        <select id="initial_conditions_id" name="initial_conditions_id" required>
-            <option value="" disabled selected>Загрузка...</option>
-        </select>
-        <a href="/initial-conditions" class="btn-action" title="Управление начальными условиями">⚙️</a>
+<!-- ================= ФОРМА НОВОГО РАСЧЁТА ================= -->
+<div class="card">
+    <div class="card-header">
+        <h3>Параметры расчёта</h3>
+        <p class="card-hint">Заполните обязательные поля и выберите задачи для запуска</p>
     </div>
-</div>
 
-                <!-- 🔥 БЛОК С ЧЕКБОКСАМИ ДЛЯ МАТЕРИАЛОВ (динамическая загрузка) -->
-<div class="form-group full-width">
-    <label>Материалы / Сплавы *</label>
-    <div class="checkbox-scroll-box" id="materialCheckboxes">
-        <div style="padding:10px; text-align:center;">Загрузка материалов...</div>
-    </div>
-    <small style="color:#64748b">Выберите один или несколько материалов (как в старой программе)</small>
-</div>
+    <form id="simForm" onsubmit="createSimulation(event)">
+        <div style="padding: 20px 24px;">
 
-                <div class="form-group full-width">
-                    <label>Задачи расчета</label>
-                    <div class="task-grid">
-                        <label class="task-card">
-                            <input type="checkbox" name="tasks" value="1">
-                            <div class="task-content">
-                                <span class="task-icon">🌪️</span>
-                                <div><strong>Газодинамика и давление</strong><small>Потоки, распределение</small></div>
-                            </div>
-                        </label>
-                        <label class="task-card">
-                            <input type="checkbox" name="tasks" value="2">
-                            <div class="task-content">
-                                <span class="task-icon">🌡️</span>
-                                <div><strong>Температурное поле</strong><small>Нагрев, теплопередача</small></div>
-                            </div>
-                        </label>
-                        <label class="task-card">
-                            <input type="checkbox" name="tasks" value="3">
-                            <div class="task-content">
-                                <span class="task-icon">🔩</span>
-                                <div><strong>Напряжения и деформации</strong><small>Механические нагрузки</small></div>
-                            </div>
-                        </label>
+            <!-- Название расчёта -->
+            <div class="form-group">
+                <label for="simName">Название расчёта <span style="color:var(--status-err)">*</span></label>
+                <input type="text" id="simName" name="name" placeholder="Например: Ступень РНД, режим 1" required
+                       style="font-family:var(--font-mono);">
+            </div>
+
+            <!-- Выбор геометрии: лопатка ИЛИ объединение -->
+            <div class="form-section">
+                <h4>Объект расчёта</h4>
+                <div class="form-grid" style="padding:0; background:transparent; margin:0;">
+                    <div class="form-group">
+                        <label for="blade_id">Лопатка</label>
+                        <select id="blade_id" name="blade_id">
+                            <option value="" disabled selected>Загрузка списка...</option>
+                        </select>
+                        <small>Выберите один профиль</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="assembly_id">Объединение (опционально)</label>
+                        <select id="assembly_id" name="assembly_id">
+                            <option value="" selected>— Не выбрано —</option>
+                        </select>
+                        <small>Или группа лопаток для пакетного расчёта</small>
                     </div>
                 </div>
             </div>
 
-            <div class="form-actions">
-                <button type="submit" class="btn-primary btn-lg" id="submitBtn">
-                    <span class="btn-text">▶ Запустить моделирование</span>
-                    <span class="btn-loader" style="display:none;">⏳ Расчет...</span>
-                </button>
+            <!-- Начальные условия -->
+            <div class="form-group">
+                <label for="initial_conditions_id">Начальные условия <span style="color:var(--status-err)">*</span></label>
+                <div class="input-with-action">
+                    <select id="initial_conditions_id" name="initial_conditions_id" required>
+                        <option value="" disabled selected>Загрузка наборов...</option>
+                    </select>
+                </div>
             </div>
-        </form>
-    </div>
 
-    <!-- История расчетов (без изменений) -->
-    <div class="history-section">
-    <div class="section-header">
-        <h3>📊 История расчетов</h3>
-        <button class="btn-sm" onclick="refreshSimulationsList()">🔄 Обновить</button>
-    </div>
+            <!-- Материалы -->
+            <div class="form-group">
+                <label>Материалы <span style="color:var(--status-err)">*</span></label>
+                <small style="margin-bottom:8px; display:block;">Выберите один или несколько материалов для расчёта</small>
+                <div class="checkbox-scroll-box" id="materialCheckboxes">
+                    <div class="status-message">⏳ Загрузка библиотеки материалов...</div>
+                </div>
+            </div>
+
+            <!-- Задачи расчёта -->
+            <div class="form-group">
+                <label>Физические задачи</label>
+                <div class="task-grid">
+                    <label class="task-card">
+                        <input type="checkbox" name="tasks" value="1" checked>
+                        <div class="task-content">
+                            <strong>🌪️ Газодинамика</strong>
+                        </div>
+                    </label>
+                    <label class="task-card">
+                        <input type="checkbox" name="tasks" value="2" checked>
+                        <div class="task-content">
+                            <strong>🌡️ Температурное поле</strong>
+                        </div>
+                    </label>
+                    <label class="task-card">
+                        <input type="checkbox" name="tasks" value="3" checked>
+                        <div class="task-content">
+                            <strong>🔩 Напряжения</strong>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Кнопка запуска с индикатором -->
+        <div class="form-actions">
+            <button type="submit" id="submitBtn" class="btn-primary btn-lg" style="min-width:240px;">
+                <span class="btn-text">▶ Запустить моделирование</span>
+                <span class="btn-loader" style="display:none;">⏳ Выполняется...</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- ================= ИСТОРИЯ РАСЧЁТОВ ================= -->
+<div class="section-header section-header-top">
+    <h2 class="page-title">История расчётов</h2>
+    <button class="btn-secondary" onclick="refreshSimulationsList()">🔄 Обновить</button>
+</div>
+
+<div class="card">
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
-                <tr><th>ID</th><th>Название</th><th>Лопатка</th><th>Дата</th><th>Статус</th><th>Действия</th></tr>
+                <tr>
+                    <th style="width:70px">ID</th>
+                    <th>Название</th>
+                    <th>Объект</th>
+                    <th style="width:140px">Дата</th>
+                    <th style="width:130px">Статус</th>
+                    <th style="width:160px; text-align:right;">Результат</th>
+                </tr>
             </thead>
             <tbody id="simulations-table-body">
-                <tr><td colspan="6" class="text-center">Загрузка...</td></tr>
+                <tr><td colspan="6" class="status-message">⏳ Загрузка истории...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
+
+<!-- Статусная панель (опционально, для расширенного UX) -->
+<div id="simulationStatusPanel" class="card" style="display:none;">
+    <div class="card-header">
+        <h3>Статус текущего расчёта</h3>
+    </div>
+    <div style="padding:16px 24px; display:flex; align-items:center; gap:16px;">
+        <div style="flex:1;">
+            <strong id="statusSimName">—</strong>
+            <p class="card-hint" style="margin:4px 0 0;">ID: <code id="statusSimId" class="id-badge">—</code></p>
+        </div>
+        <span id="statusBadge" class="badge badge-secondary">Ожидание</span>
+        <div style="width:200px;">
+            <div style="height:6px; background:#e2e8f0; border-radius:3px; overflow:hidden;">
+                <div id="statusProgress" style="height:100%; width:0%; background:var(--accent); transition:width 0.3s;"></div>
+            </div>
+            <small id="statusText" style="display:block; margin-top:4px; color:var(--text-muted);">—</small>
+        </div>
+    </div>
 </div>
 
-<style>
-/* Добавьте к существующим стилям */
-.checkbox-scroll-box {
-    max-height: 180px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #fff;
-}
-.checkbox-item {
-    display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; cursor: pointer; transition: 0.15s;
-}
-.checkbox-item:hover { background: #f8fafc; }
-.checkbox-item input[type="checkbox"] { width: 16px; height: 16px; accent-color: #2563eb; }
-.cb-name { flex: 1; font-size: 14px; }
-.cb-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
-.cb-tag.element { background: #dbeafe; color: #1e40af; }
-.cb-tag.alloy { background: #fef3c7; color: #92400e; }
-</style>
+{% endblock %}
 
-<script>
-async function createSimulation(e) {
-    e.preventDefault();
-    const btn = document.getElementById('submitBtn');
-    const btnText = btn.querySelector('.btn-text');
-    const btnLoader = btn.querySelector('.btn-loader');
-
-    btn.disabled = true;
-    btnText.style.display = 'none';
-    btnLoader.style.display = 'inline-block';
-
-    const form = e.target;
-    const materialIds = [...document.querySelectorAll('input[name="material_ids"]:checked')].map(cb => parseInt(cb.value));
-    if (materialIds.length === 0) {
-        alert('❌ Выберите хотя бы один материал');
-        resetBtn(); return;
-    }
-    const bladeId = form.querySelector('[name="blade_id"]').value;
-    const assemblyId = form.querySelector('[name="assembly_id"]').value;
-    if ((bladeId && assemblyId) || (!bladeId && !assemblyId)) {
-        alert('❌ Выберите либо лопатку, либо объединение');
-        resetBtn(); return;
-    }
-
-    const payload = {
-    name: form.querySelector('[name="name"]').value,
-    blade_id: bladeId ? parseInt(bladeId) : null,
-    assembly_id: assemblyId ? parseInt(assemblyId) : null,
-    initial_conditions_id: parseInt(form.querySelector('[name="initial_conditions_id"]').value),
-    material_ids: materialIds,
-    tasks: [...form.querySelectorAll('input[name="tasks"]:checked')].map(cb => ({task_id: parseInt(cb.value)}))
-};
-
-    try {
-        const res = await fetch('/simulation/create', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Ошибка');
-        const simId = data.id;
-        // Начинаем опрос статуса
-        pollStatus(simId);
-    } catch(e) {
-        alert('❌ Ошибка: ' + e.message);
-        resetBtn();
-    }
-
-    function pollStatus(simId) {
-        const interval = setInterval(async () => {
-            const resp = await fetch(`/simulation/${simId}/status`);
-            const statusData = await resp.json();
-            if (statusData.status === 'completed' || statusData.status === 'failed') {
-                clearInterval(interval);
-                if (statusData.status === 'completed') {
-                    alert('✅ Расчет завершен! Результат появится в истории.');
-                } else {
-                    alert('❌ Ошибка расчета. Проверьте консоль.');
-                }
-                resetBtn();
-                location.reload();  // обновить таблицу истории
-            } else {
-                // можно показывать сообщение о статусе
-                btnLoader.textContent = `⏳ ${statusData.status}...`;
-            }
-        }, 2000);
-    }
-
-    function resetBtn() { btn.disabled = false; btnText.style.display = 'inline'; btnLoader.style.display = 'none';}
-}
-
-// ===== ЗАГРУЗКА МАТЕРИАЛОВ ДЛЯ ЧЕКБОКСОВ =====
-async function loadMaterialsCheckboxes() {
-    const container = document.getElementById('materialCheckboxes');
-    try {
-        // Загружаем химические элементы
-        const elementsRes = await fetch('/api/elements');
-        const elements = elementsRes.ok ? await elementsRes.json() : [];
-
-        // Загружаем сплавы
-        const alloysRes = await fetch('/api/alloys');
-        const alloys = alloysRes.ok ? await alloysRes.json() : [];
-
-        if (elements.length === 0 && alloys.length === 0) {
-            container.innerHTML = '<div style="padding:10px; color:#64748b; text-align:center;">Материалы не найдены</div>';
-            return;
-        }
-
-        let html = '';
-        // Элементы
-        elements.forEach(el => {
-            html += `
-                <label class="checkbox-item">
-                    <input type="checkbox" name="material_ids" value="${el.material_id}">
-                    <span class="cb-name">${escapeHtml(el.name)}</span>
-                    <span class="cb-tag element">Элемент</span>
-                </label>
-            `;
-        });
-        // Сплавы
-        alloys.forEach(al => {
-            html += `
-                <label class="checkbox-item">
-                    <input type="checkbox" name="material_ids" value="${al.material_id}">
-                    <span class="cb-name">${escapeHtml(al.name)}</span>
-                    <span class="cb-tag alloy">Сплав</span>
-                </label>
-            `;
-        });
-        container.innerHTML = html;
-    } catch (e) {
-        container.innerHTML = '<div style="padding:10px; color:#ef4444; text-align:center;">Ошибка загрузки материалов</div>';
-        console.error(e);
-    }
-}
-
-// Загрузка лопаток в выпадающий список
-async function loadBladesSelect() {
-    const bladeSelect = document.getElementById('blade_id');
-    try {
-        const res = await fetch('/api/blades');
-        if (!res.ok) throw new Error('Ошибка загрузки');
-        const blades = await res.json();
-        if (blades.length === 0) {
-            bladeSelect.innerHTML = '<option value="" disabled selected>Нет лопаток</option>';
-        } else {
-            let options = '<option value="" disabled selected>Выберите лопатку...</option>';
-            blades.forEach(b => {
-                options += `<option value="${b.blade_id}">${escapeHtml(b.name)}</option>`;
-            });
-            bladeSelect.innerHTML = options;
-        }
-    } catch (e) {
-        bladeSelect.innerHTML = '<option value="" disabled selected>Ошибка загрузки</option>';
-        console.error('Ошибка загрузки лопаток:', e);
-    }
-}
-
-// Загрузка объединений в выпадающий список
-async function loadAssembliesSelect() {
-    const assemblySelect = document.getElementById('assembly_id');
-    try {
-        const res = await fetch('/api/assemblies');
-        if (!res.ok) throw new Error('Ошибка загрузки');
-        const assemblies = await res.json();
-        let options = '<option value="" selected>Не выбрано</option>';
-        assemblies.forEach(a => {
-            options += `<option value="${a.blade_assembly_id}">${escapeHtml(a.name)}</option>`;
-        });
-        assemblySelect.innerHTML = options;
-    } catch (e) {
-        assemblySelect.innerHTML = '<option value="" selected>Не выбрано (ошибка)</option>';
-        console.error('Ошибка загрузки объединений:', e);
-    }
-}
-
-
-// Загрузка начальных условий
-async function loadInitialConditionsSelect() {
-    const select = document.getElementById('initial_conditions_id');
-    try {
-        const res = await fetch('/initial-conditions/api/list');
-        if (!res.ok) throw new Error('Ошибка загрузки');
-        const ics = await res.json();
-        if (ics.length === 0) {
-            select.innerHTML = '<option value="" disabled selected>Нет наборов</option>';
-        } else {
-            let options = '<option value="" disabled selected>Выберите набор...</option>';
-            ics.forEach(ic => {
-                options += `<option value="${ic.initial_conditions_id}">${escapeHtml(ic.name)}</option>`;
-            });
-            select.innerHTML = options;
-        }
-    } catch (e) {
-        select.innerHTML = '<option value="" disabled selected>Ошибка загрузки</option>';
-        console.error('Ошибка загрузки начальных условий:', e);
-    }
-}
-
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// === ДИНАМИЧЕСКАЯ ТАБЛИЦА СИМУЛЯЦИЙ ===
-async function loadSimulationsList() {
-    const tbody = document.getElementById('simulations-table-body');
-    try {
-        const res = await fetch('/simulation/api/simulations');
-        if (!res.ok) throw new Error('Ошибка загрузки');
-        const sims = await res.json();
-        if (sims.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center">Расчеты еще не выполнялись</td></tr>';
-            return;
-        }
-        let html = '';
-        sims.forEach(s => {
-            const statusBadge = s.status === 'completed' ? '<span class="badge badge-success">✅ Готово</span>' :
-                                s.status === 'running' ? '<span class="badge badge-warning">⏳ Запущен</span>' :
-                                s.status === 'failed' ? '<span class="badge badge-danger">❌ Ошибка</span>' :
-                                '<span class="badge badge-secondary">' + s.status + '</span>';
-            const downloadBtn = (s.status === 'completed' && s.has_vtk) ?
-                `<a href="/simulation/${s.simulation_id}/download" class="btn-view btn-sm">📥 Скачать .vtk</a>` :
-                '<span class="badge badge-warning">⏳ Нет файла</span>';
-            html += `
-                <tr>
-                    <td><span class="id-badge">#${s.simulation_id}</span></td>
-                    <td><strong>${escapeHtml(s.name)}</strong></td>
-                    <td>${escapeHtml(s.blade_name)}</td>
-                    <td>${s.created_at}</td>
-                    <td>${statusBadge}</td>
-                    <td>${downloadBtn}</td>
-                </tr>
-            `;
-        });
-        tbody.innerHTML = html;
-    } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="color:#ef4444">Ошибка загрузки</td></tr>';
-        console.error(e);
-    }
-}
-
-function refreshSimulationsList() {
-    loadSimulationsList();
-}
-
-function pollStatus(simId) {
-    const interval = setInterval(async () => {
-        const resp = await fetch(`/simulation/${simId}/status`);
-        const statusData = await resp.json();
-        if (statusData.status === 'completed' || statusData.status === 'failed') {
-            clearInterval(interval);
-            loadSimulationsList();   // обновляем таблицу без перезагрузки
-            if (statusData.status === 'completed') {
-                alert('✅ Расчет завершен! Результат появится в истории.');
-            } else {
-                alert('❌ Ошибка расчета. Проверьте консоль.');
-            }
-            resetBtn();
-        } else {
-            // можно обновлять статус в таблице, но для простоты оставляем опрос
-        }
-    }, 2000);
-}
-
-
-// Вызвать загрузку после загрузки страницы
-document.addEventListener('DOMContentLoaded', () => {
-    loadMaterialsCheckboxes();
-    loadBladesSelect();
-    loadAssembliesSelect();
-    loadInitialConditionsSelect();  // ← добавить
-    loadSimulationsList();   // ← добавить
-});
-</script>
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/simulation.js') }}"></script>
 {% endblock %}
