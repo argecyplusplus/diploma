@@ -62,7 +62,7 @@ body {
 .dashboard { max-width: 1200px; margin: 0 auto; }
 .dashboard-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
 .page-title { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; color: var(--text-main); margin-bottom: 4px; }
-.page-subtitle { font-size: 0.875rem; color: var(--text-muted); line-height: 1.4; max-width: 600px; }
+.page-subtitle { font-size: 0.875rem; color: var(--text-muted); line-height: 1.4}
 .system-status { display: flex; gap: 16px; align-items: center; background: #f8fafc; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--border); }
 .status-item { display: flex; align-items: center; gap: 6px; font-size: 0.8125rem; color: var(--text-muted); font-family: var(--font-mono); }
 .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-ok); }

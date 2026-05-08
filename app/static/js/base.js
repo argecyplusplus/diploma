@@ -31,7 +31,7 @@ async function loadConfig() {
         // Обновляем статус в хедере
         const statusEl = document.getElementById('dbStatusText');
         if (statusEl) {
-            statusEl.textContent = current ? `🗄️ ${current}` : 'БД не выбрана';
+            statusEl.textContent = current ? `Текущая БД: 🗄️ ${current}` : 'БД не выбрана';
             statusEl.className = current ? 'db-status connected' : 'db-status';
         }
 

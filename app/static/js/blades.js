@@ -47,7 +47,7 @@ async function loadAssemblies() {
 function renderBladesTable() {
     const tbody = document.getElementById('bladesTableBody');
     if (bladesData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" class="empty-state">...</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="empty-state">✏️ Лопаток пока нет. Нажмите «+ Создать профиль»</td></tr>`;
         return;
     }
     tbody.innerHTML = bladesData.map(blade => `
