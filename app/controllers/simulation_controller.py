@@ -79,7 +79,11 @@ def get_status(sim_id):
     sim = get_service().session.get(Simulation, sim_id)
     if not sim:
         return jsonify({"error": "Not found"}), 404
-    return jsonify({"status": sim.status, "progress": sim.progress})
+    return jsonify({
+        "status": sim.status,
+        "progress": sim.progress,
+        "error_message": sim.error_message   # новое поле
+    })
 
 # ================= НАЧАЛЬНЫЕ УСЛОВИЯ =================
 @ic_bp.route('/api/list', methods=['GET'])
@@ -268,3 +272,14 @@ def get_simulations_api():
             "has_vtk": has_vtk
         })
     return jsonify(result)
+
+@sim_bp.route('/<int:sim_id>/log')
+def get_simulation_log(sim_id):
+    """Возвращает содержимое console.log для симуляции"""
+    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    log_path = os.path.join(sim_dir, "console.log")
+    if not os.path.exists(log_path):
+        return jsonify({"error": "Лог не найден"}), 404
+    with open(log_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    return jsonify({"log": content})

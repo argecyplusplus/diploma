@@ -1,5 +1,7 @@
 // static/js/simulation.js
 
+let currentPollInterval = null;
+
 async function createSimulation(e) {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
@@ -14,13 +16,15 @@ async function createSimulation(e) {
     const materialIds = [...document.querySelectorAll('input[name="material_ids"]:checked')].map(cb => parseInt(cb.value));
     if (materialIds.length === 0) {
         alert('❌ Выберите хотя бы один материал');
-        resetBtn(); return;
+        resetBtn();
+        return;
     }
     const bladeId = form.querySelector('[name="blade_id"]').value;
     const assemblyId = form.querySelector('[name="assembly_id"]').value;
     if ((bladeId && assemblyId) || (!bladeId && !assemblyId)) {
         alert('❌ Выберите либо лопатку, либо объединение');
-        resetBtn(); return;
+        resetBtn();
+        return;
     }
 
     const payload = {
@@ -41,6 +45,7 @@ async function createSimulation(e) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Ошибка');
         const simId = data.id;
+        showStatusPanel(simId, payload.name);
         pollStatus(simId);
     } catch(e) {
         alert('❌ Ошибка: ' + e.message);
@@ -54,31 +59,150 @@ async function createSimulation(e) {
     }
 }
 
-function pollStatus(simId) {
-    const interval = setInterval(async () => {
-        const resp = await fetch(`/simulation/${simId}/status`);
-        const statusData = await resp.json();
-        if (statusData.status === 'completed' || statusData.status === 'failed') {
-            clearInterval(interval);
-            await loadSimulationsList();
-            if (statusData.status === 'completed') {
-                alert('✅ Расчет завершен! Результат появится в истории.');
-            } else {
-                alert('❌ Ошибка расчета. Проверьте консоль.');
-            }
-            const btn = document.getElementById('submitBtn');
-            if (btn) {
-                btn.disabled = false;
-                const btnText = btn.querySelector('.btn-text');
-                const btnLoader = btn.querySelector('.btn-loader');
-                if (btnText) btnText.style.display = 'inline';
-                if (btnLoader) btnLoader.style.display = 'none';
-            }
+function showStatusPanel(simId, simName) {
+    let panel = document.getElementById('simulationStatusPanel');
+    if (!panel) {
+        // создать панель, если её нет в DOM
+        panel = document.createElement('div');
+        panel.id = 'simulationStatusPanel';
+        panel.className = 'card';
+        panel.style.display = 'block';
+        panel.innerHTML = `
+            <div class="card-header">
+                <h3>Статус текущего расчёта</h3>
+            </div>
+            <div style="padding:16px 24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                <div style="flex:1;">
+                    <strong id="statusSimName">—</strong>
+                    <p class="card-hint" style="margin:4px 0 0;">ID: <code id="statusSimId" class="id-badge">—</code></p>
+                </div>
+                <span id="statusBadge" class="badge badge-secondary">Ожидание</span>
+                <div style="min-width:200px; flex:2;">
+                    <div style="height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+                        <div id="statusProgress" style="height:100%; width:0%; background:var(--accent); transition:width 0.3s;"></div>
+                    </div>
+                    <small id="statusText" style="display:block; margin-top:6px; color:var(--text-muted);">—</small>
+                </div>
+            </div>
+        `;
+        const container = document.querySelector('.main .card:first-of-type');
+        if (container && container.parentNode) {
+            container.parentNode.insertBefore(panel, container.nextSibling);
         } else {
-            const btnLoader = document.querySelector('#submitBtn .btn-loader');
-            if (btnLoader) btnLoader.textContent = `⏳ ${statusData.status}...`;
+            document.querySelector('.main').prepend(panel);
+        }
+    }
+    panel.style.display = 'block';
+    document.getElementById('statusSimName').innerText = simName;
+    document.getElementById('statusSimId').innerText = simId;
+    document.getElementById('statusBadge').className = 'badge badge-secondary';
+    document.getElementById('statusBadge').innerText = '⏳ Подготовка';
+    document.getElementById('statusProgress').style.width = '0%';
+    document.getElementById('statusText').innerText = 'Генерация скрипта...';
+}
+
+function pollStatus(simId) {
+    if (currentPollInterval) clearInterval(currentPollInterval);
+    currentPollInterval = setInterval(async () => {
+        try {
+            const resp = await fetch(`/simulation/${simId}/status`);
+            if (!resp.ok) throw new Error('Ошибка получения статуса');
+            const statusData = await resp.json();
+
+            // Обновляем панель
+            updateStatusPanel(statusData);
+
+            if (statusData.status === 'completed' || statusData.status === 'failed') {
+                clearInterval(currentPollInterval);
+                await loadSimulationsList();
+                if (statusData.status === 'completed') {
+                    alert('✅ Расчёт завершён! Результат появится в истории.');
+                } else {
+                    const errorMsg = statusData.error_message || 'Неизвестная ошибка';
+                    const showLog = confirm(`❌ Ошибка расчёта:\n${errorMsg}\n\nПоказать полный лог?`);
+                    if (showLog) {
+                        await fetchAndShowLog(simId);
+                    }
+                }
+                // Скрыть панель через 3 секунды
+                setTimeout(() => {
+                    const panel = document.getElementById('simulationStatusPanel');
+                    if (panel) panel.style.display = 'none';
+                }, 3000);
+
+                // Разблокировать кнопку создания
+                const btn = document.getElementById('submitBtn');
+                if (btn) {
+                    btn.disabled = false;
+                    const btnText = btn.querySelector('.btn-text');
+                    const btnLoader = btn.querySelector('.btn-loader');
+                    if (btnText) btnText.style.display = 'inline';
+                    if (btnLoader) btnLoader.style.display = 'none';
+                }
+            } else {
+                // Обновляем текст на кнопке (если нужно)
+                const btnLoader = document.querySelector('#submitBtn .btn-loader');
+                if (btnLoader) btnLoader.textContent = `⏳ ${statusData.status === 'running' ? 'Выполняется...' : statusData.status}`;
+            }
+        } catch (err) {
+            console.error('Poll error:', err);
         }
     }, 2000);
+}
+
+function updateStatusPanel(data) {
+    const badgeElem = document.getElementById('statusBadge');
+    const progressElem = document.getElementById('statusProgress');
+    const textElem = document.getElementById('statusText');
+    if (!badgeElem) return;
+
+    let statusText = '', badgeClass = '', progress = data.progress || 0;
+    switch (data.status) {
+        case 'pending': statusText = '⏳ Ожидание'; badgeClass = 'badge-secondary'; break;
+        case 'running': statusText = '🔄 Расчёт'; badgeClass = 'badge-warning'; break;
+        case 'completed': statusText = '✅ Завершён'; badgeClass = 'badge-success'; progress = 100; break;
+        case 'failed': statusText = '❌ Ошибка'; badgeClass = 'badge-danger'; break;
+        default: statusText = data.status; badgeClass = 'badge-secondary';
+    }
+    badgeElem.innerText = statusText;
+    badgeElem.className = `badge ${badgeClass}`;
+    if (progressElem) progressElem.style.width = `${progress}%`;
+    if (textElem) {
+        if (data.status === 'failed' && data.error_message) {
+            textElem.innerText = `⚠️ Ошибка: ${data.error_message.substring(0, 120)}`;
+        } else if (data.status === 'running') {
+            textElem.innerText = 'Выполняется FreeFEM++...';
+        } else if (data.status === 'pending') {
+            textElem.innerText = 'Подготовка скрипта...';
+        } else {
+            textElem.innerText = data.status;
+        }
+    }
+}
+
+async function fetchAndShowLog(simId) {
+    try {
+        const resp = await fetch(`/simulation/${simId}/log`);
+        if (!resp.ok) throw new Error('Лог не найден');
+        const data = await resp.json();
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `
+            <div class="modal modal-lg">
+                <h3>Лог расчёта #${simId}</h3>
+                <pre style="background:#1e1e2f; color:#f8fafc; padding:16px; border-radius:8px; overflow:auto; max-height:60vh; font-family:monospace; font-size:12px; white-space:pre-wrap;">${escapeHtml(data.log)}</pre>
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Закрыть</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    } catch (err) {
+        alert('Не удалось загрузить лог: ' + err.message);
+    }
 }
 
 // ===== ЗАГРУЗКА ДАННЫХ =====
@@ -94,7 +218,7 @@ async function loadMaterialsCheckboxes() {
         const alloys = alloysRes.ok ? await alloysRes.json() : [];
 
         if (elements.length === 0 && alloys.length === 0) {
-            container.innerHTML = '<div style="padding:10px; color:#64748b; text-align:center;">Материалы не найдены</div>';
+            container.innerHTML = '<div class="empty-state">Материалы не найдены</div>';
             return;
         }
 
@@ -119,7 +243,7 @@ async function loadMaterialsCheckboxes() {
         });
         container.innerHTML = html;
     } catch (e) {
-        container.innerHTML = '<div style="padding:10px; color:#ef4444; text-align:center;">Ошибка загрузки материалов</div>';
+        container.innerHTML = '<div class="empty-state" style="color:#ef4444;">Ошибка загрузки материалов</div>';
         console.error(e);
     }
 }
@@ -206,6 +330,12 @@ async function loadSimulationsList() {
             const downloadBtn = (s.status === 'completed' && s.has_vtk) ?
                 `<a href="/simulation/${s.simulation_id}/download" class="btn-view btn-sm">📥 Скачать .vtk</a>` :
                 '<span class="badge badge-warning">⏳ Нет файла</span>';
+            const logBtn = (s.status === 'failed') ?
+                `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">📄 Лог</button>` : '';
+
+            // Оборачиваем кнопки действия в контейнер
+            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">${downloadBtn} ${logBtn}</div>`;
+
             html += `
                 <tr>
                     <td><span class="id-badge">#${s.simulation_id}</span></td>
@@ -213,13 +343,13 @@ async function loadSimulationsList() {
                     <td>${escapeHtml(s.blade_name)}</td>
                     <td>${s.created_at}</td>
                     <td>${statusBadge}</td>
-                    <td>${downloadBtn}</td>
+                    <td>${actionsHtml}</td>
                 </tr>
             `;
         });
         tbody.innerHTML = html;
     } catch (e) {
-        tbody.innerHTML = '</tr><td colspan="6" class="text-center" style="color:#ef4444">Ошибка загрузки</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="color:#ef4444">Ошибка загрузки</td></tr>';
         console.error(e);
     }
 }
@@ -240,8 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (form) form.onsubmit = createSimulation;
 });
 
-// Глобальные функции, используемые в onsubmit и onclick, уже определены.
-// escapeHtml должна быть определена в base.js, но на всякий случай продублируем
+// escapeHtml глобально
 if (typeof escapeHtml !== 'function') {
     window.escapeHtml = function(text) {
         if (!text) return '';
@@ -250,3 +379,6 @@ if (typeof escapeHtml !== 'function') {
         return div.innerHTML;
     };
 }
+
+// Делаем fetchAndShowLog глобальной, чтобы вызывать из onclick
+window.fetchAndShowLog = fetchAndShowLog;
