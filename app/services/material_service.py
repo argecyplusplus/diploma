@@ -1,7 +1,7 @@
 from typing import List, Dict
 from sqlalchemy.orm import Session, joinedload
 
-from models.material import ChemicalElement
+from ..models.material import ChemicalElement
 from ..repositories.material_repository import MaterialRepository
 from ..dto.material_dto import (
     MaterialCreateRequest, MaterialUpdateRequest, AlloyCreateRequest,
