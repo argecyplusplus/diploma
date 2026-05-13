@@ -7,12 +7,12 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from ..repositories.simulation_repository import SimulationRepository
-from ..dto.simulation_dto import SimulationCreateRequest, InitialConditionCreateRequest
+from ..dto.simulation_dto import SimulationCreateRequest, InitialConditionCreateRequest, TaskType
 from ..models.simulation import (
     Simulation, InitialCondition, ConstructionParameter, PotentialFlowParameter,
-    BoundaryIdentifier, BladeChord, TimeParameter
+    BoundaryIdentifier, BladeChord, TimeParameter, InitialTemperature
 )
-from ..models.blade import Approximation, LegendreCoefficient
+from ..models.blade import Approximation, LegendreCoefficient, BladeAssembly
 from ..models.material import Material
 from ..utils.database import get_db_session
 
@@ -40,25 +40,58 @@ class SimulationService:
             return {"error": "Not found"}
         return {"status": sim.status, "progress": getattr(sim, 'progress', 0)}
 
-    def create_simulation(self, data: SimulationCreateRequest) -> int:
-        # Проверка: ровно один из id должен быть указан
-        if (data.blade_id is None and data.assembly_id is None) or \
-                (data.blade_id is not None and data.assembly_id is not None):
-            raise ValueError("Должна быть указана либо лопатка, либо объединение, но не оба")
+    def create_simulation(self, data: SimulationCreateRequest):
+        # Валидация: газодинамика требует только blade_id, запрещён assembly
+        if data.task_type == TaskType.GAS_DYNAMICS:
+            if data.assembly_id is not None or data.blade_id is None:
+                raise ValueError(
+                    "Для газодинамики необходимо указать конкретную лопатку (blade_id), assembly_id не допускается")
+        else:
+            # Для thermal и stress: должен быть либо blade, либо assembly
+            if data.blade_id is None and data.assembly_id is None:
+                raise ValueError("Для этой задачи выберите лопатку или объединение")
 
-        sim_data = data.model_dump(exclude={'tasks', 'material_ids'})
-        sim_data = {k: v for k, v in sim_data.items() if v is not None}
-        if 'assembly_id' in sim_data:
-            sim_data['blade_assembly_id'] = sim_data.pop('assembly_id')
+        # Если выбран assembly (и задача не газодинамика) — создаём отдельную симуляцию для каждой лопатки
+        if data.assembly_id is not None and data.task_type != TaskType.GAS_DYNAMICS:
+            assembly = self.session.get(BladeAssembly, data.assembly_id)
+            if not assembly or not assembly.members:
+                raise ValueError("Объединение не содержит лопаток")
+            created_ids = []
+            for member in assembly.members:
+                blade = member.blade
+                if not blade:
+                    continue
+                single_data = data.model_copy(deep=True)
+                single_data.assembly_id = None
+                single_data.blade_id = blade.blade_id
+                sim_id = self._create_single_simulation(single_data)
+                created_ids.append(sim_id)
 
-        # Устанавливаем начальный статус
-        sim_data['status'] = 'pending'
+            # ✅ возвращаем только первый ID (остальные запущены, но фронт их не отслеживает)
+            if not created_ids:
+                raise ValueError("Не удалось создать симуляции")
+            return created_ids[0]  # <-- вместо created_ids
+
+        else:
+            return self._create_single_simulation(data)
+
+    def _create_single_simulation(self, data: SimulationCreateRequest) -> int:
+        # Подготовка данных
+        sim_data = {
+            'name': data.name,
+            'blade_id': data.blade_id,
+            'blade_assembly_id': data.assembly_id,
+            'initial_conditions_id': data.initial_conditions_id,
+            'task_type': data.task_type.value,
+            'status': 'pending'
+        }
         sim = self.repo.create(**sim_data)
         sim_id = sim.simulation_id
         self.repo.add_materials(sim_id, data.material_ids)
-        self.repo.add_tasks(sim_id, [t.model_dump() for t in data.tasks])
-        self.session.commit()  # фиксируем запись до генерации
+        # tasks больше нет, add_tasks не вызываем
+        self.session.commit()
 
+        # Генерация скрипта
         sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
         os.makedirs(sim_dir, exist_ok=True)
         edp_path = os.path.join(sim_dir, "blade_sim.edp")
@@ -66,14 +99,12 @@ class SimulationService:
         try:
             self._generate_freefem_code(sim_id, sim_dir, edp_path)
         except Exception as e:
-            # Ошибка генерации скрипта → сохраняем сообщение и помечаем как failed
             sim.status = 'failed'
             sim.error_message = f"Ошибка генерации .edp: {str(e)}"
             self.session.commit()
-            # Возвращаем ID, клиент увидит в статусе failed
             return sim_id
 
-        # Запускаем фоновый поток
+        # Запуск фонового потока
         thread = threading.Thread(target=self._run_simulation_background,
                                   args=(sim_id, edp_path, sim_dir),
                                   daemon=True)
@@ -137,40 +168,23 @@ class SimulationService:
     def _generate_freefem_code(self, sim_id: int, sim_dir: str, edp_path: str):
         sim = self.session.get(Simulation, sim_id)
         if not sim.blade_id:
-            raise ValueError(
-                "Для моделирования необходимо выбрать конкретную лопатку (аппроксимация привязана к лопатке)")
+            raise ValueError("Для моделирования необходима лопатка (аппроксимация привязана к лопатке)")
+
         ic_id = sim.initial_conditions_id
+        task_type = TaskType(sim.task_type)
 
-        # 1. Получаем все необходимые параметры из БД
-        const_params = self.session.scalar(
-            select(ConstructionParameter).where(ConstructionParameter.initial_conditions_id == ic_id))
-        flow_params = self.session.scalar(
-            select(PotentialFlowParameter).where(PotentialFlowParameter.initial_conditions_id == ic_id))
-        time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
-        boundary = self.session.scalar(
-            select(BoundaryIdentifier).where(BoundaryIdentifier.initial_conditions_id == ic_id))
-        chord = self.session.scalar(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id))
-
-        # 2. Материал (берём первый из связанных)
-        first_mat_id = sim.materials[0].material_id if sim.materials else None
-        material = self.session.get(Material, first_mat_id)
-        rho = material.density if material else 1.0
-
-        # 3. Аппроксимация и коэффициенты Лежандра
+        # --- Коэффициенты Лежандра (общее) ---
         approx = self.session.scalar(
             select(Approximation).where(Approximation.blade_id == sim.blade_id)
             .order_by(Approximation.approximation_id.desc()))
         if not approx:
-            raise ValueError(
-                "Для выбранной лопатки не выполнена аппроксимация. Запустите аппроксимацию перед моделированием.")
-
+            raise ValueError("Для выбранной лопатки не выполнена аппроксимация.")
         coeffs = self.session.scalars(
             select(LegendreCoefficient).where(LegendreCoefficient.approximation_id == approx.approximation_id)
             .order_by(LegendreCoefficient.legendre_coefficients_id)).all()
         if len(coeffs) < 10:
             raise ValueError("Недостаточно коэффициентов Лежандра (ожидается 10).")
 
-        # 4. Сохраняем коэффициенты в CSV-файл (как требует шаблон)
         coeffs_csv = os.path.join(sim_dir, "out_L_blade.csv")
         with open(coeffs_csv, 'w', encoding='utf-8') as f:
             upper_vals = [f"{c.upper_value:.15e}" for c in coeffs]
@@ -178,37 +192,66 @@ class SimulationService:
             f.write(" ".join(upper_vals) + "\n")
             f.write(" ".join(lower_vals) + "\n")
 
-        # 5. Загружаем шаблон
-        template_path = Path(__file__).parent.parent / "templates" / "blade_sim.edp.template"
+        # --- Загрузка общих параметров начальных условий ---
+        chord = self.session.scalar(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id))
+        constr = self.session.scalar(
+            select(ConstructionParameter).where(ConstructionParameter.initial_conditions_id == ic_id))
+        boundary = self.session.scalar(
+            select(BoundaryIdentifier).where(BoundaryIdentifier.initial_conditions_id == ic_id))
+        flow = self.session.scalar(
+            select(PotentialFlowParameter).where(PotentialFlowParameter.initial_conditions_id == ic_id))
+
+        # Базовые замены (общие для обеих задач)
+        replacements = {
+            "Chord1": str(chord.value if chord else 1.0),
+            "S1": str(boundary.value if boundary else 100),
+            "beta": str(flow.beta if flow else 0.0),
+            "B": str(flow.B if flow else 1.0),
+            "NC": str(constr.NC if constr and constr.NC > 0 else 50),
+            "NSp": str(constr.NSp if constr and constr.NSp > 0 else 50),
+            "NSm": str(constr.NSm if constr and constr.NSm > 0 else 50),
+            "NSpm": str(constr.NSpm if constr and constr.NSpm > 0 else 20),
+            "NSpn": str(constr.NSpn if constr and constr.NSpn > 0 else 10),
+            "rho": str(sim.materials[0].material.density if sim.materials else 1.0),
+        }
+
+        # --- Выбор шаблона и дополнительные параметры ---
+        if task_type == TaskType.GAS_DYNAMICS:
+            template_name = "gas_dynamics.edp.template"
+        elif task_type == TaskType.THERMAL:
+            template_name = "thermal_combined.edp.template"
+            time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
+            init_temp = self.session.scalar(
+                select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
+
+            # Берём теплопроводность первого выбранного материала (материал лопатки)
+            material = sim.materials[0].material if sim.materials else None
+            k_steel = material.thermal_conductivity if material and material.thermal_conductivity else 0.1
+
+            replacements.update({
+                "dt": str(time_params.dt if time_params else 0.1),
+                "nbT": str(time_params.nbT if time_params else 100),
+                "T_initial": str(init_temp.value if init_temp else 400),
+                "k_air": "0.01",  # теплопроводность воздуха (константа)
+                "k_steel": str(k_steel),
+            })
+        else:
+            raise ValueError(f"Неподдерживаемый тип задачи: {task_type}")
+
+        template_path = Path(__file__).parent.parent / "templates" / template_name
+        if not template_path.exists():
+            raise FileNotFoundError(f"Шаблон {template_name} не найден в templates/")
         with open(template_path, 'r', encoding='utf-8') as f:
             template = f.read()
 
-        # 6. Заменяем параметры
-        replacements = {
-            "{{S1}}": str(boundary.value if boundary else 100),
-            "{{Chord1}}": str(chord.value if chord else 1.0),
-            "{{beta}}": str(flow_params.beta if flow_params else 0.0),
-            "{{B}}": str(flow_params.B if flow_params else 1.0),
-            "{{rho}}": str(rho),
-            "{{NC}}": str(const_params.NC if const_params else 50),
-            "{{NSp}}": str(const_params.NSp if const_params else 50),
-            "{{NSm}}": str(const_params.NSm if const_params else 50),
-            "{{NSpm}}": str(const_params.NSpm if const_params else 20),
-            "{{NSpn}}": str(const_params.NSpn if const_params else 10),
-            "{{dt}}": str(time_params.dt if time_params else 0.1),
-            "{{nbT}}": str(time_params.nbT if time_params else 100),
-        }
-
         script = template
         for key, val in replacements.items():
-            script = script.replace(key, val)
+            script = script.replace(f"{{{{{key}}}}}", str(val))
 
-        # 7. Сохраняем финальный .edp файл
         with open(edp_path, 'w', encoding='utf-8') as f:
             f.write(script)
 
-        logger.info(f"📝 Скрипт FreeFEM++ сохранён: {edp_path}")
-        logger.info(f"📝 Коэффициенты Лежандра сохранены в: {coeffs_csv}")
+        logger.info(f"Скрипт {task_type.value} сохранён: {edp_path}")
 
     def _run_freefem(self, edp_path: str, work_dir: str) -> dict:
         ff_path = os.getenv("FREEFEM_PATH", "FreeFem++")

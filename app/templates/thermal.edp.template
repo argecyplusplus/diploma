@@ -1,0 +1,51 @@
+// Параметры из начальных условий (только те, что нужны для тепла)
+real dt = {{dt}};
+real nbT = {{nbT}};
+real k_air = {{k_air}};    // из elasticity или отдельно
+real k_steel = {{k_steel}};
+real T_initial = {{T_initial}};   // из initial_temps
+
+load "iovtk"
+
+// ... построение сетки (аналогично задаче 1, но с дополнительной границей D) ...
+// Используем те же NC, NSp, NSm, NSpm из construction, а также NSpn для D.
+
+border C(...) { ... }
+border Splus(...) { ... }
+// ... все границы как в задаче 1
+border D(t=0, 2.){ x=0.5 + t*cost; y=+t*sint; }   // cost, sint – из угла beta (если есть)
+
+mesh Sh = buildmesh(C({{NC}}) + Splus(-{{NSp}}) + Spm(-{{NSpm}}) + Sminus(-{{NSm}}) + Smp(-{{NSpm}}) + D({{NSpn}}));
+int steel = Sh(xblade, yblade).region, air = Sh(-1, -1).region;
+
+fespace Wh(Sh, P1);
+Wh vv;
+
+fespace W0(Sh, P0);
+W0 k = k_air*(region==air) + k_steel*(region==steel);
+// Попытка прочитать поле скорости из файла, сгенерированного задачей 1
+W0 u1=0, u2=0;
+{
+    ifstream velFile("velocity.dat");
+    if (velFile) {
+        // Читаем скорости в каждой ячейке – упрощённо, можно читать как текстовый файл с двумя числами на строку.
+        // Реализация зависит от формата. Для простоты опустим.
+    }
+}
+
+Wh v = T_initial*(region==steel), vold;
+Sh = change(Sh, flabel = (label==C && [u1,u2]'*N<0) ? 10 : label);
+
+problem thermic(v, vv, init=i, solver=LU)
+    = int2d(Sh)( v*vv/dt + k*(dx(v)*dx(vv) + dy(v)*dy(vv))
+               + 10*(u1*dx(v) + u2*dy(v))*vv )
+    - int2d(Sh)(vold*vv/dt)
+    + on(10, v=0);
+
+for(int i=0; i<nbT; i++) {
+    vold[] = v[];
+    thermic;
+    plot(v);
+}
+plot(v, wait=1, fill=1, value=1);
+savevtk("result.vtk", Sh, v);

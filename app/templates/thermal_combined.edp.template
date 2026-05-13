@@ -1,0 +1,105 @@
+int S1 = {{S1}};
+real Chord1 = {{Chord1}};
+real RC = 3. * Chord1;
+
+border C(t=0, 2*pi){ x=Chord1/2. + RC*cos(t); y=RC*sin(t); }
+
+real beta = {{beta}};
+real B = {{B}};
+real rho = {{rho}};
+
+load "iovtk"
+
+real[int] coeffsUp(10);
+real[int] coeffsLow(10);
+
+ifstream fl("out_L_blade.csv");
+for(int i=0; i<coeffsUp.n; i++) fl >> coeffsUp(i);
+for(int i=0; i<coeffsLow.n; i++) fl >> coeffsLow(i);
+
+func real Lezh(real[int] L, real t) {
+    real[int] y(10);
+    y(0)=1.; y(1)=t; y(2)=(3.*t^2-1.)/2.; y(3)=(5.*t^3-3.*t)/2.;
+    y(4)=(35.*t^4-30.*t^2+3.)/8.; y(5)=(63.*t^5-70.*t^3+15.*t)/8.;
+    y(6)=231./16.*t^6-315./16.*t^4+105./16.*t^2-5./16.;
+    y(7)=429./16.*t^7-693./16.*t^5+315./16.*t^3-35./16.*t;
+    y(8)=6435./128.*t^8-3003./32.*t^6+3465./64.*t^4-315./32.*t^2+35./128.;
+    y(9)=12155./128.*t^9-6435./32.*t^7+9009./64.*t^5-1155./32.*t^3+315./128.*t;
+    return L'*y;
+}
+
+border Splus(t=0., 1.){ x=Chord1*t; y=Chord1*Lezh(coeffsUp,t); label=S1; }
+border Sminus(t=1., 0.){ x=Chord1*t; y=Chord1*Lezh(coeffsLow,t); label=S1; }
+border Spm(t=0,1.){ x=0; y=Chord1*Lezh(coeffsLow,0)+t*Chord1*(Lezh(coeffsUp,0)-Lezh(coeffsLow,0)); label=S1; }
+border Smp(t=1.,0.){ x=Chord1; y=Chord1*Lezh(coeffsLow,1)+t*Chord1*(Lezh(coeffsUp,1)-Lezh(coeffsLow,1)); label=S1; }
+
+real xblade=Chord1*0.25, yblade=Chord1*(Lezh(coeffsUp,0.5)+Lezh(coeffsLow,0.5))/2;
+mesh Th = buildmesh(C({{NC}})+Splus({{NSp}})+Spm({{NSpm}})+Sminus({{NSm}})+Smp({{NSpm}}));
+plot(Th, wait=1);
+
+fespace Vh(Th, P2);
+Vh psi, w, vx, vy, p;
+real cost = cos(beta*pi/180.), sint=sin(beta*pi/180.);
+
+solve potential(psi, w)
+  = int2d(Th)(dx(psi)*dx(w)+dy(psi)*dy(w))
+  + on(C, psi = cost*y - sint*x)
+  + on(S1, psi=0);
+vx=dx(psi); vy=dy(psi);
+p = 1 - rho/(2*B)*(vx^2+vy^2);
+
+plot(psi, wait=1, fill=1, value=1);
+plot([vx,vy], wait=1, value=1);
+plot(p, wait=1, fill=1, value=1);
+plot(p, wait=1, nbiso=20, value=1);
+
+int blade = Th(xblade, yblade).region, outspace=Th(-1, -1).region;
+cout<<blade<<" "<<outspace<<endl;
+
+Vh pblade=p*(region==blade);
+Vh poutspace=p*(region==outspace);
+cout<<"max p blade = "<<pblade[].max<<endl;
+cout<<"min p blade = "<<pblade[].min<<endl;
+cout<<"max p outspace = "<<poutspace[].max<<endl;
+cout<<"min p outspace = "<<poutspace[].min<<endl;
+
+// Thermal part
+real dt = {{dt}}, nbT = {{nbT}};
+
+border D(t=0, 2.){ x=0.5+t*cost; y=+t*sint; }
+mesh Sh = buildmesh(C({{NC}}) + Splus(-{{NSp}}) + Spm(-{{NSpm}}) + Sminus(-{{NSm}}) + Smp(-{{NSpm}}) + D({{NSpn}}));
+int steel = Sh(xblade, yblade).region, air = Sh(-1, -1).region;
+
+cout<<Sh(Chord1/2., 0).region<<" "<<Sh(Chord1/2.- RC, 0).region<<endl;
+fespace Wh(Sh, P1);
+Wh vv;
+
+fespace W0(Sh, P0);
+W0 k = {{k_air}}*(region == air) + {{k_steel}}*(region == steel);
+W0 u1 = dy(psi)*(region == air), u2 = -dx(psi)*(region == air);
+Wh v = {{T_initial}}*(region == steel), vold;
+Sh = change(Sh, flabel = (label == C && [u1,u2]'*N<0) ? 10 : label);
+
+int i;
+problem thermic(v, vv, init=i, solver=LU)
+  = int2d(Sh)(
+      v*vv/dt + k*(dx(v)*dx(vv) + dy(v)*dy(vv))
+    + 10*(u1*dx(v) + u2*dy(v))*vv
+  )
+  - int2d(Sh)(vold*vv/dt)
+  + on(10, v=0);
+
+for(i = 0; i < nbT; i++) {
+    vold[] = v[];
+    thermic;
+    plot(v);
+}
+plot(v, wait=1, fill=1, value=1);
+plot(v, wait=1, nbiso=20, value=1);
+
+Wh vsteel=v*(region == steel);
+Wh vair=v*(region == air);
+cout<<"max T steel= "<<vsteel[].max<<endl;
+cout<<"max T air= "<<vair[].max<<endl;
+
+savevtk("result.vtk", Th, p);

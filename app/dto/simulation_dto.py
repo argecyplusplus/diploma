@@ -1,9 +1,11 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict
+from enum import Enum
 
-class TaskRequest(BaseModel):
-    task_id: int  # 1, 2, 3
-    description: Optional[str] = None
+class TaskType(str, Enum):
+    GAS_DYNAMICS = "gas_dynamics"      # задача 1
+    THERMAL = "thermal"                # задача 2
+    STRESS = "stress"                  # задача 3
 
 class SimulationCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -11,7 +13,7 @@ class SimulationCreateRequest(BaseModel):
     assembly_id: Optional[int] = None
     material_ids: List[int] = Field(..., min_length=1)
     initial_conditions_id: int
-    tasks: List[TaskRequest] = []
+    task_type: TaskType
 
 class TimeParamRequest(BaseModel):
     time: float; dt: float; nbT: float; Nplot: float

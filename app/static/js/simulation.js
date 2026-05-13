@@ -2,6 +2,83 @@
 
 let currentPollInterval = null;
 
+// Подсказки для задач
+const taskHints = {
+    gas_dynamics: '📌 Для задачи 1 набор начальных условий должен содержать: параметры потенциального потока (beta, B), идентификатор границы (S1), хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm). Временные и тепловые параметры НЕ используются.',
+    thermal: '📌 Для задачи 2 набор начальных условий должен содержать: параметры потенциального потока, идентификатор границы, хорду, параметры построения сетки (включая NSpn), временные параметры (dt, nbT), начальную температуру материала. Теплофизические свойства (k_air, k_steel) пока задаются как константы.'
+};
+
+function updateTaskHint() {
+    const selected = document.querySelector('input[name="task_type"]:checked');
+    if (!selected) return;
+    const hint = taskHints[selected.value] || 'Выберите задачу';
+    const helpDiv = document.getElementById('taskHelpText');
+    if (helpDiv) helpDiv.innerHTML = hint;
+
+    // Блокировка объединения для газодинамики
+    const assemblySelect = document.getElementById('assembly_id');
+    if (selected.value === 'gas_dynamics') {
+        assemblySelect.disabled = true;
+        assemblySelect.value = '';
+        const small = assemblySelect.parentElement.querySelector('small');
+        if (small) small.innerText = ' (недоступно для газодинамики)';
+    } else {
+        assemblySelect.disabled = false;
+        const small = assemblySelect.parentElement.querySelector('small');
+        if (small) small.innerText = ' (лопатка или объединение)';
+    }
+}
+
+async function validateInitialConditionForTask(icId) {
+    const selectedTask = document.querySelector('input[name="task_type"]:checked');
+    if (!selectedTask) return;
+    const required = selectedTask.dataset.requires.split(',');
+    try {
+        const resp = await fetch(`/initial-conditions/api/${icId}`);
+        if (!resp.ok) throw new Error('Ошибка загрузки начальных условий');
+        const data = await resp.json();
+        const missing = [];
+        if (required.includes('potential_flow') && (!data.potential_flow || Object.keys(data.potential_flow).length === 0))
+            missing.push('Параметры потенциального потока');
+        if (required.includes('boundaries') && (!data.boundaries || data.boundaries.length === 0))
+            missing.push('Идентификаторы границ');
+        if (required.includes('construction') && (!data.construction || Object.keys(data.construction).length === 0))
+            missing.push('Параметры построения сетки');
+        if (required.includes('blade_chord') && (!data.chords || data.chords.length === 0))
+            missing.push('Хорда лопасти');
+        if (required.includes('time_parameters') && (!data.time_parameters || Object.keys(data.time_parameters).length === 0))
+            missing.push('Временные параметры');
+        if (required.includes('initial_temps') && (!data.initial_temps || data.initial_temps.length === 0))
+            missing.push('Начальная температура материала');
+
+        const helpDiv = document.getElementById('taskHelpText');
+        if (helpDiv) {
+            if (missing.length) {
+                helpDiv.innerHTML += `<br><span style="color:var(--status-err)">⚠️ В выбранном наборе отсутствуют: ${missing.join(', ')}. Расчёт может быть невозможен.</span>`;
+            } else {
+                helpDiv.innerHTML += `<br><span style="color:var(--status-ok)">✅ Все необходимые параметры присутствуют.</span>`;
+            }
+        }
+    } catch(e) {
+        console.error('Ошибка валидации начальных условий', e);
+    }
+}
+
+document.querySelectorAll('input[name="task_type"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+        updateTaskHint();
+        const icSelect = document.getElementById('initial_conditions_id');
+        if (icSelect && icSelect.value) validateInitialConditionForTask(icSelect.value);
+    });
+});
+const icSelect = document.getElementById('initial_conditions_id');
+if (icSelect) {
+    icSelect.addEventListener('change', (e) => {
+        if (e.target.value) validateInitialConditionForTask(e.target.value);
+    });
+}
+
+
 async function createSimulation(e) {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
@@ -21,6 +98,28 @@ async function createSimulation(e) {
     }
     const bladeId = form.querySelector('[name="blade_id"]').value;
     const assemblyId = form.querySelector('[name="assembly_id"]').value;
+
+    const taskType = form.querySelector('input[name="task_type"]:checked').value;
+    if (taskType === 'gas_dynamics') {
+        if (!bladeId) {
+            alert('Для газодинамики необходимо выбрать лопатку (объединение не поддерживается)');
+            resetBtn();
+            return;
+        }
+        if (assemblyId) {
+            alert('Для газодинамики нельзя выбирать объединение, выберите конкретную лопатку');
+            resetBtn();
+            return;
+        }
+    } else {
+        if (!bladeId && !assemblyId) {
+            alert('Для выбранной задачи необходимо выбрать лопатку или объединение');
+            resetBtn();
+            return;
+        }
+    }
+
+
     if ((bladeId && assemblyId) || (!bladeId && !assemblyId)) {
         alert('❌ Выберите либо лопатку, либо объединение');
         resetBtn();
@@ -28,13 +127,13 @@ async function createSimulation(e) {
     }
 
     const payload = {
-        name: form.querySelector('[name="name"]').value,
-        blade_id: bladeId ? parseInt(bladeId) : null,
-        assembly_id: assemblyId ? parseInt(assemblyId) : null,
-        initial_conditions_id: parseInt(form.querySelector('[name="initial_conditions_id"]').value),
-        material_ids: materialIds,
-        tasks: [...form.querySelectorAll('input[name="tasks"]:checked')].map(cb => ({task_id: parseInt(cb.value)}))
-    };
+    name: form.querySelector('[name="name"]').value,
+    blade_id: bladeId ? parseInt(bladeId) : null,
+    assembly_id: assemblyId ? parseInt(assemblyId) : null,
+    initial_conditions_id: parseInt(form.querySelector('[name="initial_conditions_id"]').value),
+    material_ids: materialIds,
+    task_type: form.querySelector('input[name="task_type"]:checked').value
+};
 
     try {
         const res = await fetch('/simulation/create', {
@@ -255,18 +354,41 @@ async function loadBladesSelect() {
         const res = await fetch('/api/blades');
         if (!res.ok) throw new Error('Ошибка загрузки');
         const blades = await res.json();
-        if (blades.length === 0) {
-            bladeSelect.innerHTML = '<option value="" disabled selected>Нет лопаток</option>';
-        } else {
-            let options = '<option value="" disabled selected>Выберите лопатку...</option>';
-            blades.forEach(b => {
-                options += `<option value="${b.blade_id}">${escapeHtml(b.name)}</option>`;
-            });
-            bladeSelect.innerHTML = options;
-        }
+
+        // Формируем список: пустая опция + лопатки
+        let options = '<option value="">— Не выбрано —</option>';
+        blades.forEach(b => {
+            options += `<option value="${b.blade_id}">${escapeHtml(b.name)}</option>`;
+        });
+        bladeSelect.innerHTML = options;
+
+        // Применить состояние disabled для пустой опции в зависимости от задачи
+        updateBladeEmptyOptionState();
     } catch (e) {
-        bladeSelect.innerHTML = '<option value="" disabled selected>Ошибка загрузки</option>';
+        bladeSelect.innerHTML = '<option value="" selected>Ошибка загрузки</option>';
         console.error('Ошибка загрузки лопаток:', e);
+    }
+}
+
+function updateBladeEmptyOptionState() {
+    const selectedTask = document.querySelector('input[name="task_type"]:checked');
+    const bladeSelect = document.getElementById('blade_id');
+    if (!bladeSelect) return;
+    const emptyOption = bladeSelect.querySelector('option[value=""]');
+    if (!emptyOption) return;
+
+    if (selectedTask && selectedTask.value === 'gas_dynamics') {
+        // Для газодинамики пустая опция недоступна
+        emptyOption.disabled = true;
+        // Если сейчас выбрана пустая опция, принудительно выбираем первую лопатку (если есть)
+        if (!bladeSelect.value || bladeSelect.value === "") {
+            // Найти первую опцию с непустым value
+            const firstNonEmpty = Array.from(bladeSelect.options).find(opt => opt.value !== "");
+            if (firstNonEmpty) bladeSelect.value = firstNonEmpty.value;
+        }
+    } else {
+        // Для тепловой задачи пустая опция доступна
+        emptyOption.disabled = false;
     }
 }
 
@@ -358,6 +480,23 @@ function refreshSimulationsList() {
     loadSimulationsList();
 }
 
+document.querySelectorAll('input[name="task_type"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        updateTaskHint();          // уже есть
+        updateBladeEmptyOptionState(); // добавить
+        const assemblySelect = document.getElementById('assembly_id');
+        if (this.value === 'gas_dynamics') {
+            assemblySelect.disabled = true;
+            assemblySelect.value = '';
+        } else {
+            assemblySelect.disabled = false;
+        }
+    });
+});
+// вызов при загрузке
+document.querySelector('input[name="task_type"]:checked').dispatchEvent(new Event('change'));
+
+
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     loadMaterialsCheckboxes();
@@ -365,6 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAssembliesSelect();
     loadInitialConditionsSelect();
     loadSimulationsList();
+    updateBladeEmptyOptionState();
 
     const form = document.getElementById('simForm');
     if (form) form.onsubmit = createSimulation;
