@@ -31,7 +31,7 @@ class Blade(Base):
     assemblies = relationship("BladeAssemblyMember", back_populates="blade", cascade="all, delete-orphan")
     profiles = relationship("ProfileCoordinate", back_populates="blade", cascade="all, delete-orphan")
     approximations = relationship("Approximation", back_populates="blade", cascade="all, delete-orphan")
-    simulations = relationship("Simulation", back_populates="blade", cascade="all, delete-orphan")
+    simulations = relationship("Simulation", back_populates="blade")
 
     def __repr__(self):
         return f"<Blade(id={self.blade_id}, name='{self.name}')>"

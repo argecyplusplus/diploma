@@ -37,7 +37,16 @@ class BladeService:
 
     def delete_blade(self, blade_id: int):
         blade = self.blade_repo.get_by_id(blade_id)
-        if not blade: raise ValueError("Blade not found")
+        if not blade:
+            raise ValueError("Blade not found")
+
+        # Отвязываем симуляции от этой лопатки
+        from ..models.simulation import Simulation
+        session = self.blade_repo.session  # используем сессию из репозитория
+        session.query(Simulation).filter_by(blade_id=blade_id).update({"blade_id": None})
+        session.flush()
+
+        # Теперь можно безопасно удалить лопатку
         self.blade_repo.delete(blade)
 
     # --- CRUD Координат ---
