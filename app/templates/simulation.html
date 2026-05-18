@@ -33,21 +33,12 @@
             <!-- Выбор геометрии: лопатка ИЛИ объединение -->
             <div class="form-section">
                 <h4>Объект расчёта</h4>
-                <div class="form-grid" style="padding:0; background:transparent; margin:0;">
-                    <div class="form-group">
-                        <label for="blade_id">Лопатка</label>
-                        <select id="blade_id" name="blade_id">
-                            <option value="" disabled selected>Загрузка списка...</option>
-                        </select>
-                        <small>Выберите один профиль</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="assembly_id">Объединение (опционально)</label>
-                        <select id="assembly_id" name="assembly_id">
-                            <option value="" selected>— Не выбрано —</option>
-                        </select>
-                        <small>Или группа лопаток для пакетного расчёта</small>
-                    </div>
+                <div class="form-group">
+                    <label for="objectSelect">Выберите лопатку или объединение</label>
+                    <select id="objectSelect" name="object_id" required>
+                        <option value="" disabled selected>Загрузка списка...</option>
+                    </select>
+                    <small id="objectHint"></small>
                 </div>
             </div>
 
@@ -108,10 +99,10 @@
 <!-- ================= ИСТОРИЯ РАСЧЁТОВ ================= -->
 <div class="section-header section-header-top">
     <h2 class="page-title">История расчётов</h2>
-    <button class="btn-secondary" onclick="refreshSimulationsList()">🔄 Обновить</button>
-</div>
-<div style="margin-bottom: 15px;">
-    <button class="btn-warning" onclick="cleanFailedSimulations()">🧹 Очистить неудачные расчёты</button>
+    <div class="header-actions">
+        <button class="btn-outline" onclick="cleanFailedSimulations()">🧹 Очистить неудачные</button>
+        <button class="btn-secondary" onclick="refreshSimulationsList()">🔄 Обновить</button>
+    </div>
 </div>
 <div class="card">
     <div class="table-wrapper">
@@ -152,7 +143,28 @@
         </div>
     </div>
 </div>
-
+<!-- Модальное окно прогресса -->
+<div id="progressModal" class="modal-overlay">
+    <div class="modal modal-lg" style="max-width: 500px;">
+        <h3>Выполняется расчёт</h3>
+        <div style="margin: 20px 0;">
+            <div id="progressStatusBadge" class="badge badge-secondary">⏳ Ожидание</div>
+            <div style="margin: 12px 0;">
+                <div style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                    <div id="progressFill" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.3s;"></div>
+                </div>
+            </div>
+            <div id="progressMessage" style="font-size: 0.875rem; color: var(--text-muted);">Подготовка...</div>
+            <div id="progressError" style="display: none; margin-top: 12px; padding: 8px; background: #fef2f2; border-left: 3px solid var(--status-err); font-size: 0.8125rem;"></div>
+            <div style="margin-top: 16px; text-align: center;">
+                <button id="progressShowLogBtn" class="btn-secondary btn-sm" style="display: none;" onclick="fetchAndShowLog(currentSimId)">📄 Показать лог</button>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeProgressModal()">Закрыть</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
