@@ -271,7 +271,9 @@ class SimulationService:
             raise FileNotFoundError(f"Шаблон {template_name} не найден в templates/")
         with open(template_path, 'r', encoding='utf-8') as f:
             template = f.read()
-
+        logger.info("=== Шаблон (первые 50 строк) ===")
+        for i, line in enumerate(template.splitlines()[:50]):
+            logger.info(f"{i + 1:3}: {line}")
         script = template
         logger.info("=== PREVIEW of script (first 30 lines) ===")
         for i, line in enumerate(script.splitlines()[:30]):

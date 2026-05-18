@@ -36,15 +36,15 @@ int steel = Th(xblade, yblade).region, air = Th(-RC/2., -RC/2.).region;
 
 // Thermal parameters
 real dt = {{dt}}, nbT = {{nbT}};
-real a_steel = {{a_steel}};
-real a_air   = {{a_air}};
-real T_initial_steel = {{T_initial}};
-real T_initial_air   = 25.0;
+real aSteel = {{a_steel}};
+real aAir   = {{a_air}};
+real Tinitialsteel = {{T_initial}};
+real Tinitialair   = 25.0;
 real dTin = 0.0, dTout = 0.0;
 
 fespace Vh(Th, P2);
-Vh T = T_initial_steel*(region==steel) + T_initial_air*(region==air), Told, v;
-func real a0() { return (region==steel) ? a_steel : a_air; }
+Vh T = Tinitialsteel*(region==steel) + Tinitialair*(region==air), Told, v;
+func real a0() { return (region==steel) ? aSteel : aAir; }
 
 problem thermic(T, v)
     = int2d(Th)( T*v/dt + a0()*(dx(T)*dx(v) + dy(T)*dy(v)) )
@@ -62,11 +62,11 @@ plot(T, wait=1, fill=1, value=1);
 // Elastic parameters
 real b = {{b}};
 real nu = {{nu}};
-real E_steel = {{E_steel}};
-real E_air = 1e-5;
+real Esteel = {{E_steel}};
+real Eair = 1e-5;
 real KLT = {{KLT}};
 
-func real E() { return (region==steel) ? E_steel : E_air; }
+func real E() { return (region==steel) ? Esteel : Eair; }
 func K = -E()/(3*(2*nu - 1));
 func mu = E()/(2*(1+nu));
 func lambda = E()*nu/((1+nu)*(1-2*nu));
@@ -74,8 +74,8 @@ func lambda = E()*nu/((1+nu)*(1-2*nu));
 real sqrt2 = sqrt(2.);
 macro epsilon(u1, u2) [dx(u1), dy(u2), (dy(u1)+dx(u2))/sqrt2] //
 macro div(u1, u2) (dx(u1)+dy(u2)) //
-macro sig1(u1, u2) lambda*div(u1,u2)-3*K*KLT*(T-T_initial_steel*(region==steel))+2*mu*dx(u1) //
-macro sig2(u1, u2) lambda*div(u1,u2)-3*K*KLT*(T-T_initial_steel*(region==steel))+2*mu*dy(u2) //
+macro sig1(u1, u2) lambda*div(u1,u2)-3*K*KLT*(T-Tinitialsteel*(region==steel))+2*mu*dx(u1) //
+macro sig2(u1, u2) lambda*div(u1,u2)-3*K*KLT*(T-Tinitialsteel*(region==steel))+2*mu*dy(u2) //
 macro sig12(u1, u2) mu*(dx(u2)+dy(u1)) //
 macro eps1(u1) dx(u1) //
 macro eps2(u2) dy(u2) //
@@ -86,7 +86,7 @@ Wh u1, u2, uu, vv;
 solve lame([u1, u2], [uu, vv])
     = int2d(Th)( lambda*div(u1,u2)*div(uu,vv)
                + 2.*mu*(epsilon(u1,u2)'*epsilon(uu,vv)) )
-    - int2d(Th)( 3.*K*KLT*(T-T_initial_steel*(region==steel))*div(uu,vv) )
+    - int2d(Th)( 3.*K*KLT*(T-Tinitialsteel*(region==steel))*div(uu,vv) )
     + on(S1, u1=0, u2=0);
 
 Wh Sig1 = sig1(u1,u2);
