@@ -283,3 +283,20 @@ def get_simulation_log(sim_id):
     with open(log_path, 'r', encoding='utf-8') as f:
         content = f.read()
     return jsonify({"log": content})
+
+@sim_bp.route('/<int:sim_id>/result/<file_type>')
+def download_result_file(sim_id, file_type):
+    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    if file_type == 'vtk':
+        file_path = os.path.join(sim_dir, "result.vtk")
+    elif file_type == 'profout':
+        file_path = os.path.join(sim_dir, "Profout.csv")
+    elif file_type == 'tsout':
+        file_path = os.path.join(sim_dir, "TSout.csv")
+    elif file_type == 'tepsout':
+        file_path = os.path.join(sim_dir, "TEpsout.csv")
+    else:
+        abort(404)
+    if not os.path.exists(file_path):
+        abort(404)
+    return send_file(file_path, as_attachment=True, download_name=f"{file_type}_{sim_id}.csv")

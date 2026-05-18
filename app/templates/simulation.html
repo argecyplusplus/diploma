@@ -84,6 +84,11 @@
             <strong>🌡️ 🔥 2. Моделирование теплового поля на поверхности лопатки</strong>
             <small>(лопатка или объединение)</small>
         </label>
+        <label style="display: flex; align-items: center; gap: 6px;">
+            <input type="radio" name="task_type" value="thermal_stress" data-requires="time_parameters,initial_temps,elasticity,stress_output,construction,blade_chord">
+            <strong>🔧 3. Моделирование температурных полей и напряжений (термоупругость)</strong>
+            <small>(лопатка или объединение)</small>
+        </label>
     </div>
     <div id="taskHelpText" class="card-hint" style="margin-top: 8px; padding: 8px; background: #f8fafc; border-left: 3px solid var(--accent);">
         📌 Выберите задачу, чтобы увидеть требования к начальным условиям.

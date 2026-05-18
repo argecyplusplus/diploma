@@ -5,7 +5,8 @@ let currentPollInterval = null;
 // Подсказки для задач
 const taskHints = {
     gas_dynamics: '📌 Для задачи 1 набор начальных условий должен содержать: параметры потенциального потока (beta, B), идентификатор границы (S1), хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm). Временные и тепловые параметры НЕ используются.',
-    thermal: '📌 Для задачи 2 набор начальных условий должен содержать: параметры потенциального потока, идентификатор границы, хорду, параметры построения сетки (включая NSpn), временные параметры (dt, nbT), начальную температуру материала. Теплофизические свойства (k_air, k_steel) пока задаются как константы.'
+    thermal: '📌 Для задачи 2 набор начальных условий должен содержать: параметры потенциального потока, идентификатор границы, хорду, параметры построения сетки (включая NSpn), временные параметры (dt, nbT), начальную температуру материала. Теплофизические свойства (k_air, k_steel) пока задаются как константы.',
+    thermal_stress: '📌 Для задачи 3 необходимы: временные параметры, начальная температура материала, параметры упругости (b, nu, KLT), параметры вывода напряжений (delt, Npt), конструктивные параметры сетки, хорда лопасти, идентификатор границы S1.'
 };
 
 function updateTaskHint() {
@@ -29,6 +30,8 @@ function updateTaskHint() {
     }
 }
 
+// ... (весь предыдущий код без изменений) ...
+
 async function validateInitialConditionForTask(icId) {
     const selectedTask = document.querySelector('input[name="task_type"]:checked');
     if (!selectedTask) return;
@@ -50,6 +53,10 @@ async function validateInitialConditionForTask(icId) {
             missing.push('Временные параметры');
         if (required.includes('initial_temps') && (!data.initial_temps || data.initial_temps.length === 0))
             missing.push('Начальная температура материала');
+        if (required.includes('elasticity') && (!data.elasticity || Object.keys(data.elasticity).length === 0))
+            missing.push('Параметры упругости (b, nu, KLT)');
+        if (required.includes('stress_output') && (!data.stress_output || Object.keys(data.stress_output).length === 0))
+            missing.push('Параметры вывода напряжений (delt, Npt)');
 
         const helpDiv = document.getElementById('taskHelpText');
         if (helpDiv) {

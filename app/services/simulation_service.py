@@ -1,7 +1,7 @@
 import os
 import subprocess
 import threading
-import re
+import traceback
 from pathlib import Path
 import logging
 from sqlalchemy.orm import Session
@@ -10,10 +10,11 @@ from ..repositories.simulation_repository import SimulationRepository
 from ..dto.simulation_dto import SimulationCreateRequest, InitialConditionCreateRequest, TaskType
 from ..models.simulation import (
     Simulation, InitialCondition, ConstructionParameter, PotentialFlowParameter,
-    BoundaryIdentifier, BladeChord, TimeParameter, InitialTemperature
+    BoundaryIdentifier, BladeChord, TimeParameter, InitialTemperature,
+    ElasticityParameter, StressOutputParameter          # добавлены
 )
 from ..models.blade import Approximation, LegendreCoefficient, BladeAssembly
-from ..models.material import Material
+from ..models.material import Material, ElValue          # добавлен ElValue
 from ..utils.database import get_db_session
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class SimulationService:
                 raise ValueError(
                     "Для газодинамики необходимо указать конкретную лопатку (blade_id), assembly_id не допускается")
         else:
-            # Для thermal и stress: должен быть либо blade, либо assembly
+            # Для thermal и thermal_stress: должен быть либо blade, либо assembly
             if data.blade_id is None and data.assembly_id is None:
                 raise ValueError("Для этой задачи выберите лопатку или объединение")
 
@@ -67,16 +68,14 @@ class SimulationService:
                 sim_id = self._create_single_simulation(single_data)
                 created_ids.append(sim_id)
 
-            # ✅ возвращаем только первый ID (остальные запущены, но фронт их не отслеживает)
             if not created_ids:
                 raise ValueError("Не удалось создать симуляции")
-            return created_ids[0]  # <-- вместо created_ids
+            return created_ids[0]
 
         else:
             return self._create_single_simulation(data)
 
     def _create_single_simulation(self, data: SimulationCreateRequest) -> int:
-        # Подготовка данных
         sim_data = {
             'name': data.name,
             'blade_id': data.blade_id,
@@ -88,10 +87,8 @@ class SimulationService:
         sim = self.repo.create(**sim_data)
         sim_id = sim.simulation_id
         self.repo.add_materials(sim_id, data.material_ids)
-        # tasks больше нет, add_tasks не вызываем
         self.session.commit()
 
-        # Генерация скрипта
         sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
         os.makedirs(sim_dir, exist_ok=True)
         edp_path = os.path.join(sim_dir, "blade_sim.edp")
@@ -99,12 +96,12 @@ class SimulationService:
         try:
             self._generate_freefem_code(sim_id, sim_dir, edp_path)
         except Exception as e:
+            logger.error(traceback.format_exc())
             sim.status = 'failed'
             sim.error_message = f"Ошибка генерации .edp: {str(e)}"
             self.session.commit()
             return sim_id
 
-        # Запуск фонового потока
         thread = threading.Thread(target=self._run_simulation_background,
                                   args=(sim_id, edp_path, sim_dir),
                                   daemon=True)
@@ -129,7 +126,6 @@ class SimulationService:
 
             result = self._run_freefem(edp_path, sim_dir)
 
-            # Сохраняем лог
             log_path = os.path.join(sim_dir, "console.log")
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.write(result.get('stdout', '') + '\n--- STDERR ---\n' + result.get('stderr', ''))
@@ -143,6 +139,12 @@ class SimulationService:
                 vtk_path = os.path.join(sim_dir, "result.vtk")
                 if os.path.exists(vtk_path):
                     repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
+
+                # Сохраняем CSV-файлы для задачи 3
+                for csv_file in ["Profout.csv", "TSout.csv", "TEpsout.csv"]:
+                    csv_path = os.path.join(sim_dir, csv_file)
+                    if os.path.exists(csv_path):
+                        repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
             else:
                 sim.status = "failed"
                 sim.error_message = result.get('stderr') or result.get('error') or "FreeFEM завершился с ошибкой"
@@ -160,10 +162,6 @@ class SimulationService:
 
     def get_simulations_list(self):
         return self.repo.get_all_simulations()
-
-    # ========================================================================
-    # 🔧 Внутренние методы генерации и запуска (без изменений, но модифицируем _generate_freefem_code для проверки blade_id)
-    # ========================================================================
 
     def _generate_freefem_code(self, sim_id: int, sim_dir: str, edp_path: str):
         sim = self.session.get(Simulation, sim_id)
@@ -201,7 +199,7 @@ class SimulationService:
         flow = self.session.scalar(
             select(PotentialFlowParameter).where(PotentialFlowParameter.initial_conditions_id == ic_id))
 
-        # Базовые замены (общие для обеих задач)
+        # Базовые замены (общие для всех задач)
         replacements = {
             "Chord1": str(chord.value if chord else 1.0),
             "S1": str(boundary.value if boundary else 100),
@@ -223,17 +221,47 @@ class SimulationService:
             time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
             init_temp = self.session.scalar(
                 select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
-
-            # Берём теплопроводность первого выбранного материала (материал лопатки)
             material = sim.materials[0].material if sim.materials else None
             k_steel = material.thermal_conductivity if material and material.thermal_conductivity else 0.1
-
             replacements.update({
                 "dt": str(time_params.dt if time_params else 0.1),
                 "nbT": str(time_params.nbT if time_params else 100),
                 "T_initial": str(init_temp.value if init_temp else 400),
-                "k_air": "0.01",  # теплопроводность воздуха (константа)
+                "k_air": "0.01",
                 "k_steel": str(k_steel),
+            })
+        elif task_type == TaskType.THERMAL_STRESS:
+            template_name = "thermal_stress.edp.template"
+            time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
+            init_temp = self.session.scalar(
+                select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
+            elastic = self.session.scalar(
+                select(ElasticityParameter).where(ElasticityParameter.initial_conditions_id == ic_id))
+            stress_out = self.session.scalar(
+                select(StressOutputParameter).where(StressOutputParameter.initial_conditions_id == ic_id))
+            # Модуль Юнга для материала лопатки
+            material = sim.materials[0].material if sim.materials else None
+            ei_value = None
+            if elastic and material:
+                ei_value = self.session.scalar(
+                    select(ElValue).where(
+                        ElValue.elasticity_parameters_id == elastic.elasticity_parameters_id,
+                        ElValue.material_id == material.material_id
+                    )
+                )
+            E_steel = ei_value.value if ei_value else 2.1e5
+            replacements.update({
+                "dt": str(time_params.dt if time_params else 0.05),
+                "nbT": str(time_params.nbT if time_params else 25),
+                "T_initial": str(init_temp.value if init_temp else 250),
+                "a_steel": "12.54",
+                "a_air": "21.02",
+                "b": str(elastic.b if elastic else 1.0),
+                "nu": str(elastic.nu if elastic else 0.28),
+                "KLT": str(elastic.KLT if elastic else 10.5e-6),
+                "E_steel": str(E_steel),
+                "delt": str(stress_out.delt if stress_out else 0.4),
+                "Npt": str(stress_out.Npt if stress_out else 200),
             })
         else:
             raise ValueError(f"Неподдерживаемый тип задачи: {task_type}")
@@ -245,6 +273,9 @@ class SimulationService:
             template = f.read()
 
         script = template
+        logger.info("=== PREVIEW of script (first 30 lines) ===")
+        for i, line in enumerate(script.splitlines()[:30]):
+            logger.info(f"{i + 1:3}: {line}")
         for key, val in replacements.items():
             script = script.replace(f"{{{{{key}}}}}", str(val))
 

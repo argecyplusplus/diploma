@@ -3,9 +3,9 @@ from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 class TaskType(str, Enum):
-    GAS_DYNAMICS = "gas_dynamics"      # задача 1
-    THERMAL = "thermal"                # задача 2
-    STRESS = "stress"                  # задача 3
+    GAS_DYNAMICS = "gas_dynamics"
+    THERMAL = "thermal"
+    THERMAL_STRESS = "thermal_stress"
 
 class SimulationCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
