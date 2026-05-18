@@ -45,7 +45,7 @@ class Simulation(Base):
     # Отношения (Relationships)
     assembly = relationship("BladeAssembly", back_populates="simulations")
     blade = relationship("Blade", back_populates="simulations")
-    initial_conditions = relationship("InitialCondition", back_populates="simulations", cascade="all, delete")
+    initial_conditions = relationship("InitialCondition", back_populates="simulations")
 
     # Связи с дочерними таблицами (задачи и результаты)
     tasks = relationship("SimulationTask", back_populates="simulation", cascade="all, delete-orphan")

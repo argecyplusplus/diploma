@@ -300,3 +300,46 @@ def download_result_file(sim_id, file_type):
     if not os.path.exists(file_path):
         abort(404)
     return send_file(file_path, as_attachment=True, download_name=f"{file_type}_{sim_id}.csv")
+
+# ================= УДАЛЕНИЕ СИМУЛЯЦИЙ =================
+@sim_bp.route('/<int:sim_id>', methods=['DELETE'])
+def delete_simulation(sim_id):
+    service = get_service()
+    try:
+        service.delete_simulation(sim_id)
+        service.session.commit()
+        return jsonify({"message": "Симуляция удалена"}), 200
+    except Exception as e:
+        service.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@sim_bp.route('/failed', methods=['DELETE'])
+def delete_failed_simulations():
+    service = get_service()
+    try:
+        count = service.delete_failed_simulations()
+        service.session.commit()
+        return jsonify({"message": f"Удалено {count} неудачных симуляций"}), 200
+    except Exception as e:
+        service.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+# ================= СТРАНИЦА РЕЗУЛЬТАТОВ И ГРАФИКИ =================
+@sim_bp.route('/<int:sim_id>/results')
+def results_page(sim_id):
+    service = get_service()
+    sim = service.session.get(Simulation, sim_id)
+    if not sim:
+        abort(404)
+    # Передаём в шаблон ID и название
+    return render_template('results.html', simulation_id=sim_id, simulation_name=sim.name)
+
+@sim_bp.route('/<int:sim_id>/plots')
+def get_plots(sim_id):
+    """Возвращает JSON с изображениями графиков в формате base64"""
+    service = get_service()
+    try:
+        plots = service.generate_plots(sim_id)
+        return jsonify(plots)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

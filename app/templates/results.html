@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Результаты расчёта #{{ simulation_id }} — FF Pro{% endblock %}
+{% block content %}
+<div class="section-header">
+    <div>
+        <h2 class="page-title">Результаты расчёта #{{ simulation_id }}</h2>
+        <p class="page-subtitle">{{ simulation_name }}</p>
+    </div>
+    <div class="header-actions">
+        <a href="/simulation" class="btn-secondary">← К списку расчётов</a>
+    </div>
+</div>
+
+<div class="card" id="plotsContainer">
+    <div class="card-header">
+        <h3>Графики</h3>
+    </div>
+    <div style="padding: 20px; text-align: center;" id="plotsContent">
+        <div class="status-message">Загрузка графиков...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const simId = {{ simulation_id }};
+    async function loadPlots() {
+        const container = document.getElementById('plotsContent');
+        try {
+            const res = await fetch(`/simulation/${simId}/plots`);
+            if (!res.ok) throw new Error('Ошибка загрузки');
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            let html = '';
+            if (data.temperature) {
+                html += `<div><h4>Распределение температуры</h4><img src="data:image/png;base64,${data.temperature}" style="max-width:100%; margin-bottom:20px;"></div>`;
+            }
+            if (data.mises_strain) {
+                html += `<div><h4>Эквивалентная деформация Мизеса</h4><img src="data:image/png;base64,${data.mises_strain}" style="max-width:100%; margin-bottom:20px;"></div>`;
+            }
+            if (data.mises_stress) {
+                html += `<div><h4>Эквивалентное напряжение Мизеса</h4><img src="data:image/png;base64,${data.mises_stress}" style="max-width:100%; margin-bottom:20px;"></div>`;
+            }
+            if (data.profile) {
+                html += `<div><h4>Профиль лопатки</h4><img src="data:image/png;base64,${data.profile}" style="max-width:100%; margin-bottom:20px;"></div>`;
+            }
+            if (html === '') html = '<div class="status-message">Нет данных для отображения (возможно, расчёт не завершён или это не задача 3).</div>';
+            container.innerHTML = html;
+        } catch(e) {
+            container.innerHTML = `<div class="status-message" style="color:#ef4444;">Ошибка: ${e.message}</div>`;
+        }
+    }
+    document.addEventListener('DOMContentLoaded', loadPlots);
+</script>
+{% endblock %}

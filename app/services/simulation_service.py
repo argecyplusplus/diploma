@@ -2,6 +2,8 @@ import os
 import subprocess
 import threading
 import traceback
+import matplotlib.pyplot as plt
+import numpy as np
 from pathlib import Path
 import logging
 from sqlalchemy.orm import Session
@@ -318,3 +320,139 @@ class SimulationService:
         ic = self.session.get(InitialCondition, ic_id)
         if ic:
             self.session.delete(ic)
+
+    def delete_simulation(self, sim_id: int):
+        """Удаляет симуляцию из БД и её папку с файлами"""
+        sim = self.session.get(Simulation, sim_id)
+        if not sim:
+            raise ValueError("Симуляция не найдена")
+        # Удаляем папку с файлами
+        sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
+        if os.path.exists(sim_dir):
+            import shutil
+            shutil.rmtree(sim_dir)
+        # Удаляем запись из БД (каскадное удаление результатов)
+        self.session.delete(sim)
+
+    def delete_failed_simulations(self) -> int:
+        """Удаляет все симуляции со статусом 'failed'"""
+        from sqlalchemy import delete
+        stmt = select(Simulation).where(Simulation.status == 'failed')
+        failed_sims = self.session.scalars(stmt).all()
+        count = 0
+        for sim in failed_sims:
+            sim_dir = os.path.join(self.upload_dir, f"sim_{sim.simulation_id}")
+            if os.path.exists(sim_dir):
+                import shutil
+                shutil.rmtree(sim_dir)
+            self.session.delete(sim)
+            count += 1
+        return count
+
+    def generate_plots(self, sim_id: int) -> dict:
+        """Генерирует графики для задачи 3 на основе CSV-файлов"""
+        import numpy as np
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        from io import BytesIO
+        import base64
+        from numpy.linalg import eig
+
+        sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
+
+        # Функции расчёта (калька с CalcMizes.py)
+        def mizes2(tensor):
+            eig_vals, _ = eig(tensor)
+            miz = np.sqrt(((eig_vals[0] - eig_vals[1])**2)/2)
+            return np.hstack((eig_vals, miz))
+
+        def calc_eigMiz(data_select):
+            eigMiz = np.zeros((np.shape(data_select)[0], 3))
+            for i in range(np.shape(data_select)[0]):
+                T_mat = np.array([[data_select[i, 0], data_select[i, 1]], [data_select[i, 1], data_select[i, 2]]])
+                eigMiz[i] = mizes2(T_mat)
+            return eigMiz
+
+        plots = {}
+
+        # 1. Профиль лопатки (Profout.csv)
+        prof_path = os.path.join(sim_dir, "Profout.csv")
+        if os.path.exists(prof_path):
+            data = np.loadtxt(prof_path)
+            plt.figure(figsize=(8, 5))
+            plt.plot(data[:,0], data[:,1], 'b-', label='Спинка')
+            plt.plot(data[:,0], data[:,2], 'b-', label='Корытце')
+            plt.plot(data[:,3], data[:,4], 'r-', label='Спинка смещ.')
+            plt.plot(data[:,3], data[:,5], 'r-', label='Корытце смещ.')
+            plt.xlabel('X, мм')
+            plt.ylabel('Y, мм')
+            plt.title('Профиль лопатки')
+            plt.legend()
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['profile'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+        # 2. Температура и деформации/напряжения – используем TEpsout.csv и TSout.csv
+        eps_path = os.path.join(sim_dir, "TEpsout.csv")
+        stress_path = os.path.join(sim_dir, "TSout.csv")
+        if os.path.exists(eps_path):
+            data = np.loadtxt(eps_path)
+            # Вычисляем эквивалентную деформацию Мизеса
+            data_select_up = data[:, 3:6]
+            epseig_up = calc_eigMiz(data_select_up)[:, 2]
+            data_select_lw = data[:, 8:11]
+            epseig_lw = calc_eigMiz(data_select_lw)[:, 2]
+            x_coords = data[:, 0]
+
+            plt.figure(figsize=(8, 5))
+            plt.plot(x_coords, epseig_up * 100, 'ro-', label='Спинка (деформация Мизеса, %)')
+            plt.plot(x_coords, epseig_lw * 100, 'bo-', label='Корытце (деформация Мизеса, %)')
+            plt.xlabel('X, мм')
+            plt.ylabel('Деформация, %')
+            plt.title('Эквивалентная деформация Мизеса')
+            plt.legend()
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['mises_strain'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+            # Температура
+            plt.figure(figsize=(8, 5))
+            plt.plot(x_coords, data[:, 2], 'r-', label='Спинка')
+            plt.plot(x_coords, data[:, 7], 'b-', label='Корытце')
+            plt.xlabel('X, мм')
+            plt.ylabel('Температура, °C')
+            plt.title('Распределение температуры по поверхности лопатки')
+            plt.legend()
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['temperature'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+        if os.path.exists(stress_path):
+            data = np.loadtxt(stress_path)
+            data_select_up = data[:, 3:6]
+            streig_up = calc_eigMiz(data_select_up)[:, 2]
+            data_select_lw = data[:, 8:11]
+            streig_lw = calc_eigMiz(data_select_lw)[:, 2]
+            x_coords = data[:, 0]
+
+            plt.figure(figsize=(8, 5))
+            plt.plot(x_coords, streig_up, 'ro-', label='Спинка (напряжение Мизеса, МПа)')
+            plt.plot(x_coords, streig_lw, 'bo-', label='Корытце (напряжение Мизеса, МПа)')
+            plt.xlabel('X, мм')
+            plt.ylabel('Напряжение, МПа')
+            plt.title('Эквивалентное напряжение Мизеса')
+            plt.legend()
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['mises_stress'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+        return plots

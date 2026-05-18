@@ -71,6 +71,46 @@ async function validateInitialConditionForTask(icId) {
     }
 }
 
+// Удаление одной симуляции
+async function deleteSimulation(simId) {
+    if (!confirm('Удалить расчёт и все связанные файлы?')) return;
+    try {
+        const res = await fetch(`/simulation/${simId}`, { method: 'DELETE' });
+        if (res.ok) {
+            alert('Расчёт удалён');
+            loadSimulationsList();
+        } else {
+            const err = await res.json();
+            alert('Ошибка: ' + err.error);
+        }
+    } catch(e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+// Очистка неудачных симуляций
+async function cleanFailedSimulations() {
+    if (!confirm('Удалить все расчёты со статусом "failed"?')) return;
+    try {
+        const res = await fetch('/simulation/failed', { method: 'DELETE' });
+        if (res.ok) {
+            const data = await res.json();
+            alert(data.message);
+            loadSimulationsList();
+        } else {
+            const err = await res.json();
+            alert('Ошибка: ' + err.error);
+        }
+    } catch(e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+// Переход на страницу результатов
+function viewResults(simId) {
+    window.location.href = `/simulation/${simId}/results`;
+}
+
 document.querySelectorAll('input[name="task_type"]').forEach(radio => {
     radio.addEventListener('change', () => {
         updateTaskHint();
@@ -452,6 +492,9 @@ async function loadSimulationsList() {
         }
         let html = '';
         sims.forEach(s => {
+
+
+
             const statusBadge = s.status === 'completed' ? '<span class="badge badge-success">✅ Готово</span>' :
                                 s.status === 'running' ? '<span class="badge badge-warning">⏳ Запущен</span>' :
                                 s.status === 'failed' ? '<span class="badge badge-danger">❌ Ошибка</span>' :
@@ -463,7 +506,9 @@ async function loadSimulationsList() {
                 `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">📄 Лог</button>` : '';
 
             // Оборачиваем кнопки действия в контейнер
-            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">${downloadBtn} ${logBtn}</div>`;
+            const resultsBtn = `<button class="btn-secondary btn-sm" onclick="viewResults(${s.simulation_id})">📊 Результаты</button>`;
+            const deleteBtn = `<button class="btn-danger btn-sm" onclick="deleteSimulation(${s.simulation_id})">🗑️ Удалить</button>`;
+            const actionsHtml = `<div class="table-actions">${downloadBtn} ${logBtn} ${resultsBtn} ${deleteBtn}</div>`;
 
             html += `
                 <tr>
