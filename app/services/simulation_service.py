@@ -455,4 +455,18 @@ class SimulationService:
             plots['mises_stress'] = base64.b64encode(buf.getvalue()).decode('utf-8')
             plt.close()
 
+        # 4. Сбор и конвертация EPS-графиков FreeFEM
+        import glob
+        eps_files = glob.glob(os.path.join(sim_dir, "*.eps"))
+        for eps_file in eps_files:
+            try:
+                from PIL import Image
+                img = Image.open(eps_file)
+                buf = BytesIO()
+                img.save(buf, format='PNG')
+                buf.seek(0)
+                key = os.path.basename(eps_file).replace('.eps', '')
+                plots[key] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            except Exception as e:
+                logger.warning(f"Не удалось конвертировать {eps_file}: {e}")
         return plots

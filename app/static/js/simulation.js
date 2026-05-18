@@ -133,6 +133,7 @@ function updateProgressModal(data) {
     document.getElementById('progressStatusBadge').innerText = statusText;
     document.getElementById('progressStatusBadge').className = `badge ${badgeClass}`;
     document.getElementById('progressFill').style.width = `${progress}%`;
+    document.getElementById('progressPercent').innerText = `${Math.round(progress)}%`;
     if (data.status === 'running') {
         document.getElementById('progressMessage').innerText = 'Выполняется FreeFEM++...';
     } else if (data.status === 'pending') {
@@ -288,6 +289,7 @@ async function loadSimulationsList() {
                 <tr>
                     <td><span class="id-badge">#${s.simulation_id}</span></td>
                     <td><strong>${escapeHtml(s.name)}</strong></td>
+                    <td>${s.task_display}</td>
                     <td>${escapeHtml(s.blade_name)}</td>
                     <td>${s.created_at}</td>
                     <td>${statusBadge}</td>

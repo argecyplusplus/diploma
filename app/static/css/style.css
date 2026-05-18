@@ -743,3 +743,9 @@ body {
 .table-actions button {
     white-space: nowrap;
 }
+.task-radio-group-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+}

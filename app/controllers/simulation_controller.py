@@ -260,6 +260,7 @@ def get_simulations_api():
     from ..utils.database import get_db_session  # если ещё не импортировано
     session = get_db_session()
     sims = session.scalars(select(Simulation).order_by(Simulation.simulation_id.desc())).all()
+    task_names = {'gas_dynamics': '1', 'thermal': '2', 'thermal_stress': '3'}
     result = []
     for s in sims:
         has_vtk = any(r.file_type == 'vtk' for r in s.results)
@@ -269,7 +270,8 @@ def get_simulations_api():
             "blade_name": s.blade.name if s.blade else '—',
             "created_at": s.results[0].created_at if s.results else '—',
             "status": s.status,
-            "has_vtk": has_vtk
+            "has_vtk": has_vtk,
+            "task_display": task_names.get(s.task_type, '?')
         })
     return jsonify(result)
 
