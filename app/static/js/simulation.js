@@ -1,161 +1,127 @@
 // static/js/simulation.js
 
 let currentPollInterval = null;
+let currentSimId = null;
 
-async function createSimulation(e) {
-    e.preventDefault();
-    const btn = document.getElementById('submitBtn');
-    const btnText = btn.querySelector('.btn-text');
-    const btnLoader = btn.querySelector('.btn-loader');
+// Подсказки для задач
+const taskHints = {
+    gas_dynamics: '📌 Для задачи 1 набор начальных условий должен содержать: параметры потенциального потока (beta, B), идентификатор границы (S1), хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm). Временные и тепловые параметры НЕ используются.',
+    thermal_field: '📌 Для задачи 2 набор начальных условий должен содержать: временные параметры (dt, nbT), начальную температуру материала, хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm, NSpn).',
+    thermal_stress: '📌 Для задачи 3 необходимы: временные параметры, начальная температура материала, параметры упругости (b, nu, KLT), параметры вывода напряжений (delt, Npt), конструктивные параметры сетки, хорда лопасти, идентификатор границы S1.'
+};
 
-    btn.disabled = true;
-    btnText.style.display = 'none';
-    btnLoader.style.display = 'inline-block';
+function updateTaskHint() {
+    const selected = document.querySelector('input[name="task_type"]:checked');
+    if (!selected) return;
+    const hint = taskHints[selected.value] || 'Выберите задачу';
+    const helpDiv = document.getElementById('taskHelpText');
+    if (helpDiv) helpDiv.innerHTML = hint;
+    updateObjectHint();
+}
 
-    const form = e.target;
-    const materialIds = [...document.querySelectorAll('input[name="material_ids"]:checked')].map(cb => parseInt(cb.value));
-    if (materialIds.length === 0) {
-        alert('❌ Выберите хотя бы один материал');
-        resetBtn();
-        return;
-    }
-    const bladeId = form.querySelector('[name="blade_id"]').value;
-    const assemblyId = form.querySelector('[name="assembly_id"]').value;
-    if ((bladeId && assemblyId) || (!bladeId && !assemblyId)) {
-        alert('❌ Выберите либо лопатку, либо объединение');
-        resetBtn();
-        return;
-    }
-
-    const payload = {
-        name: form.querySelector('[name="name"]').value,
-        blade_id: bladeId ? parseInt(bladeId) : null,
-        assembly_id: assemblyId ? parseInt(assemblyId) : null,
-        initial_conditions_id: parseInt(form.querySelector('[name="initial_conditions_id"]').value),
-        material_ids: materialIds,
-        tasks: [...form.querySelectorAll('input[name="tasks"]:checked')].map(cb => ({task_id: parseInt(cb.value)}))
-    };
-
+async function validateInitialConditionForTask(icId) {
+    const selectedTask = document.querySelector('input[name="task_type"]:checked');
+    if (!selectedTask) return;
+    const required = selectedTask.dataset.requires.split(',');
     try {
-        const res = await fetch('/simulation/create', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Ошибка');
-        const simId = data.id;
-        showStatusPanel(simId, payload.name);
-        pollStatus(simId);
-    } catch(e) {
-        alert('❌ Ошибка: ' + e.message);
-        resetBtn();
-    }
+        const resp = await fetch(`/initial-conditions/api/${icId}`);
+        if (!resp.ok) throw new Error('Ошибка загрузки начальных условий');
+        const data = await resp.json();
+        const missing = [];
+        if (required.includes('potential_flow') && (!data.potential_flow || Object.keys(data.potential_flow).length === 0))
+            missing.push('Параметры потенциального потока');
+        if (required.includes('boundaries') && (!data.boundaries || data.boundaries.length === 0))
+            missing.push('Идентификаторы границ');
+        if (required.includes('construction') && (!data.construction || Object.keys(data.construction).length === 0))
+            missing.push('Параметры построения сетки');
+        if (required.includes('blade_chord') && (!data.chords || data.chords.length === 0))
+            missing.push('Хорда лопасти');
+        if (required.includes('time_parameters') && (!data.time_parameters || Object.keys(data.time_parameters).length === 0))
+            missing.push('Временные параметры');
+        if (required.includes('initial_temps') && (!data.initial_temps || data.initial_temps.length === 0))
+            missing.push('Начальная температура материала');
+        if (required.includes('elasticity') && (!data.elasticity || Object.keys(data.elasticity).length === 0))
+            missing.push('Параметры упругости (b, nu, KLT)');
+        if (required.includes('stress_output') && (!data.stress_output || Object.keys(data.stress_output).length === 0))
+            missing.push('Параметры вывода напряжений (delt, Npt)');
 
-    function resetBtn() {
-        btn.disabled = false;
-        btnText.style.display = 'inline';
-        btnLoader.style.display = 'none';
-    }
-}
-
-function showStatusPanel(simId, simName) {
-    let panel = document.getElementById('simulationStatusPanel');
-    if (!panel) {
-        // создать панель, если её нет в DOM
-        panel = document.createElement('div');
-        panel.id = 'simulationStatusPanel';
-        panel.className = 'card';
-        panel.style.display = 'block';
-        panel.innerHTML = `
-            <div class="card-header">
-                <h3>Статус текущего расчёта</h3>
-            </div>
-            <div style="padding:16px 24px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
-                <div style="flex:1;">
-                    <strong id="statusSimName">—</strong>
-                    <p class="card-hint" style="margin:4px 0 0;">ID: <code id="statusSimId" class="id-badge">—</code></p>
-                </div>
-                <span id="statusBadge" class="badge badge-secondary">Ожидание</span>
-                <div style="min-width:200px; flex:2;">
-                    <div style="height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
-                        <div id="statusProgress" style="height:100%; width:0%; background:var(--accent); transition:width 0.3s;"></div>
-                    </div>
-                    <small id="statusText" style="display:block; margin-top:6px; color:var(--text-muted);">—</small>
-                </div>
-            </div>
-        `;
-        const container = document.querySelector('.main .card:first-of-type');
-        if (container && container.parentNode) {
-            container.parentNode.insertBefore(panel, container.nextSibling);
-        } else {
-            document.querySelector('.main').prepend(panel);
-        }
-    }
-    panel.style.display = 'block';
-    document.getElementById('statusSimName').innerText = simName;
-    document.getElementById('statusSimId').innerText = simId;
-    document.getElementById('statusBadge').className = 'badge badge-secondary';
-    document.getElementById('statusBadge').innerText = '⏳ Подготовка';
-    document.getElementById('statusProgress').style.width = '0%';
-    document.getElementById('statusText').innerText = 'Генерация скрипта...';
-}
-
-function pollStatus(simId) {
-    if (currentPollInterval) clearInterval(currentPollInterval);
-    currentPollInterval = setInterval(async () => {
-        try {
-            const resp = await fetch(`/simulation/${simId}/status`);
-            if (!resp.ok) throw new Error('Ошибка получения статуса');
-            const statusData = await resp.json();
-
-            // Обновляем панель
-            updateStatusPanel(statusData);
-
-            if (statusData.status === 'completed' || statusData.status === 'failed') {
-                clearInterval(currentPollInterval);
-                await loadSimulationsList();
-                if (statusData.status === 'completed') {
-                    alert('✅ Расчёт завершён! Результат появится в истории.');
-                } else {
-                    const errorMsg = statusData.error_message || 'Неизвестная ошибка';
-                    const showLog = confirm(`❌ Ошибка расчёта:\n${errorMsg}\n\nПоказать полный лог?`);
-                    if (showLog) {
-                        await fetchAndShowLog(simId);
-                    }
-                }
-                // Скрыть панель через 3 секунды
-                setTimeout(() => {
-                    const panel = document.getElementById('simulationStatusPanel');
-                    if (panel) panel.style.display = 'none';
-                }, 3000);
-
-                // Разблокировать кнопку создания
-                const btn = document.getElementById('submitBtn');
-                if (btn) {
-                    btn.disabled = false;
-                    const btnText = btn.querySelector('.btn-text');
-                    const btnLoader = btn.querySelector('.btn-loader');
-                    if (btnText) btnText.style.display = 'inline';
-                    if (btnLoader) btnLoader.style.display = 'none';
-                }
+        const helpDiv = document.getElementById('taskHelpText');
+        if (helpDiv) {
+            if (missing.length) {
+                helpDiv.innerHTML += `<br><span style="color:var(--status-err)">⚠️ В выбранном наборе отсутствуют: ${missing.join(', ')}. Расчёт может быть невозможен.</span>`;
             } else {
-                // Обновляем текст на кнопке (если нужно)
-                const btnLoader = document.querySelector('#submitBtn .btn-loader');
-                if (btnLoader) btnLoader.textContent = `⏳ ${statusData.status === 'running' ? 'Выполняется...' : statusData.status}`;
+                helpDiv.innerHTML += `<br><span style="color:var(--status-ok)">✅ Все необходимые параметры присутствуют.</span>`;
             }
-        } catch (err) {
-            console.error('Poll error:', err);
         }
-    }, 2000);
+    } catch(e) {
+        console.error('Ошибка валидации начальных условий', e);
+    }
 }
 
-function updateStatusPanel(data) {
-    const badgeElem = document.getElementById('statusBadge');
-    const progressElem = document.getElementById('statusProgress');
-    const textElem = document.getElementById('statusText');
-    if (!badgeElem) return;
+// Удаление одной симуляции
+async function deleteSimulation(simId) {
+    if (!confirm('Удалить расчёт и все связанные файлы?')) return;
+    try {
+        const res = await fetch(`/simulation/${simId}`, { method: 'DELETE' });
+        if (res.ok) {
+            alert('Расчёт удалён');
+            loadSimulationsList();
+        } else {
+            const err = await res.json();
+            alert('Ошибка: ' + err.error);
+        }
+    } catch(e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
 
+// Очистка неудачных симуляций
+async function cleanFailedSimulations() {
+    if (!confirm('Удалить все расчёты со статусом "failed"?')) return;
+    try {
+        const res = await fetch('/simulation/failed', { method: 'DELETE' });
+        if (res.ok) {
+            const data = await res.json();
+            alert(data.message);
+            loadSimulationsList();
+        } else {
+            const err = await res.json();
+            alert('Ошибка: ' + err.error);
+        }
+    } catch(e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+// Переход на страницу результатов
+function viewResults(simId) {
+    window.location.href = `/simulation/${simId}/results`;
+}
+
+// ===== ПРОГРЕСС МОДАЛЬНОЕ ОКНО =====
+function showProgressModal() {
+    const modal = document.getElementById('progressModal');
+    if (modal) modal.classList.add('active');
+    document.getElementById('progressFill').style.width = '0%';
+    document.getElementById('progressMessage').innerText = 'Подготовка...';
+    document.getElementById('progressError').style.display = 'none';
+    document.getElementById('progressShowLogBtn').style.display = 'none';
+    const badge = document.getElementById('progressStatusBadge');
+    if (badge) {
+        badge.innerText = '⏳ Ожидание';
+        badge.className = 'badge badge-secondary';
+    }
+}
+
+function closeProgressModal() {
+    const modal = document.getElementById('progressModal');
+    if (modal) modal.classList.remove('active');
+    currentSimId = null;
+}
+
+function updateProgressModal(data) {
+    const modal = document.getElementById('progressModal');
+    if (!modal || !modal.classList.contains('active')) return;
     let statusText = '', badgeClass = '', progress = data.progress || 0;
     switch (data.status) {
         case 'pending': statusText = '⏳ Ожидание'; badgeClass = 'badge-secondary'; break;
@@ -164,48 +130,98 @@ function updateStatusPanel(data) {
         case 'failed': statusText = '❌ Ошибка'; badgeClass = 'badge-danger'; break;
         default: statusText = data.status; badgeClass = 'badge-secondary';
     }
-    badgeElem.innerText = statusText;
-    badgeElem.className = `badge ${badgeClass}`;
-    if (progressElem) progressElem.style.width = `${progress}%`;
-    if (textElem) {
-        if (data.status === 'failed' && data.error_message) {
-            textElem.innerText = `⚠️ Ошибка: ${data.error_message.substring(0, 120)}`;
-        } else if (data.status === 'running') {
-            textElem.innerText = 'Выполняется FreeFEM++...';
-        } else if (data.status === 'pending') {
-            textElem.innerText = 'Подготовка скрипта...';
-        } else {
-            textElem.innerText = data.status;
-        }
+    document.getElementById('progressStatusBadge').innerText = statusText;
+    document.getElementById('progressStatusBadge').className = `badge ${badgeClass}`;
+    document.getElementById('progressFill').style.width = `${progress}%`;
+    document.getElementById('progressPercent').innerText = `${Math.round(progress)}%`;
+    if (data.status === 'running') {
+        document.getElementById('progressMessage').innerText = 'Выполняется FreeFEM++...';
+    } else if (data.status === 'pending') {
+        document.getElementById('progressMessage').innerText = 'Генерация скрипта...';
+    } else if (data.status === 'failed') {
+        let errMsg = data.error_message || 'Неизвестная ошибка';
+        document.getElementById('progressError').innerHTML = `⚠️ ${errMsg.substring(0, 200)}`;
+        document.getElementById('progressError').style.display = 'block';
+        document.getElementById('progressShowLogBtn').style.display = 'inline-block';
+    } else if (data.status === 'completed') {
+        document.getElementById('progressMessage').innerText = 'Расчёт завершён!';
+        setTimeout(() => closeProgressModal(), 2000);
     }
 }
 
-async function fetchAndShowLog(simId) {
+// ===== ЗАГРУЗКА ОБЪЕКТА (ЛОПАТКИ/ОБЪЕДИНЕНИЯ) =====
+async function loadObjectSelect() {
+    const select = document.getElementById('objectSelect');
+    if (!select) return;
     try {
-        const resp = await fetch(`/simulation/${simId}/log`);
-        if (!resp.ok) throw new Error('Лог не найден');
-        const data = await resp.json();
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay active';
-        modal.innerHTML = `
-            <div class="modal modal-lg">
-                <h3>Лог расчёта #${simId}</h3>
-                <pre style="background:#1e1e2f; color:#f8fafc; padding:16px; border-radius:8px; overflow:auto; max-height:60vh; font-family:monospace; font-size:12px; white-space:pre-wrap;">${escapeHtml(data.log)}</pre>
-                <div class="modal-actions">
-                    <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Закрыть</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.remove();
+        const [bladesRes, assembliesRes] = await Promise.all([
+            fetch('/api/blades'),
+            fetch('/api/assemblies')
+        ]);
+        const blades = bladesRes.ok ? await bladesRes.json() : [];
+        const assemblies = assembliesRes.ok ? await assembliesRes.json() : [];
+        let options = '<option value="" disabled selected>Выберите объект</option>';
+        blades.forEach(b => {
+            options += `<option value="blade_${b.blade_id}" data-type="blade" data-id="${b.blade_id}">🔹 Лопатка: ${escapeHtml(b.name)}</option>`;
         });
-    } catch (err) {
-        alert('Не удалось загрузить лог: ' + err.message);
+        assemblies.forEach(a => {
+            options += `<option value="assembly_${a.blade_assembly_id}" data-type="assembly" data-id="${a.blade_assembly_id}">🔸 Объединение: ${escapeHtml(a.name)}</option>`;
+        });
+        select.innerHTML = options;
+        updateObjectHint();
+    } catch(e) {
+        select.innerHTML = '<option value="" disabled selected>Ошибка загрузки</option>';
+        console.error(e);
     }
 }
 
-// ===== ЗАГРУЗКА ДАННЫХ =====
+function updateObjectHint() {
+    const select = document.getElementById('objectSelect');
+    const taskType = document.querySelector('input[name="task_type"]:checked');
+    if (!taskType || !select) return;
+    const small = document.getElementById('objectHint');
+    if (taskType.value === 'gas_dynamics') {
+        for (let option of select.options) {
+            if (option.value && option.value.startsWith('assembly_')) {
+                option.disabled = true;
+            } else {
+                option.disabled = false;
+            }
+        }
+        if (small) small.innerText = ' (для газодинамики доступны только лопатки)';
+        if (select.value && select.value.startsWith('assembly_')) select.value = '';
+    } else {
+        for (let option of select.options) {
+            option.disabled = false;
+        }
+        if (small) small.innerText = ' (лопатка или объединение)';
+    }
+}
+
+// ===== ЗАГРУЗКА НАЧАЛЬНЫХ УСЛОВИЙ =====
+async function loadInitialConditionsSelect() {
+    const select = document.getElementById('initial_conditions_id');
+    if (!select) return;
+    try {
+        const res = await fetch('/initial-conditions/api/list');
+        if (!res.ok) throw new Error('Ошибка загрузки');
+        const ics = await res.json();
+        if (ics.length === 0) {
+            select.innerHTML = '<option value="" disabled selected>Нет наборов</option>';
+        } else {
+            let options = '<option value="" disabled selected>Выберите набор...</option>';
+            ics.forEach(ic => {
+                options += `<option value="${ic.initial_conditions_id}">${escapeHtml(ic.name)}</option>`;
+            });
+            select.innerHTML = options;
+        }
+    } catch (e) {
+        select.innerHTML = '<option value="" disabled selected>Ошибка загрузки</option>';
+        console.error('Ошибка загрузки начальных условий:', e);
+    }
+}
+
+// ===== МАТЕРИАЛЫ (ЧЕКБОКСЫ) =====
 async function loadMaterialsCheckboxes() {
     const container = document.getElementById('materialCheckboxes');
     if (!container) return;
@@ -216,12 +232,10 @@ async function loadMaterialsCheckboxes() {
         ]);
         const elements = elementsRes.ok ? await elementsRes.json() : [];
         const alloys = alloysRes.ok ? await alloysRes.json() : [];
-
         if (elements.length === 0 && alloys.length === 0) {
             container.innerHTML = '<div class="empty-state">Материалы не найдены</div>';
             return;
         }
-
         let html = '';
         elements.forEach(el => {
             html += `
@@ -248,68 +262,7 @@ async function loadMaterialsCheckboxes() {
     }
 }
 
-async function loadBladesSelect() {
-    const bladeSelect = document.getElementById('blade_id');
-    if (!bladeSelect) return;
-    try {
-        const res = await fetch('/api/blades');
-        if (!res.ok) throw new Error('Ошибка загрузки');
-        const blades = await res.json();
-        if (blades.length === 0) {
-            bladeSelect.innerHTML = '<option value="" disabled selected>Нет лопаток</option>';
-        } else {
-            let options = '<option value="" disabled selected>Выберите лопатку...</option>';
-            blades.forEach(b => {
-                options += `<option value="${b.blade_id}">${escapeHtml(b.name)}</option>`;
-            });
-            bladeSelect.innerHTML = options;
-        }
-    } catch (e) {
-        bladeSelect.innerHTML = '<option value="" disabled selected>Ошибка загрузки</option>';
-        console.error('Ошибка загрузки лопаток:', e);
-    }
-}
-
-async function loadAssembliesSelect() {
-    const assemblySelect = document.getElementById('assembly_id');
-    if (!assemblySelect) return;
-    try {
-        const res = await fetch('/api/assemblies');
-        if (!res.ok) throw new Error('Ошибка загрузки');
-        const assemblies = await res.json();
-        let options = '<option value="" selected>Не выбрано</option>';
-        assemblies.forEach(a => {
-            options += `<option value="${a.blade_assembly_id}">${escapeHtml(a.name)}</option>`;
-        });
-        assemblySelect.innerHTML = options;
-    } catch (e) {
-        assemblySelect.innerHTML = '<option value="" selected>Не выбрано (ошибка)</option>';
-        console.error('Ошибка загрузки объединений:', e);
-    }
-}
-
-async function loadInitialConditionsSelect() {
-    const select = document.getElementById('initial_conditions_id');
-    if (!select) return;
-    try {
-        const res = await fetch('/initial-conditions/api/list');
-        if (!res.ok) throw new Error('Ошибка загрузки');
-        const ics = await res.json();
-        if (ics.length === 0) {
-            select.innerHTML = '<option value="" disabled selected>Нет наборов</option>';
-        } else {
-            let options = '<option value="" disabled selected>Выберите набор...</option>';
-            ics.forEach(ic => {
-                options += `<option value="${ic.initial_conditions_id}">${escapeHtml(ic.name)}</option>`;
-            });
-            select.innerHTML = options;
-        }
-    } catch (e) {
-        select.innerHTML = '<option value="" disabled selected>Ошибка загрузки</option>';
-        console.error('Ошибка загрузки начальных условий:', e);
-    }
-}
-
+// ===== ИСТОРИЯ РАСЧЁТОВ =====
 async function loadSimulationsList() {
     const tbody = document.getElementById('simulations-table-body');
     if (!tbody) return;
@@ -327,19 +280,16 @@ async function loadSimulationsList() {
                                 s.status === 'running' ? '<span class="badge badge-warning">⏳ Запущен</span>' :
                                 s.status === 'failed' ? '<span class="badge badge-danger">❌ Ошибка</span>' :
                                 '<span class="badge badge-secondary">' + s.status + '</span>';
-            const downloadBtn = (s.status === 'completed' && s.has_vtk) ?
-                `<a href="/simulation/${s.simulation_id}/download" class="btn-view btn-sm">📥 Скачать .vtk</a>` :
-                '<span class="badge badge-warning">⏳ Нет файла</span>';
             const logBtn = (s.status === 'failed') ?
                 `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">📄 Лог</button>` : '';
-
-            // Оборачиваем кнопки действия в контейнер
-            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">${downloadBtn} ${logBtn}</div>`;
-
+            const resultsBtn = `<button class="btn-secondary btn-sm" onclick="viewResults(${s.simulation_id})">📊 Результаты</button>`;
+            const deleteBtn = `<button class="btn-danger btn-sm" onclick="deleteSimulation(${s.simulation_id})">🗑️ Удалить</button>`;
+            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">${logBtn} ${resultsBtn} ${deleteBtn}</div>`;
             html += `
                 <tr>
                     <td><span class="id-badge">#${s.simulation_id}</span></td>
                     <td><strong>${escapeHtml(s.name)}</strong></td>
+                    <td>${s.task_display}</td>
                     <td>${escapeHtml(s.blade_name)}</td>
                     <td>${s.created_at}</td>
                     <td>${statusBadge}</td>
@@ -358,19 +308,181 @@ function refreshSimulationsList() {
     loadSimulationsList();
 }
 
-// Инициализация
+// ===== ЛОГ =====
+async function fetchAndShowLog(simId) {
+    try {
+        const resp = await fetch(`/simulation/${simId}/log`);
+        if (!resp.ok) throw new Error('Лог не найден');
+        const data = await resp.json();
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `
+            <div class="modal modal-lg">
+                <h3>Лог расчёта #${simId}</h3>
+                <pre style="background:#1e1e2f; color:#f8fafc; padding:16px; border-radius:8px; overflow:auto; max-height:60vh; font-family:monospace; font-size:12px; white-space:pre-wrap;">${escapeHtml(data.log)}</pre>
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Закрыть</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    } catch (err) {
+        alert('Не удалось загрузить лог: ' + err.message);
+    }
+}
+
+// ===== СОЗДАНИЕ СИМУЛЯЦИИ =====
+async function createSimulation(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    const btnText = btn.querySelector('.btn-text');
+    const btnLoader = btn.querySelector('.btn-loader');
+    btn.disabled = true;
+    btnText.style.display = 'none';
+    btnLoader.style.display = 'inline-block';
+
+    const form = e.target;
+    const materialIds = [...document.querySelectorAll('input[name="material_ids"]:checked')].map(cb => parseInt(cb.value));
+    if (materialIds.length === 0) {
+        alert('❌ Выберите хотя бы один материал');
+        resetBtn();
+        return;
+    }
+
+    const objectSelect = document.getElementById('objectSelect');
+    const selectedOption = objectSelect.options[objectSelect.selectedIndex];
+    if (!selectedOption || !selectedOption.value) {
+        alert('❌ Выберите объект расчёта (лопатку или объединение)');
+        resetBtn();
+        return;
+    }
+    const type = selectedOption.dataset.type;
+    const objId = parseInt(selectedOption.dataset.id);
+    let bladeId = null, assemblyId = null;
+    if (type === 'blade') bladeId = objId;
+    else assemblyId = objId;
+
+    const taskType = form.querySelector('input[name="task_type"]:checked').value;
+    if (taskType === 'gas_dynamics' && assemblyId) {
+        alert('Для газодинамики нельзя выбирать объединение, выберите конкретную лопатку');
+        resetBtn();
+        return;
+    }
+    if (taskType !== 'gas_dynamics' && !bladeId && !assemblyId) {
+        alert('Для выбранной задачи необходимо выбрать лопатку или объединение');
+        resetBtn();
+        return;
+    }
+
+    const payload = {
+        name: form.querySelector('[name="name"]').value,
+        blade_id: bladeId,
+        assembly_id: assemblyId,
+        initial_conditions_id: parseInt(form.querySelector('[name="initial_conditions_id"]').value),
+        material_ids: materialIds,
+        task_type: taskType
+    };
+
+    try {
+        const res = await fetch('/simulation/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Ошибка');
+        const simId = data.id;
+        currentSimId = simId;
+        showProgressModal();
+        pollStatus(simId);
+    } catch(e) {
+        alert('❌ Ошибка: ' + e.message);
+        resetBtn();
+    }
+
+    function resetBtn() {
+        btn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoader.style.display = 'none';
+    }
+}
+
+// ===== ОПРОС СТАТУСА =====
+function pollStatus(simId) {
+    if (currentPollInterval) clearInterval(currentPollInterval);
+    currentPollInterval = setInterval(async () => {
+        try {
+            const resp = await fetch(`/simulation/${simId}/status`);
+            if (!resp.ok) throw new Error('Ошибка получения статуса');
+            const statusData = await resp.json();
+            updateProgressModal(statusData);
+            if (statusData.status === 'completed' || statusData.status === 'failed') {
+                clearInterval(currentPollInterval);
+                await loadSimulationsList();
+                if (statusData.status === 'completed') {
+                    // Модалка закроется автоматически через 2 секунды
+                } else {
+                    const errorMsg = statusData.error_message || 'Неизвестная ошибка';
+                    const showLog = confirm(`❌ Ошибка расчёта:\n${errorMsg}\n\nПоказать полный лог?`);
+                    if (showLog) {
+                        await fetchAndShowLog(simId);
+                    }
+                    setTimeout(() => closeProgressModal(), 5000);
+                }
+                const btn = document.getElementById('submitBtn');
+                if (btn) {
+                    btn.disabled = false;
+                    const btnText = btn.querySelector('.btn-text');
+                    const btnLoader = btn.querySelector('.btn-loader');
+                    if (btnText) btnText.style.display = 'inline';
+                    if (btnLoader) btnLoader.style.display = 'none';
+                }
+            }
+        } catch (err) {
+            console.error('Poll error:', err);
+        }
+    }, 2000);
+}
+
+// ===== ОБРАБОТЧИКИ И ИНИЦИАЛИЗАЦИЯ =====
+function setupEventListeners() {
+    document.querySelectorAll('input[name="task_type"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            updateTaskHint();
+            const icSelect = document.getElementById('initial_conditions_id');
+            if (icSelect && icSelect.value) validateInitialConditionForTask(icSelect.value);
+            const objectSelect = document.getElementById('objectSelect');
+            if (objectSelect) updateObjectHint();
+        });
+    });
+    const icSelect = document.getElementById('initial_conditions_id');
+    if (icSelect) {
+        icSelect.addEventListener('change', (e) => {
+            if (e.target.value) validateInitialConditionForTask(e.target.value);
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadMaterialsCheckboxes();
-    loadBladesSelect();
-    loadAssembliesSelect();
+    loadObjectSelect();
     loadInitialConditionsSelect();
     loadSimulationsList();
-
+    setupEventListeners();
     const form = document.getElementById('simForm');
     if (form) form.onsubmit = createSimulation;
+    // Глобальные функции для onclick
+    window.deleteSimulation = deleteSimulation;
+    window.cleanFailedSimulations = cleanFailedSimulations;
+    window.viewResults = viewResults;
+    window.fetchAndShowLog = fetchAndShowLog;
+    window.closeProgressModal = closeProgressModal;
 });
 
-// escapeHtml глобально
+// escapeHtml
 if (typeof escapeHtml !== 'function') {
     window.escapeHtml = function(text) {
         if (!text) return '';
@@ -379,6 +491,3 @@ if (typeof escapeHtml !== 'function') {
         return div.innerHTML;
     };
 }
-
-// Делаем fetchAndShowLog глобальной, чтобы вызывать из onclick
-window.fetchAndShowLog = fetchAndShowLog;

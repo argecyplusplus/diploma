@@ -1,19 +1,22 @@
 import os
 import subprocess
 import threading
-import re
+import traceback
+import matplotlib.pyplot as plt
+import numpy as np
 from pathlib import Path
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from ..repositories.simulation_repository import SimulationRepository
-from ..dto.simulation_dto import SimulationCreateRequest, InitialConditionCreateRequest
+from ..dto.simulation_dto import SimulationCreateRequest, InitialConditionCreateRequest, TaskType
 from ..models.simulation import (
     Simulation, InitialCondition, ConstructionParameter, PotentialFlowParameter,
-    BoundaryIdentifier, BladeChord, TimeParameter
+    BoundaryIdentifier, BladeChord, TimeParameter, InitialTemperature,
+    ElasticityParameter, StressOutputParameter
 )
-from ..models.blade import Approximation, LegendreCoefficient
-from ..models.material import Material
+from ..models.blade import Approximation, LegendreCoefficient, BladeAssembly
+from ..models.material import Material, ElValue
 from ..utils.database import get_db_session
 
 logger = logging.getLogger(__name__)
@@ -40,24 +43,53 @@ class SimulationService:
             return {"error": "Not found"}
         return {"status": sim.status, "progress": getattr(sim, 'progress', 0)}
 
-    def create_simulation(self, data: SimulationCreateRequest) -> int:
-        # Проверка: ровно один из id должен быть указан
-        if (data.blade_id is None and data.assembly_id is None) or \
-                (data.blade_id is not None and data.assembly_id is not None):
-            raise ValueError("Должна быть указана либо лопатка, либо объединение, но не оба")
+    def create_simulation(self, data: SimulationCreateRequest):
+        # Валидация: газодинамика требует только blade_id, запрещён assembly
+        if data.task_type == TaskType.GAS_DYNAMICS:
+            if data.assembly_id is not None or data.blade_id is None:
+                raise ValueError(
+                    "Для газодинамики необходимо указать конкретную лопатку (blade_id), assembly_id не допускается")
+        else:
+            # Для thermal_field и thermal_stress: должен быть либо blade, либо assembly
+            if data.blade_id is None and data.assembly_id is None:
+                raise ValueError("Для этой задачи выберите лопатку или объединение")
 
-        sim_data = data.model_dump(exclude={'tasks', 'material_ids'})
-        sim_data = {k: v for k, v in sim_data.items() if v is not None}
-        if 'assembly_id' in sim_data:
-            sim_data['blade_assembly_id'] = sim_data.pop('assembly_id')
+        # Если выбран assembly (и задача не газодинамика) — создаём отдельную симуляцию для каждой лопатки
+        if data.assembly_id is not None and data.task_type != TaskType.GAS_DYNAMICS:
+            assembly = self.session.get(BladeAssembly, data.assembly_id)
+            if not assembly or not assembly.members:
+                raise ValueError("Объединение не содержит лопаток")
+            created_ids = []
+            for member in assembly.members:
+                blade = member.blade
+                if not blade:
+                    continue
+                single_data = data.model_copy(deep=True)
+                single_data.assembly_id = None
+                single_data.blade_id = blade.blade_id
+                sim_id = self._create_single_simulation(single_data)
+                created_ids.append(sim_id)
 
-        # Устанавливаем начальный статус
-        sim_data['status'] = 'pending'
+            if not created_ids:
+                raise ValueError("Не удалось создать симуляции")
+            return created_ids[0]
+
+        else:
+            return self._create_single_simulation(data)
+
+    def _create_single_simulation(self, data: SimulationCreateRequest) -> int:
+        sim_data = {
+            'name': data.name,
+            'blade_id': data.blade_id,
+            'blade_assembly_id': data.assembly_id,
+            'initial_conditions_id': data.initial_conditions_id,
+            'task_type': data.task_type.value,
+            'status': 'pending'
+        }
         sim = self.repo.create(**sim_data)
         sim_id = sim.simulation_id
         self.repo.add_materials(sim_id, data.material_ids)
-        self.repo.add_tasks(sim_id, [t.model_dump() for t in data.tasks])
-        self.session.commit()  # фиксируем запись до генерации
+        self.session.commit()
 
         sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
         os.makedirs(sim_dir, exist_ok=True)
@@ -66,14 +98,12 @@ class SimulationService:
         try:
             self._generate_freefem_code(sim_id, sim_dir, edp_path)
         except Exception as e:
-            # Ошибка генерации скрипта → сохраняем сообщение и помечаем как failed
+            logger.error(traceback.format_exc())
             sim.status = 'failed'
             sim.error_message = f"Ошибка генерации .edp: {str(e)}"
             self.session.commit()
-            # Возвращаем ID, клиент увидит в статусе failed
             return sim_id
 
-        # Запускаем фоновый поток
         thread = threading.Thread(target=self._run_simulation_background,
                                   args=(sim_id, edp_path, sim_dir),
                                   daemon=True)
@@ -98,7 +128,6 @@ class SimulationService:
 
             result = self._run_freefem(edp_path, sim_dir)
 
-            # Сохраняем лог
             log_path = os.path.join(sim_dir, "console.log")
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.write(result.get('stdout', '') + '\n--- STDERR ---\n' + result.get('stderr', ''))
@@ -112,6 +141,13 @@ class SimulationService:
                 vtk_path = os.path.join(sim_dir, "result.vtk")
                 if os.path.exists(vtk_path):
                     repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
+
+                # Сохраняем CSV-файлы для задачи 3 (тепло+напряжения)
+                if sim.task_type == TaskType.THERMAL_STRESS.value:
+                    for csv_file in ["Profout.csv", "TSout.csv", "TEpsout.csv"]:
+                        csv_path = os.path.join(sim_dir, csv_file)
+                        if os.path.exists(csv_path):
+                            repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
             else:
                 sim.status = "failed"
                 sim.error_message = result.get('stderr') or result.get('error') or "FreeFEM завершился с ошибкой"
@@ -130,47 +166,26 @@ class SimulationService:
     def get_simulations_list(self):
         return self.repo.get_all_simulations()
 
-    # ========================================================================
-    # 🔧 Внутренние методы генерации и запуска (без изменений, но модифицируем _generate_freefem_code для проверки blade_id)
-    # ========================================================================
-
     def _generate_freefem_code(self, sim_id: int, sim_dir: str, edp_path: str):
         sim = self.session.get(Simulation, sim_id)
         if not sim.blade_id:
-            raise ValueError(
-                "Для моделирования необходимо выбрать конкретную лопатку (аппроксимация привязана к лопатке)")
+            raise ValueError("Для моделирования необходима лопатка (аппроксимация привязана к лопатке)")
+
         ic_id = sim.initial_conditions_id
+        task_type = TaskType(sim.task_type)
 
-        # 1. Получаем все необходимые параметры из БД
-        const_params = self.session.scalar(
-            select(ConstructionParameter).where(ConstructionParameter.initial_conditions_id == ic_id))
-        flow_params = self.session.scalar(
-            select(PotentialFlowParameter).where(PotentialFlowParameter.initial_conditions_id == ic_id))
-        time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
-        boundary = self.session.scalar(
-            select(BoundaryIdentifier).where(BoundaryIdentifier.initial_conditions_id == ic_id))
-        chord = self.session.scalar(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id))
-
-        # 2. Материал (берём первый из связанных)
-        first_mat_id = sim.materials[0].material_id if sim.materials else None
-        material = self.session.get(Material, first_mat_id)
-        rho = material.density if material else 1.0
-
-        # 3. Аппроксимация и коэффициенты Лежандра
+        # --- Коэффициенты Лежандра (общее) ---
         approx = self.session.scalar(
             select(Approximation).where(Approximation.blade_id == sim.blade_id)
             .order_by(Approximation.approximation_id.desc()))
         if not approx:
-            raise ValueError(
-                "Для выбранной лопатки не выполнена аппроксимация. Запустите аппроксимацию перед моделированием.")
-
+            raise ValueError("Для выбранной лопатки не выполнена аппроксимация.")
         coeffs = self.session.scalars(
             select(LegendreCoefficient).where(LegendreCoefficient.approximation_id == approx.approximation_id)
             .order_by(LegendreCoefficient.legendre_coefficients_id)).all()
         if len(coeffs) < 10:
             raise ValueError("Недостаточно коэффициентов Лежандра (ожидается 10).")
 
-        # 4. Сохраняем коэффициенты в CSV-файл (как требует шаблон)
         coeffs_csv = os.path.join(sim_dir, "out_L_blade.csv")
         with open(coeffs_csv, 'w', encoding='utf-8') as f:
             upper_vals = [f"{c.upper_value:.15e}" for c in coeffs]
@@ -178,37 +193,99 @@ class SimulationService:
             f.write(" ".join(upper_vals) + "\n")
             f.write(" ".join(lower_vals) + "\n")
 
-        # 5. Загружаем шаблон
-        template_path = Path(__file__).parent.parent / "templates" / "blade_sim.edp.template"
+        # --- Загрузка общих параметров начальных условий ---
+        chord = self.session.scalar(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id))
+        constr = self.session.scalar(
+            select(ConstructionParameter).where(ConstructionParameter.initial_conditions_id == ic_id))
+        boundary = self.session.scalar(
+            select(BoundaryIdentifier).where(BoundaryIdentifier.initial_conditions_id == ic_id))
+        flow = self.session.scalar(
+            select(PotentialFlowParameter).where(PotentialFlowParameter.initial_conditions_id == ic_id))
+
+        # Базовые замены (общие для всех задач)
+        replacements = {
+            "Chord1": str(chord.value if chord else 1.0),
+            "S1": str(boundary.value if boundary else 100),
+            "beta": str(flow.beta if flow else 0.0),
+            "B": str(flow.B if flow else 1.0),
+            "NC": str(constr.NC if constr and constr.NC > 0 else 50),
+            "NSp": str(constr.NSp if constr and constr.NSp > 0 else 50),
+            "NSm": str(constr.NSm if constr and constr.NSm > 0 else 50),
+            "NSpm": str(constr.NSpm if constr and constr.NSpm > 0 else 20),
+            "NSpn": str(constr.NSpn if constr and constr.NSpn > 0 else 10),
+            "rho": str(sim.materials[0].material.density if sim.materials else 1.0),
+        }
+
+        # --- Выбор шаблона и дополнительные параметры ---
+        if task_type == TaskType.GAS_DYNAMICS:
+            template_name = "gas_dynamics.edp.template"
+
+        elif task_type == TaskType.THERMAL_FIELD:
+            template_name = "thermal_field.edp.template"
+            time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
+            init_temp = self.session.scalar(
+                select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
+            material = sim.materials[0].material if sim.materials else None
+            k_steel = material.thermal_conductivity if material and material.thermal_conductivity else 0.1
+            replacements.update({
+                "dt": str(time_params.dt if time_params else 0.05),
+                "nbT": str(time_params.nbT if time_params else 25),
+                "T_initial": str(init_temp.value if init_temp else 250),
+                "ksteel": str(k_steel),
+                "kair": "0.01",
+            })
+
+        elif task_type == TaskType.THERMAL_STRESS:
+            template_name = "thermal_stress.edp.template"
+            time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
+            init_temp = self.session.scalar(
+                select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
+            elastic = self.session.scalar(
+                select(ElasticityParameter).where(ElasticityParameter.initial_conditions_id == ic_id))
+            stress_out = self.session.scalar(
+                select(StressOutputParameter).where(StressOutputParameter.initial_conditions_id == ic_id))
+            # Модуль Юнга для материала лопатки
+            material = sim.materials[0].material if sim.materials else None
+            ei_value = None
+            if elastic and material:
+                ei_value = self.session.scalar(
+                    select(ElValue).where(
+                        ElValue.elasticity_parameters_id == elastic.elasticity_parameters_id,
+                        ElValue.material_id == material.material_id
+                    )
+                )
+            E_steel = ei_value.value if ei_value else 2.1e5
+            replacements.update({
+                "dt": str(time_params.dt if time_params else 0.05),
+                "nbT": str(time_params.nbT if time_params else 25),
+                "T_initial": str(init_temp.value if init_temp else 250),
+                "a_steel": "12.54",
+                "a_air": "21.02",
+                "b": str(elastic.b if elastic else 1.0),
+                "nu": str(elastic.nu if elastic else 0.28),
+                "KLT": str(elastic.KLT if elastic else 10.5e-6),
+                "E_steel": str(E_steel),
+                "delt": str(stress_out.delt if stress_out else 0.4),
+                "Npt": str(stress_out.Npt if stress_out else 200),
+            })
+
+        else:
+            raise ValueError(f"Неподдерживаемый тип задачи: {task_type}")
+
+        template_path = Path(__file__).parent.parent / "templates" / template_name
+        if not template_path.exists():
+            raise FileNotFoundError(f"Шаблон {template_name} не найден в templates/")
         with open(template_path, 'r', encoding='utf-8') as f:
             template = f.read()
 
-        # 6. Заменяем параметры
-        replacements = {
-            "{{S1}}": str(boundary.value if boundary else 100),
-            "{{Chord1}}": str(chord.value if chord else 1.0),
-            "{{beta}}": str(flow_params.beta if flow_params else 0.0),
-            "{{B}}": str(flow_params.B if flow_params else 1.0),
-            "{{rho}}": str(rho),
-            "{{NC}}": str(const_params.NC if const_params else 50),
-            "{{NSp}}": str(const_params.NSp if const_params else 50),
-            "{{NSm}}": str(const_params.NSm if const_params else 50),
-            "{{NSpm}}": str(const_params.NSpm if const_params else 20),
-            "{{NSpn}}": str(const_params.NSpn if const_params else 10),
-            "{{dt}}": str(time_params.dt if time_params else 0.1),
-            "{{nbT}}": str(time_params.nbT if time_params else 100),
-        }
-
         script = template
         for key, val in replacements.items():
-            script = script.replace(key, val)
+            script = script.replace(f"{{{{{key}}}}}", str(val))
 
-        # 7. Сохраняем финальный .edp файл
         with open(edp_path, 'w', encoding='utf-8') as f:
             f.write(script)
 
-        logger.info(f"📝 Скрипт FreeFEM++ сохранён: {edp_path}")
-        logger.info(f"📝 Коэффициенты Лежандра сохранены в: {coeffs_csv}")
+        logger.info(f"Скрипт {task_type.value} сохранён: {edp_path}")
 
     def _run_freefem(self, edp_path: str, work_dir: str) -> dict:
         ff_path = os.getenv("FREEFEM_PATH", "FreeFem++")
@@ -242,3 +319,150 @@ class SimulationService:
         ic = self.session.get(InitialCondition, ic_id)
         if ic:
             self.session.delete(ic)
+
+    def delete_simulation(self, sim_id: int):
+        """Удаляет симуляцию из БД и её папку с файлами"""
+        sim = self.session.get(Simulation, sim_id)
+        if not sim:
+            raise ValueError("Симуляция не найдена")
+        # Удаляем папку с файлами
+        sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
+        if os.path.exists(sim_dir):
+            import shutil
+            shutil.rmtree(sim_dir)
+        # Удаляем запись из БД (каскадное удаление результатов)
+        self.session.delete(sim)
+
+    def delete_failed_simulations(self) -> int:
+        """Удаляет все симуляции со статусом 'failed'"""
+        stmt = select(Simulation).where(Simulation.status == 'failed')
+        failed_sims = self.session.scalars(stmt).all()
+        count = 0
+        for sim in failed_sims:
+            sim_dir = os.path.join(self.upload_dir, f"sim_{sim.simulation_id}")
+            if os.path.exists(sim_dir):
+                import shutil
+                shutil.rmtree(sim_dir)
+            self.session.delete(sim)
+            count += 1
+        return count
+
+    def generate_plots(self, sim_id: int) -> dict:
+        """Генерирует графики для задачи 3 на основе CSV-файлов и конвертирует все EPS"""
+        import numpy as np
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        from io import BytesIO
+        import base64
+        from numpy.linalg import eig
+
+        sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
+
+        def mizes2(tensor):
+            eig_vals, _ = eig(tensor)
+            miz = np.sqrt(((eig_vals[0] - eig_vals[1])**2)/2)
+            return np.hstack((eig_vals, miz))
+
+        def calc_eigMiz(data_select):
+            eigMiz = np.zeros((np.shape(data_select)[0], 3))
+            for i in range(np.shape(data_select)[0]):
+                T_mat = np.array([[data_select[i, 0], data_select[i, 1]], [data_select[i, 1], data_select[i, 2]]])
+                eigMiz[i] = mizes2(T_mat)
+            return eigMiz
+
+        plots = {}
+
+        # Профиль лопатки (Profout.csv)
+        prof_path = os.path.join(sim_dir, "Profout.csv")
+        if os.path.exists(prof_path):
+            data = np.loadtxt(prof_path)
+            plt.figure(figsize=(8, 5))
+            plt.plot(data[:,0], data[:,1], 'b-', label='Спинка')
+            plt.plot(data[:,0], data[:,2], 'b-', label='Корытце')
+            plt.plot(data[:,3], data[:,4], 'r-', label='Спинка смещ.')
+            plt.plot(data[:,3], data[:,5], 'r-', label='Корытце смещ.')
+            plt.xlabel('X, мм')
+            plt.ylabel('Y, мм')
+            plt.title('Профиль лопатки')
+            plt.legend()
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['profile'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+        # Температура и деформации/напряжения – используем TEpsout.csv и TSout.csv
+        eps_path = os.path.join(sim_dir, "TEpsout.csv")
+        stress_path = os.path.join(sim_dir, "TSout.csv")
+        if os.path.exists(eps_path):
+            data = np.loadtxt(eps_path)
+            data_select_up = data[:, 3:6]
+            epseig_up = calc_eigMiz(data_select_up)[:, 2]
+            data_select_lw = data[:, 8:11]
+            epseig_lw = calc_eigMiz(data_select_lw)[:, 2]
+            x_coords = data[:, 0]
+
+            plt.figure(figsize=(8, 5))
+            plt.plot(x_coords, epseig_up * 100, 'ro-', label='Спинка (деформация Мизеса, %)')
+            plt.plot(x_coords, epseig_lw * 100, 'bo-', label='Корытце (деформация Мизеса, %)')
+            plt.xlabel('X, мм')
+            plt.ylabel('Деформация, %')
+            plt.title('Эквивалентная деформация Мизеса')
+            plt.legend()
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['mises_strain'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+            # Температура
+            plt.figure(figsize=(8, 5))
+            plt.plot(x_coords, data[:, 2], 'r-', label='Спинка')
+            plt.plot(x_coords, data[:, 7], 'b-', label='Корытце')
+            plt.xlabel('X, мм')
+            plt.ylabel('Температура, °C')
+            plt.title('Распределение температуры по поверхности лопатки')
+            plt.legend()
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['temperature'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+        if os.path.exists(stress_path):
+            data = np.loadtxt(stress_path)
+            data_select_up = data[:, 3:6]
+            streig_up = calc_eigMiz(data_select_up)[:, 2]
+            data_select_lw = data[:, 8:11]
+            streig_lw = calc_eigMiz(data_select_lw)[:, 2]
+            x_coords = data[:, 0]
+
+            plt.figure(figsize=(8, 5))
+            plt.plot(x_coords, streig_up, 'ro-', label='Спинка (напряжение Мизеса, МПа)')
+            plt.plot(x_coords, streig_lw, 'bo-', label='Корытце (напряжение Мизеса, МПа)')
+            plt.xlabel('X, мм')
+            plt.ylabel('Напряжение, МПа')
+            plt.title('Эквивалентное напряжение Мизеса')
+            plt.legend()
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['mises_stress'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+
+        # Конвертация EPS-графиков FreeFEM
+        import glob
+        eps_files = glob.glob(os.path.join(sim_dir, "*.eps"))
+        for eps_file in eps_files:
+            try:
+                from PIL import Image
+                img = Image.open(eps_file)
+                buf = BytesIO()
+                img.save(buf, format='PNG')
+                buf.seek(0)
+                key = os.path.basename(eps_file).replace('.eps', '')
+                plots[key] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            except Exception as e:
+                logger.warning(f"Не удалось конвертировать {eps_file}: {e}")
+        return plots

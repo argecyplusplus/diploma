@@ -22,6 +22,7 @@ class Simulation(Base):
     status = Column(Text, nullable=False, default="created")  # created, queued, running, completed, failed
     progress = Column(Integer, nullable=False, default=0)  # 0..100, опционально
     error_message = Column(Text, nullable=True)
+    task_type = Column(Text, nullable=False, default="gas_dynamics")
 
     # Внешние ключи
     blade_assembly_id = Column(
@@ -44,7 +45,7 @@ class Simulation(Base):
     # Отношения (Relationships)
     assembly = relationship("BladeAssembly", back_populates="simulations")
     blade = relationship("Blade", back_populates="simulations")
-    initial_conditions = relationship("InitialCondition", back_populates="simulations", cascade="all, delete")
+    initial_conditions = relationship("InitialCondition", back_populates="simulations")
 
     # Связи с дочерними таблицами (задачи и результаты)
     tasks = relationship("SimulationTask", back_populates="simulation", cascade="all, delete-orphan")

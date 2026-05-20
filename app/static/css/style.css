@@ -716,3 +716,36 @@ body {
     outline: 2px solid #ef4444;
     outline-offset: 2px;
 }
+/* Модальное окно прогресса */
+#progressModal .modal {
+    text-align: center;
+}
+#progressError {
+    font-size: 0.8125rem;
+    word-break: break-word;
+}
+/* Кнопка очистки неудачных */
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    border-radius: var(--radius);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.btn-outline:hover {
+    background: #f3f4f6;
+    border-color: var(--status-warn);
+    color: var(--status-warn);
+}
+/* Таблица – кнопки действий */
+.table-actions button {
+    white-space: nowrap;
+}
+.task-radio-group-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+}

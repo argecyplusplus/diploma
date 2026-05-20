@@ -89,10 +89,13 @@ def get_coordinates(blade_id):
         print(f"ERROR in get_coordinates: {e}")
         return jsonify({"error": str(e)}), 500
 
+
 @blade_bp.route('/<int:blade_id>/coordinates', methods=['POST'])
 def add_coordinates(blade_id):
     try:
         json_data = request.json
+        get_service().clear_coordinates(blade_id)
+
         if isinstance(json_data, list):
             dtos = [ProfileCoordinateRequest(**item) for item in json_data]
             saved = get_service().bulk_add_coordinates(blade_id, dtos)

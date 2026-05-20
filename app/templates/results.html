@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Результаты расчёта #{{ simulation_id }} — FF Pro{% endblock %}
+{% block content %}
+<div class="section-header">
+    <div>
+        <h2 class="page-title">Результаты расчёта #{{ simulation_id }}</h2>
+        <p class="page-subtitle">{{ simulation_name }}</p>
+    </div>
+    <div class="header-actions">
+        <a href="/simulation" class="btn-secondary">← К списку расчётов</a>
+    </div>
+</div>
+
+<!-- Блок скачивания файлов -->
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <h3>Файлы результатов</h3>
+    </div>
+    <div id="filesContent" style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+        <div class="status-message">Загрузка списка файлов...</div>
+    </div>
+</div>
+
+<!-- Блок графиков -->
+<div class="card">
+    <div class="card-header">
+        <h3>Графики расчёта</h3>
+    </div>
+    <div id="plotsContent" style="padding: 20px;"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/results.js') }}"></script>
+{% endblock %}

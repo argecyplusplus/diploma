@@ -30,24 +30,40 @@
                        style="font-family:var(--font-mono);">
             </div>
 
+            <!-- Задачи расчёта (перенесены вверх) -->
+            <div class="form-group">
+                <label>Физическая задача</label>
+                <div class="task-radio-group-vertical">
+                    <label>
+                        <input type="radio" name="task_type" value="gas_dynamics" data-requires="potential_flow,boundaries,construction,blade_chord" checked>
+                        <strong>🌪️ 1. Моделирование газодинамики и параметров поверхности лопатки</strong>
+                        <small>(только лопатка)</small>
+                    </label>
+                    <label>
+                        <input type="radio" name="task_type" value="thermal_field" data-requires="time_parameters,initial_temps,construction,blade_chord">
+                        <strong>🌡️ 2. Моделирование теплового поля на поверхности лопатки</strong>
+                        <small>(лопатка или объединение)</small>
+                    </label>
+                    <label>
+                        <input type="radio" name="task_type" value="thermal_stress" data-requires="time_parameters,initial_temps,elasticity,stress_output,construction,blade_chord">
+                        <strong>🔧 3. Моделирование распределения напряжений на поверхности лопатки</strong>
+                        <small>(лопатка или объединение)</small>
+                    </label>
+                </div>
+                <div id="taskHelpText" class="card-hint" style="margin-top: 8px; padding: 8px; background: #f8fafc; border-left: 3px solid var(--accent);">
+                    📌 Выберите задачу, чтобы увидеть требования к начальным условиям.
+                </div>
+            </div>
+
             <!-- Выбор геометрии: лопатка ИЛИ объединение -->
             <div class="form-section">
                 <h4>Объект расчёта</h4>
-                <div class="form-grid" style="padding:0; background:transparent; margin:0;">
-                    <div class="form-group">
-                        <label for="blade_id">Лопатка</label>
-                        <select id="blade_id" name="blade_id">
-                            <option value="" disabled selected>Загрузка списка...</option>
-                        </select>
-                        <small>Выберите один профиль</small>
-                    </div>
-                    <div class="form-group">
-                        <label for="assembly_id">Объединение (опционально)</label>
-                        <select id="assembly_id" name="assembly_id">
-                            <option value="" selected>— Не выбрано —</option>
-                        </select>
-                        <small>Или группа лопаток для пакетного расчёта</small>
-                    </div>
+                <div class="form-group">
+                    <label for="objectSelect">Выберите лопатку или объединение</label>
+                    <select id="objectSelect" name="object_id" required>
+                        <option value="" disabled selected>Загрузка списка...</option>
+                    </select>
+                    <small id="objectHint"></small>
                 </div>
             </div>
 
@@ -70,33 +86,6 @@
                 </div>
             </div>
 
-            <!-- Задачи расчёта -->
-            <div class="form-group">
-                <label>Физические задачи</label>
-                <div class="task-grid">
-                    <label class="task-card">
-                        <input type="checkbox" name="tasks" value="1" checked>
-                        <div class="task-content">
-                            <strong>🌪️ Газодинамика</strong>
-                        </div>
-                    </label>
-                    <label class="task-card">
-                        <input type="checkbox" name="tasks" value="2" checked>
-                        <div class="task-content">
-                            <strong>🌡️ Температурное поле</strong>
-                        </div>
-                    </label>
-                    <label class="task-card">
-                        <input type="checkbox" name="tasks" value="3" checked>
-                        <div class="task-content">
-                            <strong>🔩 Напряжения</strong>
-                        </div>
-                    </label>
-                </div>
-            </div>
-
-        </div>
-
         <!-- Кнопка запуска с индикатором -->
         <div class="form-actions">
             <button type="submit" id="submitBtn" class="btn-primary btn-lg" style="min-width:240px;">
@@ -110,9 +99,11 @@
 <!-- ================= ИСТОРИЯ РАСЧЁТОВ ================= -->
 <div class="section-header section-header-top">
     <h2 class="page-title">История расчётов</h2>
-    <button class="btn-secondary" onclick="refreshSimulationsList()">🔄 Обновить</button>
+    <div class="header-actions">
+        <button class="btn-outline" onclick="cleanFailedSimulations()">🧹 Очистить неудачные</button>
+        <button class="btn-secondary" onclick="refreshSimulationsList()">🔄 Обновить</button>
+    </div>
 </div>
-
 <div class="card">
     <div class="table-wrapper">
         <table class="data-table">
@@ -120,6 +111,7 @@
                 <tr>
                     <th style="width:70px">ID</th>
                     <th>Название</th>
+                    <th style="width:60px">Задача</th>
                     <th>Объект</th>
                     <th style="width:140px">Дата</th>
                     <th style="width:130px">Статус</th>
@@ -152,7 +144,32 @@
         </div>
     </div>
 </div>
-
+<!-- Модальное окно прогресса -->
+<div id="progressModal" class="modal-overlay">
+    <div class="modal modal-lg" style="max-width: 500px;">
+        <h3>Выполняется расчёт</h3>
+        <div style="margin: 20px 0;">
+            <div id="progressStatusBadge" class="badge badge-secondary">⏳ Ожидание</div>
+            <div style="margin: 12px 0;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span>Прогресс:</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                    <div id="progressFill" style="width: 0%; height: 100%; background: var(--accent); transition: width 0.3s;"></div>
+                </div>
+            </div>
+            <div id="progressMessage" style="font-size: 0.875rem; color: var(--text-muted);">Подготовка...</div>
+            <div id="progressError" style="display: none; margin-top: 12px; padding: 8px; background: #fef2f2; border-left: 3px solid var(--status-err); font-size: 0.8125rem;"></div>
+            <div style="margin-top: 16px; text-align: center;">
+                <button id="progressShowLogBtn" class="btn-secondary btn-sm" style="display: none;" onclick="fetchAndShowLog(currentSimId)">📄 Показать лог</button>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeProgressModal()">Закрыть</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
