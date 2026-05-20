@@ -13,10 +13,10 @@ from ..dto.simulation_dto import SimulationCreateRequest, InitialConditionCreate
 from ..models.simulation import (
     Simulation, InitialCondition, ConstructionParameter, PotentialFlowParameter,
     BoundaryIdentifier, BladeChord, TimeParameter, InitialTemperature,
-    ElasticityParameter, StressOutputParameter          # добавлены
+    ElasticityParameter, StressOutputParameter
 )
 from ..models.blade import Approximation, LegendreCoefficient, BladeAssembly
-from ..models.material import Material, ElValue          # добавлен ElValue
+from ..models.material import Material, ElValue
 from ..utils.database import get_db_session
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class SimulationService:
                 raise ValueError(
                     "Для газодинамики необходимо указать конкретную лопатку (blade_id), assembly_id не допускается")
         else:
-            # Для thermal и thermal_stress: должен быть либо blade, либо assembly
+            # Для thermal_field и thermal_stress: должен быть либо blade, либо assembly
             if data.blade_id is None and data.assembly_id is None:
                 raise ValueError("Для этой задачи выберите лопатку или объединение")
 
@@ -142,11 +142,12 @@ class SimulationService:
                 if os.path.exists(vtk_path):
                     repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
 
-                # Сохраняем CSV-файлы для задачи 3
-                for csv_file in ["Profout.csv", "TSout.csv", "TEpsout.csv"]:
-                    csv_path = os.path.join(sim_dir, csv_file)
-                    if os.path.exists(csv_path):
-                        repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
+                # Сохраняем CSV-файлы для задачи 3 (тепло+напряжения)
+                if sim.task_type == TaskType.THERMAL_STRESS.value:
+                    for csv_file in ["Profout.csv", "TSout.csv", "TEpsout.csv"]:
+                        csv_path = os.path.join(sim_dir, csv_file)
+                        if os.path.exists(csv_path):
+                            repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
             else:
                 sim.status = "failed"
                 sim.error_message = result.get('stderr') or result.get('error') or "FreeFEM завершился с ошибкой"
@@ -218,20 +219,22 @@ class SimulationService:
         # --- Выбор шаблона и дополнительные параметры ---
         if task_type == TaskType.GAS_DYNAMICS:
             template_name = "gas_dynamics.edp.template"
-        elif task_type == TaskType.THERMAL:
-            template_name = "thermal_combined.edp.template"
+
+        elif task_type == TaskType.THERMAL_FIELD:
+            template_name = "thermal_field.edp.template"
             time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
             init_temp = self.session.scalar(
                 select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
             material = sim.materials[0].material if sim.materials else None
             k_steel = material.thermal_conductivity if material and material.thermal_conductivity else 0.1
             replacements.update({
-                "dt": str(time_params.dt if time_params else 0.1),
-                "nbT": str(time_params.nbT if time_params else 100),
-                "T_initial": str(init_temp.value if init_temp else 400),
-                "k_air": "0.01",
-                "k_steel": str(k_steel),
+                "dt": str(time_params.dt if time_params else 0.05),
+                "nbT": str(time_params.nbT if time_params else 25),
+                "T_initial": str(init_temp.value if init_temp else 250),
+                "ksteel": str(k_steel),
+                "kair": "0.01",
             })
+
         elif task_type == TaskType.THERMAL_STRESS:
             template_name = "thermal_stress.edp.template"
             time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
@@ -265,6 +268,7 @@ class SimulationService:
                 "delt": str(stress_out.delt if stress_out else 0.4),
                 "Npt": str(stress_out.Npt if stress_out else 200),
             })
+
         else:
             raise ValueError(f"Неподдерживаемый тип задачи: {task_type}")
 
@@ -273,13 +277,8 @@ class SimulationService:
             raise FileNotFoundError(f"Шаблон {template_name} не найден в templates/")
         with open(template_path, 'r', encoding='utf-8') as f:
             template = f.read()
-        logger.info("=== Шаблон (первые 50 строк) ===")
-        for i, line in enumerate(template.splitlines()[:50]):
-            logger.info(f"{i + 1:3}: {line}")
+
         script = template
-        logger.info("=== PREVIEW of script (first 30 lines) ===")
-        for i, line in enumerate(script.splitlines()[:30]):
-            logger.info(f"{i + 1:3}: {line}")
         for key, val in replacements.items():
             script = script.replace(f"{{{{{key}}}}}", str(val))
 
@@ -336,7 +335,6 @@ class SimulationService:
 
     def delete_failed_simulations(self) -> int:
         """Удаляет все симуляции со статусом 'failed'"""
-        from sqlalchemy import delete
         stmt = select(Simulation).where(Simulation.status == 'failed')
         failed_sims = self.session.scalars(stmt).all()
         count = 0
@@ -350,7 +348,7 @@ class SimulationService:
         return count
 
     def generate_plots(self, sim_id: int) -> dict:
-        """Генерирует графики для задачи 3 на основе CSV-файлов"""
+        """Генерирует графики для задачи 3 на основе CSV-файлов и конвертирует все EPS"""
         import numpy as np
         import matplotlib
         matplotlib.use('Agg')
@@ -361,7 +359,6 @@ class SimulationService:
 
         sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
 
-        # Функции расчёта (калька с CalcMizes.py)
         def mizes2(tensor):
             eig_vals, _ = eig(tensor)
             miz = np.sqrt(((eig_vals[0] - eig_vals[1])**2)/2)
@@ -376,7 +373,7 @@ class SimulationService:
 
         plots = {}
 
-        # 1. Профиль лопатки (Profout.csv)
+        # Профиль лопатки (Profout.csv)
         prof_path = os.path.join(sim_dir, "Profout.csv")
         if os.path.exists(prof_path):
             data = np.loadtxt(prof_path)
@@ -395,12 +392,11 @@ class SimulationService:
             plots['profile'] = base64.b64encode(buf.getvalue()).decode('utf-8')
             plt.close()
 
-        # 2. Температура и деформации/напряжения – используем TEpsout.csv и TSout.csv
+        # Температура и деформации/напряжения – используем TEpsout.csv и TSout.csv
         eps_path = os.path.join(sim_dir, "TEpsout.csv")
         stress_path = os.path.join(sim_dir, "TSout.csv")
         if os.path.exists(eps_path):
             data = np.loadtxt(eps_path)
-            # Вычисляем эквивалентную деформацию Мизеса
             data_select_up = data[:, 3:6]
             epseig_up = calc_eigMiz(data_select_up)[:, 2]
             data_select_lw = data[:, 8:11]
@@ -455,7 +451,7 @@ class SimulationService:
             plots['mises_stress'] = base64.b64encode(buf.getvalue()).decode('utf-8')
             plt.close()
 
-        # 4. Сбор и конвертация EPS-графиков FreeFEM
+        # Конвертация EPS-графиков FreeFEM
         import glob
         eps_files = glob.glob(os.path.join(sim_dir, "*.eps"))
         for eps_file in eps_files:

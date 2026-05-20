@@ -5,6 +5,8 @@ real RC = 3. * Chord1;
 border C(t=0, 2*pi){ x=Chord1/2. + RC*cos(t); y=RC*sin(t); }
 
 load "iovtk"
+int plotCounter = 0;
+string plotName;
 
 real[int] coeffsUp(10);
 real[int] coeffsLow(10);
@@ -30,7 +32,9 @@ border Smp(t=1.,0.){ x=Chord1; y=Chord1*Lezh(coeffsLow,1)+t*Chord1*(Lezh(coeffsU
 
 real xblade = Chord1*0.25, yblade = Chord1*(Lezh(coeffsUp,0.5)+Lezh(coeffsLow,0.5))/2;
 mesh Th = buildmesh(C({{NC}})+Splus({{NSp}})+Spm({{NSpm}})+Sminus({{NSm}})+Smp({{NSpm}}));
-plot(Th, wait=1);
+plotCounter++;
+plotName = "plot_"+plotCounter+".eps";
+plot(Th, wait=0, ps=plotName);
 
 int steel = Th(xblade, yblade).region, air = Th(-RC/2., -RC/2.).region;
 
@@ -55,9 +59,15 @@ problem thermic(T, v)
 for(int i=0; i<nbT; i++) {
     Told = T;
     thermic;
-    if (i % 10 == 0) plot(T, wait=0, fill=1, value=1);
+    if (i % 10 == 0) {
+        plotCounter++;
+        plotName = "plot_"+plotCounter+".eps";
+        plot(T, wait=0, fill=1, value=1, ps=plotName);
+    }
 }
-plot(T, wait=1, fill=1, value=1);
+plotCounter++;
+plotName = "plot_"+plotCounter+".eps";
+plot(T, wait=0, fill=1, value=1, ps=plotName);
 
 // Elastic parameters
 real b = {{b}};
@@ -96,9 +106,15 @@ Wh Eps1 = eps1(u1);
 Wh Eps2 = eps2(u2);
 Wh Eps12 = eps12(u1,u2);
 
-plot(Sig1, wait=1, fill=1, value=1, ps="sig1.eps");
-plot(Sig2, wait=1, fill=1, value=1, ps="sig2.eps");
-plot(Sig12, wait=1, fill=1, value=1, ps="sig12.eps");
+plotCounter++;
+plotName = "plot_"+plotCounter+".eps";
+plot(Sig1, wait=0, fill=1, value=1, ps=plotName);
+plotCounter++;
+plotName = "plot_"+plotCounter+".eps";
+plot(Sig2, wait=0, fill=1, value=1, ps=plotName);
+plotCounter++;
+plotName = "plot_"+plotCounter+".eps";
+plot(Sig12, wait=0, fill=1, value=1, ps=plotName);
 
 // Output along contour
 real delt = {{delt}};

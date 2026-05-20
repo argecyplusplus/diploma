@@ -260,7 +260,7 @@ def get_simulations_api():
     from ..utils.database import get_db_session  # если ещё не импортировано
     session = get_db_session()
     sims = session.scalars(select(Simulation).order_by(Simulation.simulation_id.desc())).all()
-    task_names = {'gas_dynamics': '1', 'thermal': '2', 'thermal_stress': '3'}
+    task_names = {'gas_dynamics': '1', 'thermal_field': '2', 'thermal_stress': '3'}
     result = []
     for s in sims:
         has_vtk = any(r.file_type == 'vtk' for r in s.results)
@@ -345,3 +345,19 @@ def get_plots(sim_id):
         return jsonify(plots)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@sim_bp.route('/<int:sim_id>/files')
+def get_result_files(sim_id):
+    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    files = []
+    # Определяем возможные файлы и их описания
+    candidates = [
+        ('result.vtk', 'VTK (поле результатов)', 'vtk'),
+        ('Profout.csv', 'Профиль лопатки (CSV)', 'csv'),
+        ('TSout.csv', 'Напряжения (CSV)', 'csv'),
+        ('TEpsout.csv', 'Деформации (CSV)', 'csv')
+    ]
+    for filename, description, category in candidates:
+        if os.path.exists(os.path.join(sim_dir, filename)):
+            files.append({'name': filename, 'description': description, 'category': category})
+    return jsonify(files)

@@ -16,11 +16,8 @@
     <div class="card-header">
         <h3>Файлы результатов</h3>
     </div>
-    <div style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
-        <a href="/simulation/{{ simulation_id }}/download" class="btn-primary">📥 Скачать VTK</a>
-        <a href="/simulation/{{ simulation_id }}/result/tsout" class="btn-secondary">📈 CSV напряжений (TSout)</a>
-        <a href="/simulation/{{ simulation_id }}/result/tepsout" class="btn-secondary">📉 CSV деформаций (TEpsout)</a>
-        <a href="/simulation/{{ simulation_id }}/result/profout" class="btn-secondary">📐 CSV профиля (Profout)</a>
+    <div id="filesContent" style="padding: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+        <div class="status-message">Загрузка списка файлов...</div>
     </div>
 </div>
 

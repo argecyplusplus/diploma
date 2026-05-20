@@ -4,10 +4,6 @@ real RC = 3. * Chord1;
 
 border C(t=0, 2*pi){ x=Chord1/2. + RC*cos(t); y=RC*sin(t); }
 
-real beta = {{beta}};
-real B = {{B}};
-real rho = {{rho}};
-
 load "iovtk"
 int plotCounter = 0;
 string plotName;
@@ -40,38 +36,36 @@ plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
 plot(Th, wait=0, ps=plotName);
 
+int steel = Th(xblade, yblade).region, air = Th(-RC/2., -RC/2.).region;
+
+// Тепловые параметры
+real dt = {{dt}}, nbT = {{nbT}};
+real ksteel = {{ksteel}};
+real kair = {{kair}};
+real Tinitial = {{T_initial}};
+real Tinitialair = 25.0;
+
 fespace Vh(Th, P2);
-Vh psi, w, vx, vy, p;
-real cost = cos(beta*pi/180.), sint=sin(beta*pi/180.);
+Vh T = Tinitial*(region==steel) + Tinitialair*(region==air), Told, v;
+func real kappa() { return (region==steel) ? ksteel : kair; }
 
-solve potential(psi, w)
-  = int2d(Th)(dx(psi)*dx(w)+dy(psi)*dy(w))
-  + on(C, psi = cost*y - sint*x)
-  + on(S1, psi=0);
-vx = dx(psi); vy = dy(psi);
-p = 1 - rho/(2*B)*(vx^2+vy^2);
+problem thermal(T, v)
+    = int2d(Th)( T*v/dt + kappa()*(dx(T)*dx(v) + dy(T)*dy(v)) )
+    - int2d(Th)( Told*v/dt )
+    - int1d(Th, C)( 0.0 * v )
+    - int1d(Th, S1)( 0.0 * v );
 
+for(int i=0; i<nbT; i++) {
+    Told = T;
+    thermal;
+    if (i % 10 == 0) {
+        plotCounter++;
+        plotName = "plot_"+plotCounter+".eps";
+        plot(T, wait=0, fill=1, value=1, ps=plotName);
+    }
+}
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot(psi, wait=0, fill=1, value=1, ps=plotName);
-plotCounter++;
-plotName = "plot_"+plotCounter+".eps";
-plot([vx,vy], wait=0, value=1, ps=plotName);
-plotCounter++;
-plotName = "plot_"+plotCounter+".eps";
-plot(p, wait=0, fill=1, value=1, ps=plotName);
-plotCounter++;
-plotName = "plot_"+plotCounter+".eps";
-plot(p, wait=0, nbiso=20, value=1, ps=plotName);
+plot(T, wait=0, fill=1, value=1, ps=plotName);
 
-int blade = Th(xblade, yblade).region, outspace=Th(-1, -1).region;
-cout << blade << " " << outspace << endl;
-
-Vh pblade = p*(region==blade);
-Vh poutspace = p*(region==outspace);
-cout << "max p blade = " << pblade[].max << endl;
-cout << "min p blade = " << pblade[].min << endl;
-cout << "max p outspace = " << poutspace[].max << endl;
-cout << "min p outspace = " << poutspace[].min << endl;
-
-savevtk("result.vtk", Th, p);
+savevtk("result.vtk", Th, T);

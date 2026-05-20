@@ -36,17 +36,17 @@
                 <div class="task-radio-group-vertical">
                     <label>
                         <input type="radio" name="task_type" value="gas_dynamics" data-requires="potential_flow,boundaries,construction,blade_chord" checked>
-                        <strong>🌪️ 1. Моделирование газодинамики и распределения давления по поверхности лопатки</strong>
+                        <strong>🌪️ 1. Моделирование газодинамики и параметров поверхности лопатки</strong>
                         <small>(только лопатка)</small>
                     </label>
                     <label>
-                        <input type="radio" name="task_type" value="thermal" data-requires="time_parameters,initial_temps,construction,blade_chord">
+                        <input type="radio" name="task_type" value="thermal_field" data-requires="time_parameters,initial_temps,construction,blade_chord">
                         <strong>🌡️ 2. Моделирование теплового поля на поверхности лопатки</strong>
                         <small>(лопатка или объединение)</small>
                     </label>
                     <label>
                         <input type="radio" name="task_type" value="thermal_stress" data-requires="time_parameters,initial_temps,elasticity,stress_output,construction,blade_chord">
-                        <strong>🔧 3. Моделирование температурных полей и напряжений (термоупругость)</strong>
+                        <strong>🔧 3. Моделирование распределения напряжений на поверхности лопатки</strong>
                         <small>(лопатка или объединение)</small>
                     </label>
                 </div>
