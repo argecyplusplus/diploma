@@ -752,3 +752,78 @@ body {
     gap: 12px;
     margin-top: 8px;
 }
+
+/* ========= КАРТОЧКИ ВЫБОРА ЗАДАЧИ ========= */
+.task-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.task-card {
+    flex: 1 1 240px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.task-card:hover {
+    border-color: var(--accent);
+    background: #fafcff;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px -8px rgba(0, 0, 0, 0.1);
+}
+
+.task-card.active {
+    border-color: var(--accent);
+    background: #eff6ff;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
+}
+
+.task-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.task-icon {
+    font-size: 1.8rem;
+    flex-shrink: 0;
+}
+
+.task-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.task-info strong {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    line-height: 1.3;
+}
+
+.task-info small {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+/* Адаптив для маленьких экранов */
+@media (max-width: 768px) {
+    .task-cards {
+        flex-direction: column;
+    }
+    .task-card {
+        flex: auto;
+    }
+}

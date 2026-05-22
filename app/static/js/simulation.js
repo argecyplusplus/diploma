@@ -55,6 +55,20 @@ async function validateInitialConditionForTask(icId) {
     }
 }
 
+function syncActiveTaskCard() {
+    const selectedRadio = document.querySelector('input[name="task_type"]:checked');
+    if (!selectedRadio) return;
+    const cards = document.querySelectorAll('.task-card');
+    cards.forEach(card => {
+        const radio = card.querySelector('input[type="radio"]');
+        if (radio && radio === selectedRadio) {
+            card.classList.add('active');
+        } else {
+            card.classList.remove('active');
+        }
+    });
+}
+
 // Удаление одной симуляции
 async function deleteSimulation(simId) {
     if (!confirm('Удалить расчёт и все связанные файлы?')) return;
@@ -448,6 +462,7 @@ function setupEventListeners() {
     document.querySelectorAll('input[name="task_type"]').forEach(radio => {
         radio.addEventListener('change', () => {
             updateTaskHint();
+            syncActiveTaskCard();
             const icSelect = document.getElementById('initial_conditions_id');
             if (icSelect && icSelect.value) validateInitialConditionForTask(icSelect.value);
             const objectSelect = document.getElementById('objectSelect');
@@ -468,6 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadInitialConditionsSelect();
     loadSimulationsList();
     setupEventListeners();
+    syncActiveTaskCard();
     const form = document.getElementById('simForm');
     if (form) form.onsubmit = createSimulation;
     window.deleteSimulation = deleteSimulation;
