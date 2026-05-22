@@ -333,10 +333,10 @@ def get_result_files(sim_id):
     files = []
     # Определяем возможные файлы и их описания
     candidates = [
-        ('result.vtk', 'VTK (поле результатов)', 'vtk'),
-        ('Profout.csv', 'Профиль лопатки (CSV)', 'csv'),
-        ('TSout.csv', 'Напряжения (CSV)', 'csv'),
-        ('TEpsout.csv', 'Деформации (CSV)', 'csv')
+        ('result.vtk', 'Файл VTK', 'vtk'),
+        ('Profout.csv', 'Профиль лопатки (Profout.csv)', 'csv'),
+        ('TSout.csv', 'Напряжения (TSout.csv)', 'csv'),
+        ('TEpsout.csv', 'Деформации (TEpsout.csv)', 'csv')
     ]
     for filename, description, category in candidates:
         if os.path.exists(os.path.join(sim_dir, filename)):

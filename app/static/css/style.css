@@ -114,6 +114,17 @@ body {
 .btn-edit:hover { background: #eff6ff; border-color: var(--accent) !important; }
 .btn-view:hover { background: #ecfdf5; border-color: var(--status-ok) !important; color: var(--status-ok) !important; }
 .btn-delete:hover { background: #fef2f2; border-color: var(--status-err) !important; color: var(--status-err) !important; }
+
+.btn-approx {
+    padding: 4px 8px;
+  font-size: 0.6875rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
 .btn-approx:hover { background: #fffbeb; border-color: var(--status-warn) !important; color: var(--status-warn) !important; }
 
 .btn-primary, .btn-secondary, .btn-danger, .btn-warning { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius); font-weight: 500; font-size: 0.8125rem; cursor: pointer; border: none; transition: all 0.15s; }

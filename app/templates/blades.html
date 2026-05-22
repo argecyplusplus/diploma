@@ -8,7 +8,7 @@
     </div>
     <div class="header-actions">
         <button class="btn-primary" onclick="openCreateBladeModal()">+ Создать профиль</button>
-        <button class="btn-secondary" onclick="openMergeModal()">🔗 Сборка</button>
+        <button class="btn-secondary" onclick="openMergeModal()">Создать объединение</button>
     </div>
 </div>
 
@@ -64,7 +64,7 @@
         </div>
         <div id="upperTab" class="tab-content active">
             <div class="coords-actions">
-                <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">📥 Загрузить файл
+                <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">Загрузить файл
                     <input type="file" hidden onchange="loadCoordsFromFile('upper', this)">
                 </label>
                 <button class="btn-secondary btn-sm" onclick="addCoordPointToTable('upper')">+ Точка</button>
@@ -76,7 +76,7 @@
         </div>
         <div id="lowerTab" class="tab-content">
             <div class="coords-actions">
-                <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">📥 Загрузить файл
+                <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">Загрузить файл
                     <input type="file" hidden onchange="loadCoordsFromFile('lower', this)">
                 </label>
                 <button class="btn-secondary btn-sm" onclick="addCoordPointToTable('lower')">+ Точка</button>
@@ -128,7 +128,7 @@
         </div>
         <div class="modal-actions">
             <button class="btn-secondary" onclick="closeModal('viewCoordsModal')">Закрыть</button>
-            <button class="btn-primary" onclick="exportCoords()">📥 Экспорт CSV</button>
+            <button class="btn-primary" onclick="exportCoords()">Экспорт CSV</button>
         </div>
     </div>
 </div>
@@ -147,8 +147,8 @@
         <div class="info-section" style="margin:16px 0;">💡 Аппроксимация выполняется для каждой лопатки отдельно.</div>
         <div class="modal-actions">
             <button class="btn-secondary" onclick="closeModal('assemblyViewModal')">Закрыть</button>
-            <button class="btn-warning" onclick="approximateAllInAssembly()">⚡ Аппроксимировать все</button>
-            <button class="btn-danger" onclick="deleteAssembly()">🗑️ Удалить</button>
+            <button class="btn-warning" onclick="approximateAllInAssembly()">Аппроксимировать все</button>
+            <button class="btn-danger" onclick="deleteAssembly()">Удалить</button>
         </div>
     </div>
 </div>

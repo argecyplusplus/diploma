@@ -15,7 +15,7 @@
 <!-- Форма создания/редактирования набора -->
 <div class="card">
     <div class="card-header">
-        <h3>🆕 Новый набор условий</h3>
+        <h3>Новый набор условий</h3>
         <p class="card-hint">Заполните параметры и сохраните набор для использования в расчётах</p>
     </div>
 
@@ -31,7 +31,7 @@
 
             <!-- Временные параметры -->
             <details class="form-section" open>
-                <summary>⏱️ Временные параметры</summary>
+                <summary>Временные параметры</summary>
                 <div class="form-grid" style="padding:0; background:transparent; margin:0;">
                     <div class="form-group">
                         <label>Time, с</label>
@@ -54,7 +54,7 @@
 
             <!-- Потенциальный поток -->
             <details class="form-section">
-                <summary>🌊 Параметры потенциального потока</summary>
+                <summary>Параметры потенциального потока</summary>
                 <div class="form-grid" style="padding:0; background:transparent; margin:0;">
                     <div class="form-group">
                         <label>beta, °</label>
@@ -69,7 +69,7 @@
 
             <!-- Границы -->
             <details class="form-section">
-                <summary>🔗 Идентификаторы границ</summary>
+                <summary>Идентификаторы границ</summary>
                 <div id="boundaries-list">
                     <div class="dynamic-row">
                         <input type="text" name="boundaries[0].name" placeholder="Имя" value="S1" required>
@@ -82,7 +82,7 @@
 
             <!-- Параметры сетки -->
             <details class="form-section">
-                <summary>🔨 Параметры построения сетки</summary>
+                <summary>Параметры построения сетки</summary>
                 <div class="form-grid" style="padding:0; background:transparent; margin:0;">
                     {% for p in ['NC','NSp','NSm','NSpn','NSpm'] %}
                     <div class="form-group">
@@ -95,7 +95,7 @@
 
             <!-- Начальные температуры -->
             <details class="form-section">
-                <summary>🌡️ Начальные температуры материалов</summary>
+                <summary>Начальные температуры материалов</summary>
                 <div id="initial-temps-list">
                     <div class="dynamic-row">
                         <select name="initial_temps[0].material_id" style="flex:2;">
@@ -110,7 +110,7 @@
 
             <!-- Хорды -->
             <details class="form-section">
-                <summary>📐 Хорда лопасти</summary>
+                <summary>Хорда лопасти</summary>
                 <div id="chords-list">
                     <div class="dynamic-row">
                         <input type="text" name="chords[0].name" placeholder="Имя" value="Chord1" required>
@@ -123,7 +123,7 @@
 
             <!-- Параметры упругости -->
             <details class="form-section">
-                <summary>🔥 Параметры материала и функции упругости</summary>
+                <summary>Параметры материала и функции упругости</summary>
                 <div class="form-grid" style="padding:0; background:transparent; margin:0;">
                     <div class="form-group">
                         <label>b</label>
@@ -139,7 +139,7 @@
                     </div>
                 </div>
 
-                <h4 style="margin:16px 0 10px;">📊 Значения Ei (модуль упругости)</h4>
+                <h4 style="margin:16px 0 10px;">Значения Ei</h4>
                 <div id="ei-values-list">
                         <!-- Строки добавляются динамически через addEiRow() -->
                 </div>
@@ -148,7 +148,7 @@
 
             <!-- Параметры вывода напряжений -->
             <details class="form-section">
-                <summary>📊 Параметры вывода данных о напряжениях</summary>
+                <summary>Параметры вывода данных о напряжениях</summary>
                 <div class="form-grid" style="padding:0; background:transparent; margin:0;">
                     <div class="form-group">
                         <label>coef</label>
@@ -168,15 +168,15 @@
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="btn-primary btn-lg">💾 Сохранить набор</button>
+            <button type="submit" class="btn-primary btn-lg">Сохранить набор</button>
         </div>
     </form>
 </div>
 
 <!-- История наборов -->
 <div class="section-header section-header-top">
-    <h2 class="page-title">📋 Сохранённые наборы</h2>
-    <button class="btn-secondary" onclick="loadICsTable()">🔄 Обновить</button>
+    <h2 class="page-title">Сохранённые наборы</h2>
+    <button class="btn-secondary" onclick="loadICsTable()">Обновить</button>
 </div>
 
 <div class="card">

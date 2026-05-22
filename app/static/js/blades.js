@@ -318,7 +318,6 @@ function renderMergeBladesCheckboxes(searchTerm = '') {
         <div class="checkbox-item">
             <input type="checkbox" id="merge_cb_${b.blade_id}" value="${b.blade_id}">
             <label for="merge_cb_${b.blade_id}">${escapeHtml(b.name)}</label>
-            <span class="blade-id">#${b.blade_id}</span>
         </div>
     `).join('');
 }
@@ -385,7 +384,7 @@ async function deleteMerge(assemblyId) {
     }
 }
 
-// ================= ОБЪЕДИНЕНИЯ (АССАМБЛИ) =================
+// ================= ОБЪЕДИНЕНИЯ =================
 function renderAssemblyBladesCheckboxes(searchTerm = '') {
     const container = document.getElementById('assemblyBladesList');
     const filtered = bladesData.filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -461,7 +460,7 @@ async function openViewAssemblyModal(assemblyId, assemblyName) {
                     <tr>
                         <td>${m.blade_id}</td>
                         <td>${bladeName}</td>
-                        <td><button class="btn-approx-sm" onclick="goToApproximation(${m.blade_id})">К аппроксимации</button></td>
+                        <td><button class="btn-approx" onclick="goToApproximation(${m.blade_id})">К аппроксимации</button></td>
                     </tr>
                 `;
             }).join('');

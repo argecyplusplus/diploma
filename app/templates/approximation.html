@@ -34,10 +34,10 @@
 
     <!-- Табы -->
     <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('plot')">📊 График</button>
-        <button class="tab-btn" onclick="switchTab('coords')">📐 Координаты</button>
-        <button class="tab-btn" onclick="switchTab('coeffs')">🔢 Коэффициенты</button>
-        <button class="tab-btn" onclick="switchTab('params')">📈 Параметры</button>
+        <button class="tab-btn active" onclick="switchTab('plot')">График</button>
+        <button class="tab-btn" onclick="switchTab('coords')">Координаты</button>
+        <button class="tab-btn" onclick="switchTab('coeffs')">Коэффициенты</button>
+        <button class="tab-btn" onclick="switchTab('params')">Параметры</button>
     </div>
 
     <!-- 1. График -->
@@ -45,7 +45,7 @@
         <div class="card">
             <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
                 <h3>Визуализация профиля</h3>
-                <button class="btn-secondary btn-sm" onclick="savePlot()">💾 Сохранить PNG</button>
+                <button class="btn-secondary btn-sm" onclick="savePlot()">Сохранить PNG</button>
             </div>
             <div style="padding: 24px; text-align: center; background: #fafbfc; border-bottom: 1px solid var(--border);">
                 <img id="plotImg" src="" alt="График аппроксимации" style="max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius); background: #fff;">
@@ -58,7 +58,7 @@
         <div class="card">
             <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
                 <h3>Сглаженные координаты</h3>
-                <button class="btn-secondary btn-sm" onclick="saveTable('coords')">💾 Сохранить CSV</button>
+                <button class="btn-secondary btn-sm" onclick="saveTable('coords')">Сохранить CSV</button>
             </div>
             <div class="table-wrapper">
                 <table class="data-table">
@@ -76,7 +76,7 @@
         <div class="card">
             <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
                 <h3>Коэффициенты полиномов Лежандра</h3>
-                <button class="btn-secondary btn-sm" onclick="saveTable('coeffs')">💾 Сохранить CSV</button>
+                <button class="btn-secondary btn-sm" onclick="saveTable('coeffs')">Сохранить CSV</button>
             </div>
             <div class="table-wrapper">
                 <table class="data-table">
@@ -94,7 +94,7 @@
         <div class="card">
             <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
                 <h3>Расчётные параметры</h3>
-                <button class="btn-secondary btn-sm" onclick="saveTable('params')">💾 Сохранить CSV</button>
+                <button class="btn-secondary btn-sm" onclick="saveTable('params')">Сохранить CSV</button>
             </div>
             <div class="table-wrapper">
                 <table class="data-table">

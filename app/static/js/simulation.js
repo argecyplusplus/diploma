@@ -2,9 +2,9 @@ let currentPollInterval = null;
 let currentSimId = null;
 
 const taskHints = {
-    gas_dynamics: '📌 Для задачи 1 набор начальных условий должен содержать: параметры потенциального потока (beta, B), идентификатор границы (S1), хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm). Временные и тепловые параметры НЕ используются.',
-    thermal_field: '📌 Для задачи 2 набор начальных условий должен содержать: временные параметры (dt, nbT), начальную температуру материала, хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm, NSpn).',
-    thermal_stress: '📌 Для задачи 3 необходимы: временные параметры, начальная температура материала, параметры упругости (b, nu, KLT), параметры вывода напряжений (delt, Npt), конструктивные параметры сетки, хорда лопасти, идентификатор границы S1.'
+    gas_dynamics: 'Для задачи 1 набор начальных условий должен содержать: параметры потенциального потока (beta, B), идентификатор границы (S1), хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm). Временные и тепловые параметры НЕ используются.',
+    thermal_field: 'Для задачи 2 набор начальных условий должен содержать: временные параметры (dt, nbT), начальную температуру материала, хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm, NSpn).',
+    thermal_stress: 'Для задачи 3 необходимы: временные параметры, начальная температура материала, параметры упругости (b, nu, KLT), параметры вывода напряжений (delt, Npt), конструктивные параметры сетки, хорда лопасти, идентификатор границы S1.'
 };
 
 function updateTaskHint() {
@@ -158,10 +158,10 @@ async function loadObjectSelect() {
         const assemblies = assembliesRes.ok ? await assembliesRes.json() : [];
         let options = '<option value="" disabled selected>Выберите объект</option>';
         blades.forEach(b => {
-            options += `<option value="blade_${b.blade_id}" data-type="blade" data-id="${b.blade_id}">🔹 Лопатка: ${escapeHtml(b.name)}</option>`;
+            options += `<option value="blade_${b.blade_id}" data-type="blade" data-id="${b.blade_id}">Лопатка: ${escapeHtml(b.name)}</option>`;
         });
         assemblies.forEach(a => {
-            options += `<option value="assembly_${a.blade_assembly_id}" data-type="assembly" data-id="${a.blade_assembly_id}">🔸 Объединение: ${escapeHtml(a.name)}</option>`;
+            options += `<option value="assembly_${a.blade_assembly_id}" data-type="assembly" data-id="${a.blade_assembly_id}">Объединение: ${escapeHtml(a.name)}</option>`;
         });
         select.innerHTML = options;
         updateObjectHint();
@@ -277,9 +277,9 @@ async function loadSimulationsList() {
                                 s.status === 'failed' ? '<span class="badge badge-danger">❌ Ошибка</span>' :
                                 '<span class="badge badge-secondary">' + s.status + '</span>';
             const logBtn = (s.status === 'failed') ?
-                `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">📄 Лог</button>` : '';
-            const resultsBtn = `<button class="btn-secondary btn-sm" onclick="viewResults(${s.simulation_id})">📊 Результаты</button>`;
-            const deleteBtn = `<button class="btn-danger btn-sm" onclick="deleteSimulation(${s.simulation_id})">🗑️ Удалить</button>`;
+                `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">Лог</button>` : '';
+            const resultsBtn = `<button class="btn-secondary btn-sm" onclick="viewResults(${s.simulation_id})">Результаты</button>`;
+            const deleteBtn = `<button class="btn-delete btn-sm" onclick="deleteSimulation(${s.simulation_id})">Удалить</button>`;
             const actionsHtml = `<div class="table-actions" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">${logBtn} ${resultsBtn} ${deleteBtn}</div>`;
             html += `
                 <tr>
