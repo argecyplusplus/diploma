@@ -827,3 +827,25 @@ body {
         flex: auto;
     }
 }
+
+/* Компактные кнопки в таблице лопаток / сборок */
+#bladesTableBody td:last-child,
+#assembliesTableBody td:last-child,
+#viewAssemblyBlades td:last-child {
+    white-space: nowrap;
+    width: 1%;
+    padding: 6px 8px;
+}
+
+.table-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+}
+
+.table-actions button {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
