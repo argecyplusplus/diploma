@@ -5,9 +5,6 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from flask import g
 from ..models.base import Base
 
-# Импорт моделей для создания таблиц
-from ..models import blade, material, simulation
-
 DB_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'databases')
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'db_config.json')
 
@@ -32,7 +29,7 @@ def get_db_list():
     dbs = []
     for f in os.listdir(DB_DIR):
         if f.endswith('.db'):
-            dbs.append(f[:-3])  # удаляем расширение
+            dbs.append(f[:-3])
 
     config = _load_config()
     current = config.get("current_db")

@@ -1,8 +1,4 @@
-// static/js/initial_conditions.js
-
 let materialsList = [];
-
-
 
 function getMaterialOptions(selectedId = null) {
     if (materialsList.length === 0) {
@@ -145,7 +141,6 @@ async function createIC(e) {
         payload[key] = payload[key].filter(item => item && Object.keys(item).length);
     });
 
-    // Дополнительно собираем ei_values
     const eiRows = document.querySelectorAll('#ei-values-list .dynamic-row');
     eiRows.forEach(row => {
         const select = row.querySelector('select');
@@ -253,7 +248,6 @@ async function editIC(id) {
         });
         updateRemoveButtons('initial-temps-list');
 
-        // Ei значения
         const eiContainer = document.getElementById('ei-values-list');
         eiContainer.innerHTML = '';
         if (data.ei_values && data.ei_values.length) {
@@ -410,19 +404,16 @@ async function deleteIC(id) {
 
 // ================= ОБНОВЛЕНИЕ ВЫПАДАЮЩИХ СПИСКОВ =================
 function refreshMaterialSelects() {
-    // Обновляем select в "Начальные температуры"
     document.querySelectorAll('#initial-temps-list select[name*="material_id"]').forEach(select => {
         const selectedValue = select.value;
         select.innerHTML = getMaterialOptions(selectedValue);
     });
-    // Обновляем select в "Ei значения"
     document.querySelectorAll('#ei-values-list select[name*="material_id"]').forEach(select => {
         const selectedValue = select.value;
         select.innerHTML = getMaterialOptions(selectedValue);
     });
 }
 
-// В loadMaterialsForIC() добавь вызов после загрузки:
 async function loadMaterialsForIC() {
     try {
         const [elementsRes, alloysRes] = await Promise.all([
@@ -433,7 +424,6 @@ async function loadMaterialsForIC() {
         const alloys = alloysRes.ok ? await alloysRes.json() : [];
         materialsList = [...elements, ...alloys];
 
-        // 🔥 ОБНОВЛЯЕМ ВСЕ СУЩЕСТВУЮЩИЕ SELECT
         refreshMaterialSelects();
     } catch (e) {
         console.error('Ошибка загрузки материалов:', e);
@@ -446,7 +436,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadMaterialsForIC();
     await loadICsTable();
 
-    // Инициализация динамических списков
     ['boundaries-list', 'chords-list', 'initial-temps-list', 'ei-values-list'].forEach(id => {
         updateRemoveButtons(id);
         if (id === 'ei-values-list') addEiRow();
@@ -456,7 +445,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (form) form.onsubmit = createIC;
 });
 
-// Утилита escapeHtml
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');

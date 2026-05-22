@@ -3,9 +3,7 @@ from sqlalchemy.orm import relationship
 from .base import Base
 
 
-# --------------------------------------------------------------------------
 # Таблица 25: Materials (Материалы)
-# --------------------------------------------------------------------------
 class Material(Base):
     __tablename__ = 'materials'
 
@@ -19,7 +17,6 @@ class Material(Base):
     melting_point = Column(Float, nullable=True)
     thermal_expansion_coef = Column(Float, nullable=False)
 
-    # Отношения к зависимым таблицам
     alloy_compositions_as_alloy = relationship(
         "AlloyComposition", foreign_keys="[AlloyComposition.alloy_id]",
         back_populates="alloy", cascade="all, delete-orphan"
@@ -31,7 +28,6 @@ class Material(Base):
     chemical_elements = relationship("ChemicalElement", back_populates="material", cascade="all, delete-orphan")
     el_values = relationship("ElValue", back_populates="material", cascade="all, delete-orphan")
 
-    # Связи с модулем симуляций
     simulation_materials = relationship("SimulationMaterial", back_populates="material")
     initial_temperatures = relationship("InitialTemperature", back_populates="material")
 
@@ -39,15 +35,12 @@ class Material(Base):
         return f"<Material(id={self.material_id}, name='{self.name}', is_alloy={self.is_alloy})>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 26: Alloy_compositions (Состав сплавов)
-# --------------------------------------------------------------------------
 class AlloyComposition(Base):
     __tablename__ = 'alloy_compositions'
 
     alloy_composition_id = Column(Integer, primary_key=True, autoincrement=True)
 
-    # Два внешних ключа на одну и ту же таблицу materials
     alloy_id = Column(
         Integer,
         ForeignKey('materials.material_id', ondelete="CASCADE"),
@@ -60,7 +53,6 @@ class AlloyComposition(Base):
     )
     mass_fraction = Column(Float, nullable=False)
 
-    # Явное указание foreign_keys необходимо, т.к. обе связи ведут к Material
     alloy = relationship("Material", foreign_keys=[alloy_id], back_populates="alloy_compositions_as_alloy")
     component_material = relationship("Material", foreign_keys=[component_material_id],
                                       back_populates="alloy_compositions_as_component")
@@ -69,26 +61,18 @@ class AlloyComposition(Base):
         return f"<AlloyComposition(alloy_id={self.alloy_id}, component_id={self.component_material_id})>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 27: Chemical_elements (Химические элементы)
-# --------------------------------------------------------------------------
 class ChemicalElement(Base):
     __tablename__ = 'chemical_elements'
 
     chemical_element_id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(Text, nullable=False)
 
-    # Исправлено: CheckConstraint теперь импортирован и используется корректно
     type = Column(
         Text,
         nullable=False,
         info={'check_constraint': "type IN ('Металл', 'Неметалл', 'Оксид', 'Нитрид', 'Карбид', 'Композит', 'Газ')"}
     )
-
-    # Альтернативный вариант для SQLAlchemy 2.0 через __table_args__, если выше не сработает:
-    # __table_args__ = (
-    #     CheckConstraint("type IN ('Металл', 'Неметалл', 'Оксид', 'Нитрид', 'Карбид', 'Композит', 'Газ')", name='chk_chemical_element_type'),
-    # )
 
     material_id = Column(
         Integer,
@@ -102,9 +86,7 @@ class ChemicalElement(Base):
         return f"<ChemicalElement(id={self.chemical_element_id}, name='{self.name}')>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 28: El_values (Значения упругости)
-# --------------------------------------------------------------------------
 class ElValue(Base):
     __tablename__ = 'el_values'
 

@@ -11,14 +11,11 @@ class MaterialRepository:
         return self.session.scalars(select(Material)).all()
 
     def get_elements(self) -> List[Material]:
-        # Элементы — это материалы, которые НЕ являются сплавами (is_alloy=False)
-        # И у которых есть связь с ChemicalElement (опционально, для чистоты)
         return self.session.scalars(
             select(Material).where(Material.is_alloy == False)
         ).all()
 
     def get_alloys(self) -> List[Material]:
-        # Сплавы — это материалы, которые ЯВЛЯЮТСЯ сплавами (is_alloy=True)
         return self.session.scalars(
             select(Material).where(Material.is_alloy == True)
         ).all()
@@ -52,7 +49,6 @@ class MaterialRepository:
 
     def update_alloy_composition(self, alloy_id: int, components_data: List[dict]):
         """Полностью заменяет состав сплава"""
-        # ✅ Удаляем старые записи через delete()
         self.session.execute(
             delete(AlloyComposition).where(AlloyComposition.alloy_id == alloy_id)
         )

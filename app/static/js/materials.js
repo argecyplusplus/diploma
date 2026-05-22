@@ -1,7 +1,6 @@
-// static/js/materials.js
-let materials = [];      // химические элементы
-let alloys = [];         // сплавы
-let allMaterials = [];   // объединённый список (элементы + сплавы)
+let materials = [];
+let alloys = [];
+let allMaterials = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     loadAllMaterials();
@@ -205,17 +204,15 @@ function validateMassSum() {
         if (!isNaN(v)) sum += v;
     });
 
-    // Обновляем число в сообщении
     document.getElementById('massSum').textContent = sum.toFixed(2);
 
-    // Показываем/скрываем сообщение явно через style.display
     const err = document.getElementById('massSumError');
     const isValid = Math.abs(sum - 100) <= 0.1;
 
     if (isValid) {
-        err.style.display = 'none';  // ✅ Скрыть, если всё ок
+        err.style.display = 'none';
     } else {
-        err.style.display = 'block'; // ❌ Показать ошибку
+        err.style.display = 'block';
     }
 
     return isValid;

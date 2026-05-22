@@ -13,7 +13,6 @@
 <aside class="sidebar">
     <div class="sidebar-header">
         <h1>FF Pro</h1>
-        <p>моделирование лопаток ГТД</p>
     </div>
     <nav class="sidebar-nav">
         <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}"><i>🏠</i> <span>Главная</span></a>
@@ -72,7 +71,7 @@
 
             <!-- Список БД -->
             <div class="db-grid" id="dbList">
-                <!-- Заполняется через JS -->
+                <!-- через JS -->
             </div>
 
             <!-- Создание новой БД -->
@@ -97,7 +96,6 @@
     </div>
 </div>
 
-<!-- Подключаем вынесенный JS -->
 <script src="{{ url_for('static', filename='js/base.js') }}"></script>
 {% block scripts %}{% endblock %}
 

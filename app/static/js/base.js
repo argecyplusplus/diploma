@@ -1,15 +1,9 @@
-/**
- * FF Pro — Base JavaScript
- * Управление настройками: БД, путь к FreeFEM++, модальные окна
- */
-
 let currentDb = null;
-let allDbs = []; // Кэш списка БД для поиска
+let allDbs = [];
 
 // ================= ЗАГРУЗКА КОНФИГУРАЦИИ =================
 async function loadConfig() {
     try {
-        // 1. Настройки FreeFEM
         const settingsRes = await fetch('/api/settings');
         const settingsData = await settingsRes.json();
         if (settingsData.freefem_path) {
@@ -17,7 +11,6 @@ async function loadConfig() {
             if (fpInput) fpInput.value = settingsData.freefem_path;
         }
 
-        // 2. Список БД
         const dbRes = await fetch('/api/settings/dbs');
         const dbData = await dbRes.json();
 
@@ -28,14 +21,12 @@ async function loadConfig() {
         allDbs = dbs; // Сохраняем для поиска
         renderDbList(dbs);
 
-        // Обновляем статус в хедере
         const statusEl = document.getElementById('dbStatusText');
         if (statusEl) {
             statusEl.textContent = current ? `Текущая БД: 🗄️ ${current}` : 'БД не выбрана';
             statusEl.className = current ? 'db-status connected' : 'db-status';
         }
 
-        // Автооткрытие, если БД не выбрана
         if (!current) openModal('settingsModal');
     } catch (e) {
         console.error('Ошибка загрузки:', e);
@@ -51,7 +42,6 @@ function renderDbList(dbs, filter = '') {
     const list = document.getElementById('dbList');
     if (!list) return;
 
-    // Фильтрация
     const filtered = dbs.filter(db => db.toLowerCase().includes(filter.toLowerCase()));
 
     if (filtered.length === 0) {
@@ -61,7 +51,6 @@ function renderDbList(dbs, filter = '') {
         return;
     }
 
-    // Сортировка: активная БД всегда первая
     const sorted = [...filtered].sort((a, b) => {
         if (a === currentDb) return -1;
         if (b === currentDb) return 1;

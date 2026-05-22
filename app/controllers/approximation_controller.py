@@ -3,7 +3,7 @@ import base64
 import numpy as np
 import matplotlib
 
-matplotlib.use('Agg')  # Важно для работы без графического интерфейса
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from flask import Blueprint, render_template, request, jsonify, g
 from sqlalchemy import select
@@ -55,23 +55,20 @@ def execute(blade_id):
 def get_results(blade_id):
     session = g.db_session if 'db_session' in g else get_db_session()
 
-    # Ищем последнюю аппроксимацию для этой лопатки
     stmt = select(Approximation).where(Approximation.blade_id == blade_id).order_by(
         Approximation.approximation_id.desc())
     approx = session.scalar(stmt)
     if not approx:
         return jsonify({"error": "Аппроксимация не выполнена"}), 404
 
-    # Получаем данные
     coords = session.scalars(
         select(TransformedCoordinate).where(TransformedCoordinate.approximation_id == approx.approximation_id)).all()
 
-    # ИСПРАВЛЕНИЕ: Берем только первые 10 коэффициентов, чтобы соответствовать функции Lezh
     coeffs = session.scalars(
         select(LegendreCoefficient)
         .where(LegendreCoefficient.approximation_id == approx.approximation_id)
         .order_by(LegendreCoefficient.legendre_coefficients_id)
-        .limit(10)  # Ограничиваем выборку
+        .limit(10)
     ).all()
 
     params = session.scalars(

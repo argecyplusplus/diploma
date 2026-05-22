@@ -3,9 +3,7 @@ from sqlalchemy.orm import relationship
 from .base import Base
 
 
-# --------------------------------------------------------------------------
 # Таблица 4: Blade_assemblies (Объединения лопаток)
-# --------------------------------------------------------------------------
 class BladeAssembly(Base):
     __tablename__ = 'blade_assemblies'
 
@@ -19,9 +17,7 @@ class BladeAssembly(Base):
         return f"<BladeAssembly(id={self.blade_assembly_id}, name='{self.name}')>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 5: Blades (Лопатки)
-# --------------------------------------------------------------------------
 class Blade(Base):
     __tablename__ = 'blades'
 
@@ -37,9 +33,7 @@ class Blade(Base):
         return f"<Blade(id={self.blade_id}, name='{self.name}')>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 6: Blade_assembly_members (Компоненты сборок)
-# --------------------------------------------------------------------------
 class BladeAssemblyMember(Base):
     __tablename__ = 'blade_assembly_members'
 
@@ -55,9 +49,7 @@ class BladeAssemblyMember(Base):
         return f"<BladeAssemblyMember(assembly_id={self.blade_assembly_id}, blade_id={self.blade_id})>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 7: Profile_coordinates (Координаты профиля)
-# --------------------------------------------------------------------------
 class ProfileCoordinate(Base):
     __tablename__ = 'profile_coordinates'
 
@@ -73,9 +65,7 @@ class ProfileCoordinate(Base):
         return f"<ProfileCoordinate(id={self.profile_coordinates_id}, profile='{self.profile_name}')>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 8: Approximations (Аппроксимация)
-# --------------------------------------------------------------------------
 class Approximation(Base):
     __tablename__ = 'approximations'
 
@@ -83,7 +73,6 @@ class Approximation(Base):
     blade_id = Column(Integer, ForeignKey('blades.blade_id', ondelete="CASCADE"), nullable=False)
     type = Column(Text, nullable=True)
 
-    # Обратные связи с дочерними таблицами параметров
     blade = relationship("Blade", back_populates="approximations")
     parameters = relationship("ApproximationParameter", back_populates="approximation", cascade="all, delete-orphan")
     legendre_coefficients = relationship("LegendreCoefficient", back_populates="approximation", cascade="all, delete-orphan")
@@ -93,9 +82,7 @@ class Approximation(Base):
         return f"<Approximation(id={self.approximation_id}, type='{self.type}')>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 9: Approximation_parameters (Параметры аппроксимации)
-# --------------------------------------------------------------------------
 class ApproximationParameter(Base):
     __tablename__ = 'approximation_parameters'
 
@@ -112,9 +99,7 @@ class ApproximationParameter(Base):
         return f"<ApproximationParameter(id={self.approximation_parameters_id}, R²={self.r_squared})>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 10: Legendre_coefficients (Коэффициенты Лежандра)
-# --------------------------------------------------------------------------
 class LegendreCoefficient(Base):
     __tablename__ = 'legendre_coefficients'
 
@@ -129,9 +114,7 @@ class LegendreCoefficient(Base):
         return f"<LegendreCoefficient(id={self.legendre_coefficients_id}, upper={self.upper_value}, lower={self.lower_value})>"
 
 
-# --------------------------------------------------------------------------
 # Таблица 11: Transformed_coordinates (Преобразованные координаты)
-# --------------------------------------------------------------------------
 class TransformedCoordinate(Base):
     __tablename__ = 'transformed_coordinates'
 

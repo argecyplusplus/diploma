@@ -2,7 +2,6 @@ from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete as sql_delete
 
-# Импорт моделей из слоя данных
 from ..models.blade import (
     Blade, BladeAssembly, BladeAssemblyMember,
     ProfileCoordinate, Approximation, ApproximationParameter,

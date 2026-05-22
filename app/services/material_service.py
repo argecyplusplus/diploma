@@ -27,9 +27,9 @@ class MaterialService:
             mat = self.repo.get_by_id(comp["component_material_id"])
             if not mat:
                 continue
-            w = comp["mass_fraction"]  # массовая доля в долях (0..1)
+            w = comp["mass_fraction"]
             total_mass += w
-            vol = w / mat.density  # объём (пропорциональный)
+            vol = w / mat.density
             total_vol += vol
             conductivity += vol * mat.thermal_conductivity
             heat_cap += vol * mat.heat_capacity
@@ -40,7 +40,7 @@ class MaterialService:
                 melting_sum += vol * mat.melting_point
 
         if total_vol > 0:
-            density = total_mass / total_vol  # плотность = общая масса / объём
+            density = total_mass / total_vol
             thermal_conductivity = conductivity / total_vol
             heat_capacity = heat_cap / total_vol
             thermal_expansion_coef = expansion / total_vol
@@ -68,7 +68,6 @@ class MaterialService:
         # 1. Создаём материал
         material = self.repo.create(
             name=data.name,
-            # is_alloy=False, # Если в модели есть такой флаг
             density=data.density,
             hardness=data.hardness,
             thermal_conductivity=data.thermal_conductivity,
@@ -76,7 +75,6 @@ class MaterialService:
             melting_point=data.melting_point,
             thermal_expansion_coef=data.thermal_expansion_coef
         )
-        # 2. Создаём запись химического элемента
         element = self.repo.create_chemical_element(
             name=data.name,
             type=data.type,
@@ -86,16 +84,13 @@ class MaterialService:
 
     def create_alloy(self, data: AlloyCreateRequest):
         """Создание сплава через правило смесей"""
-        # 1. Считаем свойства
         props = self._calculate_properties([c.model_dump() for c in data.components])
 
-        # 2. Создаём материал-сплав
         alloy = self.repo.create(
             name=data.name,
             is_alloy=True,
             **props
         )
-        # 3. Сохраняем состав
         self.repo.update_alloy_composition(
             alloy.material_id,
             [c.model_dump() for c in data.components]
@@ -108,7 +103,6 @@ class MaterialService:
         if not element:
             raise ValueError("Элемент не найден")
 
-        # Обновляем связанные свойства материала
         material = element.material
         for field in ['density', 'hardness', 'thermal_conductivity',
                       'heat_capacity', 'melting_point', 'thermal_expansion_coef']:
@@ -116,7 +110,6 @@ class MaterialService:
             if value is not None:
                 setattr(material, field, value)
 
-        # Обновляем type и name элемента
         if data.type: element.type = data.type
         if data.name:
             element.name = data.name
@@ -125,7 +118,6 @@ class MaterialService:
         self.repo.update(material)
         self.repo.update(element)
 
-        # Авто-пересчёт зависимых сплавов
         self._recalculate_dependent_alloys(material.material_id)
         return element
 
@@ -203,5 +195,5 @@ class MaterialService:
             material_id=material_id
         )
         self.session.add(element)
-        self.session.flush()  # Чтобы получить ID
+        self.session.flush()
         return element

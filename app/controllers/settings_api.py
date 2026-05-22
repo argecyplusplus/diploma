@@ -1,7 +1,7 @@
 import os
 from flask import Blueprint, request, jsonify
 from dotenv import set_key, load_dotenv
-from ..utils.database import get_db_list, get_current_db, select_database, create_database, delete_database
+from ..utils.database import get_db_list, select_database, create_database, delete_database
 
 settings_api_bp = Blueprint('settings', __name__, url_prefix='/api/settings')
 

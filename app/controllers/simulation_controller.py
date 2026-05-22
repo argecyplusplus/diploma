@@ -6,8 +6,7 @@ from ..dto.simulation_dto import SimulationCreateRequest, InitialConditionCreate
 from ..utils.database import get_db_session
 from ..models.blade import Blade, BladeAssembly
 from ..models.simulation import *
-from ..models.material import Material, AlloyComposition, ElValue
-from ..repositories.material_repository import MaterialRepository
+from ..models.material import Material, ElValue
 from ..models.material import ChemicalElement  # добавить импорт
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select, delete
@@ -29,14 +28,11 @@ def index():
     blades = session.scalars(select(Blade)).all()
     assemblies = session.scalars(select(BladeAssembly)).all()
 
-    # Загружаем химические элементы (как на странице материалов)
     chemical_elements = session.scalars(
         select(ChemicalElement).options(joinedload(ChemicalElement.material))
     ).all()
-    # Извлекаем связанные материалы
     elements = [ce.material for ce in chemical_elements if ce.material]
 
-    # Сплавы – это материалы с is_alloy=True
     alloys = session.scalars(
         select(Material).where(Material.is_alloy == True)
     ).all()
@@ -97,7 +93,6 @@ def get_initial_conditions_api():
 def ic_index():
     service = get_service()
     session = g.db_session
-    # Загружаем материалы (элементы и сплавы) для выпадающего списка
     elements = session.scalars(select(Material).where(Material.is_alloy == False)).all()
     alloys = session.scalars(select(Material).where(Material.is_alloy == True)).all()
     materials = elements + alloys
@@ -140,7 +135,6 @@ def get_initial_condition(ic_id):
     if not ic:
         return jsonify({"error": "Not found"}), 404
 
-    # Загружаем связанные данные
     time_params = session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
     pot_flow = session.scalar(select(PotentialFlowParameter).where(PotentialFlowParameter.initial_conditions_id == ic_id))
     constr = session.scalar(select(ConstructionParameter).where(ConstructionParameter.initial_conditions_id == ic_id))
@@ -149,7 +143,6 @@ def get_initial_condition(ic_id):
     boundaries = session.scalars(select(BoundaryIdentifier).where(BoundaryIdentifier.initial_conditions_id == ic_id)).all()
     chords = session.scalars(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id)).all()
     init_temps = session.scalars(select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id)).all()
-    # ei_values – через elasticity
     ei_vals = []
     if elasticity:
         ei_vals = session.scalars(select(ElValue).where(ElValue.elasticity_parameters_id == elasticity.elasticity_parameters_id)).all()
@@ -203,48 +196,36 @@ def update_initial_condition(ic_id):
         if not ic:
             return jsonify({"error": "Not found"}), 404
 
-        # Обновляем название
         ic.name = data['name']
 
-        # Обновляем связанные параметры (удаляем старые и создаём новые)
-        # TimeParameter
         session.execute(delete(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
         session.add(TimeParameter(initial_conditions_id=ic_id, **data['time_parameters']))
-        # PotentialFlowParameter
         session.execute(delete(PotentialFlowParameter).where(PotentialFlowParameter.initial_conditions_id == ic_id))
         session.add(PotentialFlowParameter(initial_conditions_id=ic_id, **data['potential_flow']))
-        # ConstructionParameter
         session.execute(delete(ConstructionParameter).where(ConstructionParameter.initial_conditions_id == ic_id))
         session.add(ConstructionParameter(initial_conditions_id=ic_id, **data['construction']))
-        # ElasticityParameter
         old_elasticity = session.scalar(select(ElasticityParameter).where(ElasticityParameter.initial_conditions_id == ic_id))
         if old_elasticity:
-            # Удаляем старые Ei
             session.execute(delete(ElValue).where(ElValue.elasticity_parameters_id == old_elasticity.elasticity_parameters_id))
             session.delete(old_elasticity)
         new_elasticity = ElasticityParameter(initial_conditions_id=ic_id, **data['elasticity'])
         session.add(new_elasticity)
         session.flush()
-        # Добавляем Ei
         for ei in data.get('ei_values', []):
             session.add(ElValue(
                 elasticity_parameters_id=new_elasticity.elasticity_parameters_id,
                 material_id=ei['material_id'],
                 value=ei['value']
             ))
-        # StressOutputParameter
         session.execute(delete(StressOutputParameter).where(StressOutputParameter.initial_conditions_id == ic_id))
         session.add(StressOutputParameter(initial_conditions_id=ic_id, **data['stress_output']))
 
-        # BoundaryIdentifier – заменяем
         session.execute(delete(BoundaryIdentifier).where(BoundaryIdentifier.initial_conditions_id == ic_id))
         for b in data['boundaries']:
             session.add(BoundaryIdentifier(initial_conditions_id=ic_id, **b))
-        # BladeChord
         session.execute(delete(BladeChord).where(BladeChord.initial_conditions_id == ic_id))
         for c in data['chords']:
             session.add(BladeChord(initial_conditions_id=ic_id, **c))
-        # InitialTemperature
         session.execute(delete(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
         for t in data['initial_temps']:
             session.add(InitialTemperature(initial_conditions_id=ic_id, **t))
@@ -257,7 +238,7 @@ def update_initial_condition(ic_id):
 
 @sim_bp.route('/api/simulations', methods=['GET'])
 def get_simulations_api():
-    from ..utils.database import get_db_session  # если ещё не импортировано
+    from ..utils.database import get_db_session
     session = get_db_session()
     sims = session.scalars(select(Simulation).order_by(Simulation.simulation_id.desc())).all()
     task_names = {'gas_dynamics': '1', 'thermal_field': '2', 'thermal_stress': '3'}

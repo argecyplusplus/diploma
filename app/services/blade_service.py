@@ -40,16 +40,13 @@ class BladeService:
         if not blade:
             raise ValueError("Blade not found")
 
-        # Отвязываем симуляции от этой лопатки
         from ..models.simulation import Simulation
         session = self.blade_repo.session  # используем сессию из репозитория
         session.query(Simulation).filter_by(blade_id=blade_id).update({"blade_id": None})
         session.flush()
 
-        # Теперь можно безопасно удалить лопатку
         self.blade_repo.delete(blade)
 
-    # --- CRUD Координат ---
     def get_coordinates(self, blade_id: int) -> List[ProfileCoordinateResponse]:
         coords = self.coord_repo.get_by_blade(blade_id)
         return [ProfileCoordinateResponse.model_validate(c) for c in coords]
@@ -67,7 +64,6 @@ class BladeService:
 
     def bulk_add_coordinates(self, blade_id: int, coords: List[ProfileCoordinateRequest]) -> List[
         ProfileCoordinateResponse]:
-        # Преобразуем DTO в формат, ожидаемый репозиторием
         data_list = [
             {
                 "blade_id": blade_id,
@@ -82,7 +78,6 @@ class BladeService:
     def clear_coordinates(self, blade_id: int):
         self.coord_repo.delete_by_blade(blade_id)
 
-    # --- CRUD Объединений (Сборок) ---
     def create_assembly(self, data: BladeAssemblyCreateRequest) -> BladeAssemblyResponse:
         assembly = self.assembly_repo.create(name=data.name)
         for bid in data.blade_ids:
@@ -99,7 +94,6 @@ class BladeService:
         if not members_data:
             return []
 
-        # Преобразуем словари в Pydantic-модели
         return [BladeAssemblyMemberResponse(**row) for row in members_data]
 
     def update_assembly(self, assembly_id: int, data: BladeAssemblyUpdateRequest) -> BladeAssemblyResponse:
@@ -114,7 +108,6 @@ class BladeService:
                 self.assembly_repo.add_member(assembly_id, bid)
 
         if data.remove_blade_ids:
-            # Удаляем связи из сборки
             self.assembly_repo.delete_members(assembly_id, data.remove_blade_ids)
 
         return BladeAssemblyResponse.model_validate(assembly)

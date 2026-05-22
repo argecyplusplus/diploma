@@ -4,7 +4,7 @@ from ..services.material_service import MaterialService
 from ..dto.material_dto import (
     MaterialCreateRequest, MaterialUpdateRequest,
     ChemicalElementCreateRequest, ChemicalElementUpdateRequest,
-    ChemicalElementResponse,  # 🔥 Добавлено
+    ChemicalElementResponse,
     AlloyCreateRequest, MaterialResponse
 )
 from ..utils.database import get_db_session
@@ -53,7 +53,6 @@ def create_chemical_element():
         data = ChemicalElementCreateRequest(**request.json)
         element = get_service().create_element(data)
         g.db_session.commit()
-        # 🔥 Конвертируем в DTO перед сериализацией
         return jsonify(to_element_response(element).model_dump()), 201
     except ValidationError as e:
         safe_rollback()
@@ -141,7 +140,6 @@ def delete_material(id):
         return jsonify({"error": str(e)}), 500
 
 # ================= СПЛАВЫ =================
-
 @alloy_bp.route('', methods=['GET'])
 def get_alloys():
     try:
@@ -154,9 +152,8 @@ def get_alloys():
 def create_alloy():
     try:
         data = AlloyCreateRequest(**request.json)
-        alloy = get_service().create_alloy(data)  # переименовать res -> alloy для ясности
+        alloy = get_service().create_alloy(data)
         g.db_session.commit()
-        # ✅ Исправлено
         return jsonify(MaterialResponse.model_validate(alloy).model_dump()), 201
     except ValidationError as e:
         safe_rollback()
@@ -175,7 +172,6 @@ def get_alloy_details(id):
 
         comps = svc.repo.get_alloy_components(id)
         return jsonify({
-            # ✅ Исправлено
             "alloy": MaterialResponse.model_validate(alloy).model_dump(),
             "components": [
                 {
@@ -231,7 +227,6 @@ def delete_alloy(id):
         return jsonify({"error": str(e)}), 500
 
 # ================= ВСПОМОГАТЕЛЬНЫЕ ЭНДПОИНТЫ =================
-
 @element_bp.route('/types', methods=['GET'])
 def get_element_types():
     return jsonify({

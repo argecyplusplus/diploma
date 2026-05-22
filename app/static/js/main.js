@@ -1,4 +1,3 @@
-// static/js/main.js
 let currentDb = null;
 
 async function loadConfig() {

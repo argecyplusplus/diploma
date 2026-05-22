@@ -1,4 +1,3 @@
-// static/js/blades.js
 let bladesData = [];
 let assembliesData = [];
 let currentCoords = { upper: [], lower: [] };
@@ -75,7 +74,7 @@ function renderAssembliesTable() {
         <tr class="clickable-row" data-assembly-id="${a.blade_assembly_id}" onclick="openViewAssemblyModal(${a.blade_assembly_id}, '${escapeHtml(a.name)}')">
             <td>${a.blade_assembly_id}</td>
             <td>${escapeHtml(a.name)}</td>
-            <td></td> <!-- Пустая ячейка вместо кнопки -->
+            <td></td>
         </tr>
     `).join('');
 }

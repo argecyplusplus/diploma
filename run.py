@@ -1,12 +1,8 @@
 from app import create_app
 from dotenv import load_dotenv
 
-# Создаем экземпляр Flask-приложения, вызывая нашу фабрику
 app = create_app()
 load_dotenv()
 
 if __name__ == '__main__':
-    # Запускаем локальный сервер разработки
-    # debug=True позволяет автоматически перезагружать сервер при изменении кода
-    # и показывает подробные сообщения об ошибках
     app.run(debug=True, host='0.0.0.0', port=5000)

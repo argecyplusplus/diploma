@@ -1,4 +1,3 @@
-# app/__init__.py
 import os
 
 from flask import Flask, redirect, url_for, request, jsonify, g
@@ -14,7 +13,6 @@ def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
-    # Регистрируем только page_views_bp для статических страниц
     app.register_blueprint(page_views_bp)
     app.register_blueprint(blade_bp)
     app.register_blueprint(assembly_bp)
@@ -26,7 +24,6 @@ def create_app():
     app.register_blueprint(ic_bp)
     app.register_blueprint(settings_api_bp)
 
-    # Middleware проверки БД (исключаем API и статику)
     @app.before_request
     def check_db_selected():
         allowed_paths = ['/api/settings', '/static', '/', '/select-db']

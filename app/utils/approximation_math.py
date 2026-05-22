@@ -1,4 +1,3 @@
-# app/utils/approximation_math.py
 import numpy as np
 from numpy.linalg import inv
 

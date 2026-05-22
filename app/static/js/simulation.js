@@ -1,9 +1,6 @@
-// static/js/simulation.js
-
 let currentPollInterval = null;
 let currentSimId = null;
 
-// Подсказки для задач
 const taskHints = {
     gas_dynamics: '📌 Для задачи 1 набор начальных условий должен содержать: параметры потенциального потока (beta, B), идентификатор границы (S1), хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm). Временные и тепловые параметры НЕ используются.',
     thermal_field: '📌 Для задачи 2 набор начальных условий должен содержать: временные параметры (dt, nbT), начальную температуру материала, хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm, NSpn).',
@@ -93,7 +90,6 @@ async function cleanFailedSimulations() {
     }
 }
 
-// Переход на страницу результатов
 function viewResults(simId) {
     window.location.href = `/simulation/${simId}/results`;
 }
@@ -474,7 +470,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     const form = document.getElementById('simForm');
     if (form) form.onsubmit = createSimulation;
-    // Глобальные функции для onclick
     window.deleteSimulation = deleteSimulation;
     window.cleanFailedSimulations = cleanFailedSimulations;
     window.viewResults = viewResults;

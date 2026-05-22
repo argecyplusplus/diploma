@@ -1,5 +1,3 @@
-// static/js/approximation.js
-
 let currentData = { coords: [], coeffs: [], params: [] };
 let currentBladeId = null;
 
@@ -157,7 +155,6 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Делаем функции глобальными для вызова из HTML-атрибутов
 window.onBladeSelect = onBladeSelect;
 window.executeApproximation = executeApproximation;
 window.switchTab = switchTab;

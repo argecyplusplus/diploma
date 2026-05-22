@@ -4,8 +4,8 @@ from enum import Enum
 
 class TaskType(str, Enum):
     GAS_DYNAMICS = "gas_dynamics"          # задача 1
-    THERMAL_FIELD = "thermal_field"        # задача 2 (чистое тепловое поле)
-    THERMAL_STRESS = "thermal_stress"      # задача 3 (тепло + напряжения)
+    THERMAL_FIELD = "thermal_field"        # задача 2
+    THERMAL_STRESS = "thermal_stress"      # задача 3
 
 class SimulationCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)

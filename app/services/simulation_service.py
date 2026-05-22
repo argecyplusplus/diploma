@@ -44,17 +44,14 @@ class SimulationService:
         return {"status": sim.status, "progress": getattr(sim, 'progress', 0)}
 
     def create_simulation(self, data: SimulationCreateRequest):
-        # Валидация: газодинамика требует только blade_id, запрещён assembly
         if data.task_type == TaskType.GAS_DYNAMICS:
             if data.assembly_id is not None or data.blade_id is None:
                 raise ValueError(
                     "Для газодинамики необходимо указать конкретную лопатку (blade_id), assembly_id не допускается")
         else:
-            # Для thermal_field и thermal_stress: должен быть либо blade, либо assembly
             if data.blade_id is None and data.assembly_id is None:
                 raise ValueError("Для этой задачи выберите лопатку или объединение")
 
-        # Если выбран assembly (и задача не газодинамика) — создаём отдельную симуляцию для каждой лопатки
         if data.assembly_id is not None and data.task_type != TaskType.GAS_DYNAMICS:
             assembly = self.session.get(BladeAssembly, data.assembly_id)
             if not assembly or not assembly.members:
@@ -325,12 +322,10 @@ class SimulationService:
         sim = self.session.get(Simulation, sim_id)
         if not sim:
             raise ValueError("Симуляция не найдена")
-        # Удаляем папку с файлами
         sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
         if os.path.exists(sim_dir):
             import shutil
             shutil.rmtree(sim_dir)
-        # Удаляем запись из БД (каскадное удаление результатов)
         self.session.delete(sim)
 
     def delete_failed_simulations(self) -> int:
@@ -392,7 +387,7 @@ class SimulationService:
             plots['profile'] = base64.b64encode(buf.getvalue()).decode('utf-8')
             plt.close()
 
-        # Температура и деформации/напряжения – используем TEpsout.csv и TSout.csv
+        # Температура и деформации/напряжения – TEpsout.csv и TSout.csv
         eps_path = os.path.join(sim_dir, "TEpsout.csv")
         stress_path = os.path.join(sim_dir, "TSout.csv")
         if os.path.exists(eps_path):

@@ -16,16 +16,13 @@ def run_freefem(edp_file_path: str, work_dir: str = None) -> dict:
     """
     ff_path = os.getenv('FREEFEM_PATH', 'FreeFem++')
 
-    # Если путь указан, но файл не существует, пробуем найти в PATH
     if ff_path and ff_path != 'FreeFem++' and not os.path.exists(ff_path):
         logger.warning(f"FreeFEM не найден по пути: {ff_path}. Пробуем системный PATH.")
         ff_path = 'FreeFem++'
 
-    # Формируем команду. -nw = no window (тихий режим)
-    # На Windows иногда нужен FreeFem++-mpi.exe, но стандартный работает для .edp
+
     cmd = [ff_path, edp_file_path, "-nw"]
 
-    # Для Windows пути с пробелами shlex не нужен, но список аргументов безопасен
     if os.name == 'nt':
         cmd = [ff_path, edp_file_path, "-nw"]
 
@@ -39,7 +36,7 @@ def run_freefem(edp_file_path: str, work_dir: str = None) -> dict:
             cmd,
             capture_output=True,
             text=True,
-            timeout=600,  # 10 минут максимум
+            timeout=600,
             env=env,
             cwd=work_dir or os.path.dirname(edp_file_path)
         )

@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field, ConfigDict
 class MaterialCreateRequest(BaseModel):
     """DTO для создания материала/элемента"""
     name: str = Field(..., min_length=1, max_length=100)
-    # type удален, так как тип определяется контекстом (элемент или сплав)
     density: float = Field(..., gt=0)
     thermal_conductivity: float = Field(..., gt=0)
     heat_capacity: float = Field(..., gt=0)
@@ -30,7 +29,6 @@ class MaterialResponse(BaseModel):
     """Ответ API с данными материала"""
     material_id: int
     name: str
-    # type: str # Можно оставить, если нужно различать element/alloy в ответе
     density: float
     hardness: Optional[float]
     thermal_conductivity: float
@@ -45,10 +43,8 @@ class MaterialResponse(BaseModel):
 class ChemicalElementCreateRequest(BaseModel):
     """Создание химического элемента + базового материала"""
     name: str = Field(..., min_length=1, max_length=100)
-    # Тип элемента из старой программы
     type: Literal['Металл', 'Неметалл', 'Оксид', 'Нитрид', 'Карбид', 'Композит', 'Газ']
 
-    # Свойства материала (дублируются для удобства единого вызова API)
     density: float = Field(..., gt=0)
     thermal_conductivity: float = Field(..., gt=0)
     heat_capacity: float = Field(..., gt=0)
@@ -86,7 +82,6 @@ class ChemicalElementResponse(BaseModel):
 
 
 # ================= СПЛАВЫ =================
-
 class AlloyComponentRequest(BaseModel):
     """Компонент сплава для создания"""
     component_material_id: int

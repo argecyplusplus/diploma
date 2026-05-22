@@ -14,7 +14,6 @@ class BladeResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 # --- Coordinate DTOs ---
-# В новой БД верхний/нижний профиль хранится в одной таблице с полем profile_type
 class ProfileCoordinateRequest(BaseModel):
     profile_type: str = Field(..., description="'upper' или 'lower'")
     x: float
@@ -46,6 +45,6 @@ class BladeAssemblyResponse(BaseModel):
 class BladeAssemblyMemberResponse(BaseModel):
     blade_assembly_members_id: int
     blade_id: int
-    blade_name: Optional[str] = None  # ← добавьте это поле
+    blade_name: Optional[str] = None
     description: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)

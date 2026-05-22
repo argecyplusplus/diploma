@@ -123,7 +123,7 @@ def clear_coordinates(blade_id):
         print(f"ERROR in clear_coordinates: {e}")
         return jsonify({"error": str(e)}), 500
 
-# ================= ASSEMBLIES (MERGE) =================
+# ================= ASSEMBLIES =================
 @assembly_bp.route('', methods=['GET'])
 def list_assemblies():
     try:

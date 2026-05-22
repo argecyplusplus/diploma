@@ -1,8 +1,3 @@
-/* =========================================================
-   FF PRO — ENGINEERING UI SYSTEM
-   Строгая сетка, техническая типографика, статусные индикаторы,
-   моноширинные данные, минимум декора, максимум структуры.
-   ========================================================= */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -55,10 +50,9 @@ body {
 .settings-btn:hover { border-color: var(--border-strong); color: var(--text-main); background: #f9fafb; }
 
 .main {
-   /*margin-left: 260px; */
   margin-top: 56px; flex: 1; overflow-y: auto; padding: 28px 32px; background: var(--bg-canvas); }
 
-/* ========= DASHBOARD (NEW STRUCTURE) ========= */
+/* ========= DASHBOARD ========= */
 .dashboard { max-width: 1200px; margin: 0 auto; }
 .dashboard-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
 .page-title { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; color: var(--text-main); margin-bottom: 4px; }
@@ -671,11 +665,10 @@ body {
 }
 
 /* Кнопка просмотра лога */
-/* Кнопка просмотра лога — красные оттенки */
 .btn-log {
-    background: #fff1f0;      /* очень светлый красный (легкая заливка) */
+    background: #fff1f0;
     border: 1px solid #fecaca;
-    color: #b91c1c;           /* тёмно-красный текст */
+    color: #b91c1c;
     padding: 4px 8px;
     font-size: 0.6875rem;
     border-radius: var(--radius);
@@ -686,22 +679,21 @@ body {
     gap: 4px;
 }
 .btn-log:hover {
-    background: #fee2e2;      /* чуть насыщеннее при наведении */
+    background: #fee2e2;
     border-color: #f87171;
-    color: #991b1b;           /* ещё темнее */
+    color: #991b1b;
 }
 .btn-log:focus-visible {
-    outline: 2px solid #ef4444;  /* красный акцент вместо синего */
+    outline: 2px solid #ef4444;
     outline-offset: 2px;
 }
 
 .data-table td:last-child,
 .data-table th:last-child {
-    min-width: 140px;        /* достаточно места для двух кнопок/бейджей */
-    white-space: normal;     /* разрешить перенос, если тесно */
+    min-width: 140px;
+    white-space: normal;
 }
 
-/* Переопределение для кнопки лога внутри .table-actions */
 .table-actions .btn-log {
     background: #fff1f0;
     border: 1px solid #fecaca;
