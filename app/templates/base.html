@@ -15,11 +15,11 @@
         <h1>FF Pro</h1>
     </div>
     <nav class="sidebar-nav">
-        <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}"><i>🏠</i> <span>Главная</span></a>
-        <a href="/blades" class="nav-item {% if 'blades' in request.path %}active{% endif %}"><i>📐</i> <span>Лопатки</span></a>
-        <a href="/approximation" class="nav-item {% if 'approximation' in request.path %}active{% endif %}"><i>📊</i> <span>Аппроксимация</span></a>
-        <a href="/materials" class="nav-item {% if 'materials' in request.path %}active{% endif %}"><i>🧪</i> <span>Материалы</span></a>
-        <a href="/simulation" class="nav-item {% if 'simulation' in request.path %}active{% endif %}"><i>⚙️</i> <span>Моделирование</span></a>
+        <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}"><span>Главная</span></a>
+        <a href="/blades" class="nav-item {% if 'blades' in request.path %}active{% endif %}"><span>Лопатки</span></a>
+        <a href="/approximation" class="nav-item {% if 'approximation' in request.path %}active{% endif %}"><span>Аппроксимация</span></a>
+        <a href="/materials" class="nav-item {% if 'materials' in request.path %}active{% endif %}"><span>Материалы</span></a>
+        <a href="/simulation" class="nav-item {% if 'simulation' in request.path %}active{% endif %}"><span>Моделирование</span></a>
     </nav>
 </aside>
 
@@ -39,10 +39,10 @@
             <h2>Добро пожаловать в FF Pro</h2>
             <p>Профессиональная платформа для параметрического моделирования, аппроксимации и прочностного анализа лопаток ГТД на базе FreeFEM++.</p>
             <div class="quick-actions">
-                <a href="/blades" class="big-btn primary">📐 Лопатки</a>
-                <a href="/materials" class="big-btn secondary">🧪 Материалы</a>
-                <a href="/approximation" class="big-btn secondary">📊 Аппроксимация</a>
-                <a href="/simulation" class="big-btn secondary">🖥️ Моделирование</a>
+                <a href="/blades" class="big-btn primary">Лопатки</a>
+                <a href="/materials" class="big-btn secondary">Материалы</a>
+                <a href="/approximation" class="big-btn secondary">Аппроксимация</a>
+                <a href="/simulation" class="big-btn secondary">Моделирование</a>
             </div>
         </div>
         {% if not currentDb %}
