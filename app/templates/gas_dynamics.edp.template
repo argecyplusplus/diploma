@@ -19,14 +19,14 @@ for(int i=0; i<coeffsUp.n; i++) fl >> coeffsUp(i);
 for(int i=0; i<coeffsLow.n; i++) fl >> coeffsLow(i);
 
 func real Lezh(real[int] L, real t) {
-    real[int] y(10);
-    y(0)=1.; y(1)=t; y(2)=(3.*t^2-1.)/2.; y(3)=(5.*t^3-3.*t)/2.;
-    y(4)=(35.*t^4-30.*t^2+3.)/8.; y(5)=(63.*t^5-70.*t^3+15.*t)/8.;
-    y(6)=231./16.*t^6-315./16.*t^4+105./16.*t^2-5./16.;
-    y(7)=429./16.*t^7-693./16.*t^5+315./16.*t^3-35./16.*t;
-    y(8)=6435./128.*t^8-3003./32.*t^6+3465./64.*t^4-315./32.*t^2+35./128.;
-    y(9)=12155./128.*t^9-6435./32.*t^7+9009./64.*t^5-1155./32.*t^3+315./128.*t;
-    return L'*y;
+    real[int] yy(10);
+    yy(0)=1.; yy(1)=t; yy(2)=(3.*t^2-1.)/2.; yy(3)=(5.*t^3-3.*t)/2.;
+    yy(4)=(35.*t^4-30.*t^2+3.)/8.; yy(5)=(63.*t^5-70.*t^3+15.*t)/8.;
+    yy(6)=231./16.*t^6-315./16.*t^4+105./16.*t^2-5./16.;
+    yy(7)=429./16.*t^7-693./16.*t^5+315./16.*t^3-35./16.*t;
+    yy(8)=6435./128.*t^8-3003./32.*t^6+3465./64.*t^4-315./32.*t^2+35./128.;
+    yy(9)=12155./128.*t^9-6435./32.*t^7+9009./64.*t^5-1155./32.*t^3+315./128.*t;
+    return L'*yy;
 }
 
 border Splus(t=0., 1.){ x=Chord1*t; y=Chord1*Lezh(coeffsUp,t); label=S1; }
@@ -75,3 +75,41 @@ cout << "max p outspace = " << poutspace[].max << endl;
 cout << "min p outspace = " << poutspace[].min << endl;
 
 savevtk("result.vtk", Th, p);
+
+// ========== ТЕПЛОВОЙ РАСЧЁТ ==========
+real dt = {{dt}};
+real nbT = {{nbT}};
+real Tinitial = {{T_initial}};
+real ksteel = {{ksteel}};
+real kair = {{kair}};
+
+border D(t=0, 2.){ x=0.5+t*cost; y=+t*sint; }
+mesh Sh = buildmesh(C({{NC}}) + Splus(-90) + Spm(-2) + Sminus(-90) + Smp(-2) + D(200));
+int steel = Sh(xblade, yblade).region, air = Sh(-1, -1).region;
+
+fespace Wh(Sh, P1);
+Wh vv;
+
+fespace W0(Sh, P0);
+W0 k = kair*(region == air) + ksteel*(region == steel);
+W0 u1 = dy(psi)*(region == air), u2 = -dx(psi)*(region == air);
+Wh v = Tinitial*(region == steel), vold;
+
+Sh = change(Sh, flabel = (label == C && [u1,u2]'*N < 0) ? 10 : label);
+
+problem thermic(v, vv, solver=LU)
+  = int2d(Sh)(
+      v*vv/dt + k*(dx(v)*dx(vv)+dy(v)*dy(vv)) + 10*(u1*dx(v)+u2*dy(v))*vv
+    )
+  - int2d(Sh)(vold*vv/dt)
+  + on(10, v=0);
+
+for(int i=0; i<nbT; i++) {
+    vold[] = v[];
+    thermic;
+    plotCounter++;
+    plotName = "temp_" + i + ".eps";
+    plot(v, wait=0, fill=1, value=1, ps=plotName);
+}
+plotName = "temp_final.eps";
+plot(v, wait=0, nbiso=20, value=1, ps=plotName);

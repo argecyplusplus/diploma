@@ -171,7 +171,7 @@ class SimulationService:
         ic_id = sim.initial_conditions_id
         task_type = TaskType(sim.task_type)
 
-        # --- Коэффициенты Лежандра (общее) ---
+        # --- Коэффициенты Лежандра ---
         approx = self.session.scalar(
             select(Approximation).where(Approximation.blade_id == sim.blade_id)
             .order_by(Approximation.approximation_id.desc()))
@@ -199,7 +199,7 @@ class SimulationService:
         flow = self.session.scalar(
             select(PotentialFlowParameter).where(PotentialFlowParameter.initial_conditions_id == ic_id))
 
-        # Базовые замены (общие для всех задач)
+        # Базовые замены
         replacements = {
             "Chord1": str(chord.value if chord else 1.0),
             "S1": str(boundary.value if boundary else 100),
@@ -216,6 +216,20 @@ class SimulationService:
         # --- Выбор шаблона и дополнительные параметры ---
         if task_type == TaskType.GAS_DYNAMICS:
             template_name = "gas_dynamics.edp.template"
+
+            time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
+            init_temp = self.session.scalar(
+                select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
+            material = sim.materials[0].material if sim.materials else None
+            k_steel = material.thermal_conductivity if material and material.thermal_conductivity else 0.1
+
+            replacements.update({
+                "dt": str(time_params.dt if time_params else 0.05),
+                "nbT": str(time_params.nbT if time_params else 25),
+                "T_initial": str(init_temp.value if init_temp else 250),
+                "ksteel": str(k_steel),
+                "kair": "0.01",
+            })
 
         elif task_type == TaskType.THERMAL_FIELD:
             template_name = "thermal_field.edp.template"
@@ -241,7 +255,6 @@ class SimulationService:
                 select(ElasticityParameter).where(ElasticityParameter.initial_conditions_id == ic_id))
             stress_out = self.session.scalar(
                 select(StressOutputParameter).where(StressOutputParameter.initial_conditions_id == ic_id))
-            # Модуль Юнга для материала лопатки
             material = sim.materials[0].material if sim.materials else None
             ei_value = None
             if elastic and material:
@@ -343,7 +356,7 @@ class SimulationService:
         return count
 
     def generate_plots(self, sim_id: int) -> dict:
-        """Генерирует графики для задачи 3 на основе CSV-файлов и конвертирует все EPS"""
+        """Генерирует графики в зависимости от типа задачи и возвращает словарь с читаемыми названиями"""
         import numpy as np
         import matplotlib
         matplotlib.use('Agg')
@@ -351,9 +364,18 @@ class SimulationService:
         from io import BytesIO
         import base64
         from numpy.linalg import eig
+        from PIL import Image
+        import glob
 
         sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
+        sim = self.session.get(Simulation, sim_id)
+        if not sim:
+            return {"error": "Симуляция не найдена"}
 
+        task_type = sim.task_type  # 'gas_dynamics', 'thermal_field', 'thermal_stress'
+        plots = {}
+
+        # ---- Вспомогательные функции для задачи 3 ----
         def mizes2(tensor):
             eig_vals, _ = eig(tensor)
             miz = np.sqrt(((eig_vals[0] - eig_vals[1])**2)/2)
@@ -362,102 +384,198 @@ class SimulationService:
         def calc_eigMiz(data_select):
             eigMiz = np.zeros((np.shape(data_select)[0], 3))
             for i in range(np.shape(data_select)[0]):
-                T_mat = np.array([[data_select[i, 0], data_select[i, 1]], [data_select[i, 1], data_select[i, 2]]])
+                T_mat = np.array([[data_select[i, 0], data_select[i, 1]],
+                                  [data_select[i, 1], data_select[i, 2]]])
                 eigMiz[i] = mizes2(T_mat)
             return eigMiz
 
-        plots = {}
+        # ========== ЗАДАЧА 1: ГАЗОДИНАМИКА + ТЕПЛО ==========
+        if task_type == 'gas_dynamics':
+            # Конвертируем все plot_*.eps в PNG с осмысленными ключами
+            eps_files = sorted(glob.glob(os.path.join(sim_dir, "plot_*.eps")))
+            titles = {
+                'plot_1': 'Сетка',
+                'plot_2': 'Функция тока ψ',
+                'plot_3': 'Поле скорости',
+                'plot_4': 'Давление p',
+                'plot_5': 'Давление (изолинии)'
+            }
+            for eps in eps_files:
+                base = os.path.basename(eps).replace('.eps', '')
+                if base in titles:
+                    try:
+                        img = Image.open(eps)
+                        png_file = eps.replace('.eps', '.png')
+                        img.save(png_file, 'PNG')
+                        with open(png_file, 'rb') as f:
+                            plots[titles[base]] = base64.b64encode(f.read()).decode('utf-8')
+                    except Exception as e:
+                        logger.warning(f"Не удалось конвертировать {eps}: {e}")
 
-        # Профиль лопатки (Profout.csv)
-        prof_path = os.path.join(sim_dir, "Profout.csv")
-        if os.path.exists(prof_path):
-            data = np.loadtxt(prof_path)
-            plt.figure(figsize=(8, 5))
-            plt.plot(data[:,0], data[:,1], 'b-', label='Спинка')
-            plt.plot(data[:,0], data[:,2], 'b-', label='Корытце')
-            plt.plot(data[:,3], data[:,4], 'r-', label='Спинка смещ.')
-            plt.plot(data[:,3], data[:,5], 'r-', label='Корытце смещ.')
-            plt.xlabel('X, мм')
-            plt.ylabel('Y, мм')
-            plt.title('Профиль лопатки')
-            plt.legend()
-            buf = BytesIO()
-            plt.savefig(buf, format='png', dpi=100)
-            buf.seek(0)
-            plots['profile'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-            plt.close()
+            # Финальное температурное поле (temp_final.eps)
+            temp_final = os.path.join(sim_dir, "temp_final.eps")
+            if os.path.exists(temp_final):
+                try:
+                    img = Image.open(temp_final)
+                    png_file = temp_final.replace('.eps', '.png')
+                    img.save(png_file, 'PNG')
+                    with open(png_file, 'rb') as f:
+                        plots['Температурное поле (финальное)'] = base64.b64encode(f.read()).decode('utf-8')
+                except Exception as e:
+                    logger.warning(f"Не удалось конвертировать temp_final.eps: {e}")
 
-        # Температура и деформации/напряжения – TEpsout.csv и TSout.csv
-        eps_path = os.path.join(sim_dir, "TEpsout.csv")
-        stress_path = os.path.join(sim_dir, "TSout.csv")
-        if os.path.exists(eps_path):
-            data = np.loadtxt(eps_path)
-            data_select_up = data[:, 3:6]
-            epseig_up = calc_eigMiz(data_select_up)[:, 2]
-            data_select_lw = data[:, 8:11]
-            epseig_lw = calc_eigMiz(data_select_lw)[:, 2]
-            x_coords = data[:, 0]
+            # Создание GIF из temp_*.eps
+            temp_eps = sorted(glob.glob(os.path.join(sim_dir, "temp_*.eps")))
+            # отфильтруем temp_final (он не идёт в анимацию)
+            temp_eps = [f for f in temp_eps if not f.endswith('temp_final.eps')]
+            if temp_eps:
+                frames = []
+                for eps in temp_eps:
+                    try:
+                        img = Image.open(eps)
+                        frames.append(img)
+                    except Exception as e:
+                        logger.warning(f"Не удалось загрузить кадр {eps}: {e}")
+                if frames:
+                    gif_path = os.path.join(sim_dir, "temperature_animation.gif")
+                    frames[0].save(gif_path, save_all=True, append_images=frames[1:],
+                                   duration=200, loop=0, format='GIF')
+                    with open(gif_path, 'rb') as f:
+                        plots['Анимация температурного поля'] = base64.b64encode(f.read()).decode('utf-8')
+                    logger.info(f"GIF анимация создана: {gif_path}")
 
-            plt.figure(figsize=(8, 5))
-            plt.plot(x_coords, epseig_up * 100, 'ro-', label='Спинка (деформация Мизеса, %)')
-            plt.plot(x_coords, epseig_lw * 100, 'bo-', label='Корытце (деформация Мизеса, %)')
-            plt.xlabel('X, мм')
-            plt.ylabel('Деформация, %')
-            plt.title('Эквивалентная деформация Мизеса')
-            plt.legend()
-            buf = BytesIO()
-            plt.savefig(buf, format='png', dpi=100)
-            buf.seek(0)
-            plots['mises_strain'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-            plt.close()
+        # ========== ЗАДАЧА 2: ТЕПЛОВОЕ ПОЛЕ (без напряжений) ==========
+        elif task_type == 'thermal_field':
+            eps_files = sorted(glob.glob(os.path.join(sim_dir, "plot_*.eps")))
+            if eps_files:
+                # Первый файл — сетка
+                first = eps_files[0]
+                try:
+                    img = Image.open(first)
+                    png_file = first.replace('.eps', '.png')
+                    img.save(png_file, 'PNG')
+                    with open(png_file, 'rb') as f:
+                        plots['Сетка'] = base64.b64encode(f.read()).decode('utf-8')
+                except Exception as e:
+                    logger.warning(f"Не удалось конвертировать сетку: {e}")
 
-            # Температура
-            plt.figure(figsize=(8, 5))
-            plt.plot(x_coords, data[:, 2], 'r-', label='Спинка')
-            plt.plot(x_coords, data[:, 7], 'b-', label='Корытце')
-            plt.xlabel('X, мм')
-            plt.ylabel('Температура, °C')
-            plt.title('Распределение температуры по поверхности лопатки')
-            plt.legend()
-            buf = BytesIO()
-            plt.savefig(buf, format='png', dpi=100)
-            buf.seek(0)
-            plots['temperature'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-            plt.close()
+                # Остальные — кадры температуры
+                frame_num = 1
+                for eps in eps_files[1:]:
+                    try:
+                        img = Image.open(eps)
+                        png_file = eps.replace('.eps', '.png')
+                        img.save(png_file, 'PNG')
+                        with open(png_file, 'rb') as f:
+                            plots[f'Температурное поле (кадр {frame_num})'] = base64.b64encode(f.read()).decode('utf-8')
+                        frame_num += 1
+                    except Exception as e:
+                        logger.warning(f"Не удалось конвертировать {eps}: {e}")
 
-        if os.path.exists(stress_path):
-            data = np.loadtxt(stress_path)
-            data_select_up = data[:, 3:6]
-            streig_up = calc_eigMiz(data_select_up)[:, 2]
-            data_select_lw = data[:, 8:11]
-            streig_lw = calc_eigMiz(data_select_lw)[:, 2]
-            x_coords = data[:, 0]
-
-            plt.figure(figsize=(8, 5))
-            plt.plot(x_coords, streig_up, 'ro-', label='Спинка (напряжение Мизеса, МПа)')
-            plt.plot(x_coords, streig_lw, 'bo-', label='Корытце (напряжение Мизеса, МПа)')
-            plt.xlabel('X, мм')
-            plt.ylabel('Напряжение, МПа')
-            plt.title('Эквивалентное напряжение Мизеса')
-            plt.legend()
-            buf = BytesIO()
-            plt.savefig(buf, format='png', dpi=100)
-            buf.seek(0)
-            plots['mises_stress'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-            plt.close()
-
-        # Конвертация EPS-графиков FreeFEM
-        import glob
-        eps_files = glob.glob(os.path.join(sim_dir, "*.eps"))
-        for eps_file in eps_files:
-            try:
-                from PIL import Image
-                img = Image.open(eps_file)
+        # ========== ЗАДАЧА 3: ТЕРМОУПРУГОСТЬ ==========
+        elif task_type == 'thermal_stress':
+            # 1. Профиль лопатки (Profout.csv)
+            prof_path = os.path.join(sim_dir, "Profout.csv")
+            if os.path.exists(prof_path):
+                data = np.loadtxt(prof_path)
+                plt.figure(figsize=(8, 5))
+                plt.plot(data[:,0], data[:,1], 'b-', label='Спинка')
+                plt.plot(data[:,0], data[:,2], 'b-', label='Корытце')
+                plt.plot(data[:,3], data[:,4], 'r-', label='Спинка смещ.')
+                plt.plot(data[:,3], data[:,5], 'r-', label='Корытце смещ.')
+                plt.xlabel('X, мм')
+                plt.ylabel('Y, мм')
+                plt.title('Профиль лопатки')
+                plt.legend()
                 buf = BytesIO()
-                img.save(buf, format='PNG')
+                plt.savefig(buf, format='png', dpi=100)
                 buf.seek(0)
-                key = os.path.basename(eps_file).replace('.eps', '')
-                plots[key] = base64.b64encode(buf.getvalue()).decode('utf-8')
-            except Exception as e:
-                logger.warning(f"Не удалось конвертировать {eps_file}: {e}")
+                plots['Профиль лопатки'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                plt.close()
+
+            # 2. Данные из TEpsout.csv (деформации и температура)
+            eps_path = os.path.join(sim_dir, "TEpsout.csv")
+            if os.path.exists(eps_path):
+                data = np.loadtxt(eps_path)
+                x_coords = data[:, 0]
+
+                # Деформация Мизеса
+                data_up = data[:, 3:6]
+                eps_up = calc_eigMiz(data_up)[:, 2] * 100
+                data_lw = data[:, 8:11]
+                eps_lw = calc_eigMiz(data_lw)[:, 2] * 100
+
+                plt.figure(figsize=(8,5))
+                plt.plot(x_coords, eps_up, 'ro-', label='Спинка')
+                plt.plot(x_coords, eps_lw, 'bo-', label='Корытце')
+                plt.xlabel('X, мм')
+                plt.ylabel('Деформация, %')
+                plt.title('Эквивалентная деформация Мизеса')
+                plt.legend()
+                buf = BytesIO()
+                plt.savefig(buf, format='png', dpi=100)
+                buf.seek(0)
+                plots['Деформация Мизеса'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                plt.close()
+
+                # Температура на поверхности
+                plt.figure(figsize=(8,5))
+                plt.plot(x_coords, data[:,2], 'r-', label='Спинка')
+                plt.plot(x_coords, data[:,7], 'b-', label='Корытце')
+                plt.xlabel('X, мм')
+                plt.ylabel('Температура, °C')
+                plt.title('Распределение температуры по поверхности лопатки')
+                plt.legend()
+                buf = BytesIO()
+                plt.savefig(buf, format='png', dpi=100)
+                buf.seek(0)
+                plots['Температура (поверхность)'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                plt.close()
+
+            # 3. Данные из TSout.csv (напряжения)
+            stress_path = os.path.join(sim_dir, "TSout.csv")
+            if os.path.exists(stress_path):
+                data = np.loadtxt(stress_path)
+                x_coords = data[:, 0]
+                data_up = data[:, 3:6]
+                sig_up = calc_eigMiz(data_up)[:, 2]
+                data_lw = data[:, 8:11]
+                sig_lw = calc_eigMiz(data_lw)[:, 2]
+
+                plt.figure(figsize=(8,5))
+                plt.plot(x_coords, sig_up, 'ro-', label='Спинка')
+                plt.plot(x_coords, sig_lw, 'bo-', label='Корытце')
+                plt.xlabel('X, мм')
+                plt.ylabel('Напряжение, МПа')
+                plt.title('Эквивалентное напряжение Мизеса')
+                plt.legend()
+                buf = BytesIO()
+                plt.savefig(buf, format='png', dpi=100)
+                buf.seek(0)
+                plots['Напряжение Мизеса'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                plt.close()
+
+            # 4. Конвертируем оставшиеся EPS (Sig1, Sig2, Sig12)
+            eps_remaining = glob.glob(os.path.join(sim_dir, "*.eps"))
+            for eps in eps_remaining:
+                base = os.path.basename(eps).replace('.eps', '')
+                if base.startswith('plot_') or base.startswith('temp_'):
+                    continue
+                try:
+                    img = Image.open(eps)
+                    png_file = eps.replace('.eps', '.png')
+                    img.save(png_file, 'PNG')
+                    with open(png_file, 'rb') as f:
+                        if 'sig1' in base.lower():
+                            name = 'Напряжение σ₁'
+                        elif 'sig2' in base.lower():
+                            name = 'Напряжение σ₂'
+                        elif 'sig12' in base.lower():
+                            name = 'Напряжение σ₁₂'
+                        else:
+                            name = base
+                        plots[name] = base64.b64encode(f.read()).decode('utf-8')
+                except Exception as e:
+                    logger.warning(f"Не удалось конвертировать {eps}: {e}")
+
         return plots

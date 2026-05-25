@@ -9,27 +9,20 @@ async function loadPlots() {
         if (!res.ok) throw new Error('Ошибка загрузки');
         const data = await res.json();
         if (data.error) throw new Error(data.error);
+
         let html = '';
-        // Словарь для понятных названий графиков
-        const plotNames = {
-            'plot_1': 'Сетка',
-            'plot_2': 'Функция тока / Температура',
-            'plot_3': 'Скорость / Напряжение σ₁',
-            'plot_4': 'Давление / Напряжение σ₂',
-            'plot_5': 'Давление (изолинии) / Напряжение σ₁₂',
-            'profile': 'Профиль лопатки',
-            'temperature': 'Распределение температуры',
-            'mises_strain': 'Деформация Мизеса',
-            'mises_stress': 'Напряжение Мизеса',
-            'sig1': 'Напряжение σ₁',
-            'sig2': 'Напряжение σ₂',
-            'sig12': 'Напряжение σ₁₂',
-            'ThermalDistrib': 'Температурное поле'
-        };
-        for (const [name, imgBase64] of Object.entries(data)) {
-            if (name === 'error') continue;
-            let displayName = plotNames[name] || name;
-            html += `<div><h4>${displayName}</h4><img src="data:image/png;base64,${imgBase64}" style="max-width:100%; margin-bottom:20px;"></div>`;
+        // Перебираем все ключи – они уже содержат нормальные названия
+        for (const [title, imgBase64] of Object.entries(data)) {
+            if (title === 'error') continue;
+            // Для анимации (GIF) тип image/gif, для остальных image/png
+            const isGif = title === 'Анимация температурного поля';
+            const mimeType = isGif ? 'image/gif' : 'image/png';
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h4>${escapeHtml(title)}</h4>
+                    <img src="data:${mimeType};base64,${imgBase64}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+            `;
         }
         if (html === '') html = '<div class="status-message">Нет данных для отображения</div>';
         container.innerHTML = html;
@@ -66,3 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPlots();
     loadFiles();
 });
+
+// Вспомогательная функция
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
