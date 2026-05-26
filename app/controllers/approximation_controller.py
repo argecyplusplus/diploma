@@ -5,7 +5,6 @@ import matplotlib
 from io import BytesIO
 import zipfile
 from flask import send_file
-from ..models.blade import BladeAssembly
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -176,13 +175,11 @@ def save_assembly_approx_files(assembly_name):
     if not members:
         return jsonify({"error": "В сборке нет лопаток"}), 404
 
-    # Формируем содержимое out_L_имя.csv и params_L_имя.csv
     out_lines = []
     params_lines = []
     for member in members:
         blade = member.blade
         if not blade: continue
-        # Берём последнюю аппроксимацию для лопатки
         approx = session.scalar(
             select(Approximation).where(Approximation.blade_id == blade.blade_id)
             .order_by(Approximation.approximation_id.desc())
@@ -198,14 +195,12 @@ def save_assembly_approx_files(assembly_name):
         out_lines.append(upper_vals)
         out_lines.append(lower_vals)
 
-        # Параметры аппроксимации
         params = session.scalars(
             select(ApproximationParameter).where(ApproximationParameter.approximation_id == approx.approximation_id)
         ).all()
         for p in params:
             params_lines.append(f"{p.max_profile_value:.4f} {p.x_coordinate_max:.4f} {p.r_squared:.4f}")
 
-    # Создаём zip-архив
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
         zipf.writestr(f"out_L_{assembly_name}.csv", "\n".join(out_lines))

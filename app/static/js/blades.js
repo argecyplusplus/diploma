@@ -384,7 +384,6 @@ async function deleteMerge(assemblyId) {
     }
 }
 
-// ================= ОБЪЕДИНЕНИЯ =================
 function renderAssemblyBladesCheckboxes(searchTerm = '') {
     const container = document.getElementById('assemblyBladesList');
     const filtered = bladesData.filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -522,8 +521,6 @@ function goToApproximation(bladeId) {
     window.location.href = `/approximation?blade_id=${bladeId}`;
 }
 
-// app/static/js/blades.js (добавить в конец)
-
 async function approximateAssembly(assemblyId, assemblyName) {
     if (!confirm(`Выполнить аппроксимацию для всех лопаток в сборке "${assemblyName}"?`)) return;
     document.getElementById('assemblyApproxProgress').style.display = 'block';
@@ -543,7 +540,6 @@ async function approximateAssembly(assemblyId, assemblyName) {
 }
 
 function showAssemblyApproxResults(data) {
-    // Создаём новую модалку с результатами
     const modalContent = `
         <div class="modal-overlay active" id="assemblyApproxModal">
             <div class="modal modal-xl">
@@ -572,11 +568,9 @@ function showAssemblyApproxResults(data) {
             </div>
         </div>
     `;
-    // Удаляем старую модалку, если есть
     const oldModal = document.getElementById('assemblyApproxModal');
     if (oldModal) oldModal.remove();
     document.body.insertAdjacentHTML('beforeend', modalContent);
-    // Заполняем таблицы
     const coeffsBody = document.getElementById('assemblyCoeffsBody');
     const paramsBody = document.getElementById('assemblyParamsBody');
     const coordsBody = document.getElementById('assemblyCoordsBody');
@@ -584,16 +578,13 @@ function showAssemblyApproxResults(data) {
     paramsBody.innerHTML = '';
     coordsBody.innerHTML = '';
     for (const blade of data.blades) {
-        // Коэффициенты
         blade.legendre_coeffs.forEach((c, idx) => {
             coeffsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>${idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`;
         });
-        // Параметры
         const up = blade.params.upper;
         const low = blade.params.lower;
         paramsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Верхний</td><td>${up.max_y.toFixed(4)}</td><td>${up.x_at_max.toFixed(4)}</td><td>${up.r2.toFixed(4)}</td></tr>`;
         paramsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Нижний</td><td>${low.max_y.toFixed(4)}</td><td>${low.x_at_max.toFixed(4)}</td><td>${low.r2.toFixed(4)}</td></tr>`;
-        // Координаты
         for (const p of blade.transformed_coords.upper) {
             coordsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Верхний</td><td>${p.x.toFixed(6)}</td><td>${p.y.toFixed(6)}</td></tr>`;
         }
@@ -617,9 +608,6 @@ function switchAssemblyApproxTab(tabName) {
 }
 
 async function saveAssemblyApproxToFile(assemblyName) {
-    // Получаем данные о последней аппроксимации сборки (они уже в модалке, но можно сделать запрос)
-    // Чтобы не дублировать, лучше переиспользовать данные из текущей модалки.
-    // Для простоты: сделаем отдельный вызов на сервер для сохранения файлов.
     try {
         const res = await fetch(`/approximation/assembly/save/${encodeURIComponent(assemblyName)}`, { method: 'GET' });
         if (!res.ok) throw new Error('Ошибка сохранения');

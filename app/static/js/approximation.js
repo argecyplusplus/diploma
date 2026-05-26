@@ -59,14 +59,11 @@ async function executeApproximation() {
 
     try {
         if (currentItemType === 'blade') {
-            // 1. Запускаем аппроксимацию лопатки
             const execRes = await fetch(`/approximation/execute/${currentItemId}`, { method: 'POST' });
             const execData = await execRes.json();
             if (!execRes.ok) throw new Error(execData.error || 'Ошибка выполнения аппроксимации');
-            // 2. Загружаем результаты и график
             await loadResults(currentItemId);
         } else {
-            // Для сборки: прямой запрос, возвращает полные данные
             const res = await fetch(`/approximation/execute_assembly/${currentItemId}`, { method: 'POST' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Ошибка выполнения аппроксимации');
@@ -92,7 +89,6 @@ async function loadResults(bladeId) {
                 return r.json();
             })
         ]);
-        // Приводим к формату, ожидаемому displayResults
         const data = {
             plot: resPlot.image,
             transformed_coords: resData.transformed_coords,
@@ -107,20 +103,13 @@ async function loadResults(bladeId) {
     }
 }
 
-// Замените старую функцию displayResults на эту:
-
 function displayResults(data) {
-    // data может быть от одной лопатки (старый формат) или от сборки (с полями outer, inner)
     if (data.outer && data.inner) {
-        // Это сборка из двух лопаток
         document.getElementById('plotImg').src = data.plot;
-
-        // Объединяем координаты, коэффициенты и параметры для отображения в таблицах
         const combinedCoords = [];
         const combinedCoeffs = [];
         const combinedParams = [];
 
-        // Внешняя лопатка
         for (const c of data.outer.transformed_coords) {
             combinedCoords.push({ ...c, blade_name: data.outer.blade_name });
         }
@@ -130,7 +119,6 @@ function displayResults(data) {
         combinedParams.push({ profile: 'верхний', ...data.outer.params.upper, blade_name: data.outer.blade_name });
         combinedParams.push({ profile: 'нижний', ...data.outer.params.lower, blade_name: data.outer.blade_name });
 
-        // Внутренняя лопатка
         for (const c of data.inner.transformed_coords) {
             combinedCoords.push({ ...c, blade_name: data.inner.blade_name });
         }
@@ -140,27 +128,22 @@ function displayResults(data) {
         combinedParams.push({ profile: 'верхний', ...data.inner.params.upper, blade_name: data.inner.blade_name });
         combinedParams.push({ profile: 'нижний', ...data.inner.params.lower, blade_name: data.inner.blade_name });
 
-        // Отображаем координаты (добавляем колонку "Лопатка")
         document.getElementById('coordsBody').innerHTML = combinedCoords.map(c =>
             `<tr><td>${escapeHtml(c.blade_name)}</td><td>${c.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${c.x.toFixed(6)}</td><td>${c.y.toFixed(6)}</td></tr>`
         ).join('') || '<tr><td colspan="4" class="status-message">Нет данных</td></tr>';
 
-        // Отображаем коэффициенты
         document.getElementById('coeffsBody').innerHTML = combinedCoeffs.map(c =>
             `<tr><td>${escapeHtml(c.blade_name)}</td><td>${c.idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`
         ).join('') || '<tr><td colspan="4" class="status-message">Нет данных</td></tr>';
 
-        // Отображаем параметры
         document.getElementById('paramsBody').innerHTML = combinedParams.map(p =>
             `<tr><td>${escapeHtml(p.blade_name)}</td><td>${p.profile === 'верхний' ? 'Верхний' : 'Нижний'}</td><td>${p.max_y?.toFixed(4) || '—'}</td><td>${p.x_at_max?.toFixed(4) || '—'}</td><td>${p.r2?.toFixed(4) || '—'}</td></tr>`
         ).join('') || '<tr><td colspan="5" class="status-message">Нет данных</td></tr>';
 
-        // Сохраняем данные для экспорта (объединённые)
         currentData.coords = combinedCoords;
         currentData.coeffs = combinedCoeffs;
         currentData.params = combinedParams;
     } else {
-        // Старый формат (одна лопатка) — оставляем без изменений
         document.getElementById('plotImg').src = data.plot;
         document.getElementById('coordsBody').innerHTML = (data.transformed_coords || []).map(c =>
             `<tr><td>${c.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${c.x.toFixed(6)}</td><td>${c.y.toFixed(6)}</td><tr>`

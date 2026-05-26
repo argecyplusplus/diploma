@@ -39,7 +39,12 @@ def R2(y_calc, y_exp):
 
 
 def transform_coordinates(x_upper, y_upper, x_lower, y_lower):
-    """Трансформация координат: сдвиг, поворот, нормировка на хорду"""
+    """Трансформация координат: сдвиг, поворот, нормировка на хорду.
+
+    Возвращает (x_u_norm, y_u_norm, x_l_norm, y_l_norm, chord), где chord —
+    длина хорды до нормировки. Необходима для корректного обратного преобразования
+    аппроксимированных кривых в исходное координатное пространство.
+    """
     max_y = np.max(np.concatenate((y_upper, y_lower)))
     y_upper_t = max_y - y_upper
     y_lower_t = max_y - y_lower
@@ -70,6 +75,7 @@ def transform_coordinates(x_upper, y_upper, x_lower, y_lower):
         x_l_f -= min_x
 
     chord = np.max([x_u_f[-1] - x_u_f[0], x_l_f[-1] - x_l_f[0]])
-    if chord == 0: chord = 1.0
+    if chord == 0:
+        chord = 1.0
 
-    return x_u_f / chord, y_u_f / chord, x_l_f / chord, y_l_f / chord
+    return x_u_f / chord, y_u_f / chord, x_l_f / chord, y_l_f / chord, chord
