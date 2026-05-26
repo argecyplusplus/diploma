@@ -521,3 +521,118 @@ function escapeHtml(text) {
 function goToApproximation(bladeId) {
     window.location.href = `/approximation?blade_id=${bladeId}`;
 }
+
+// app/static/js/blades.js (добавить в конец)
+
+async function approximateAssembly(assemblyId, assemblyName) {
+    if (!confirm(`Выполнить аппроксимацию для всех лопаток в сборке "${assemblyName}"?`)) return;
+    document.getElementById('assemblyApproxProgress').style.display = 'block';
+    try {
+        const res = await fetch(`/approximation/assembly/${assemblyId}`, { method: 'POST' });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Ошибка аппроксимации');
+        }
+        const data = await res.json();
+        showAssemblyApproxResults(data);
+    } catch (e) {
+        alert('❌ Ошибка: ' + e.message);
+    } finally {
+        document.getElementById('assemblyApproxProgress').style.display = 'none';
+    }
+}
+
+function showAssemblyApproxResults(data) {
+    // Создаём новую модалку с результатами
+    const modalContent = `
+        <div class="modal-overlay active" id="assemblyApproxModal">
+            <div class="modal modal-xl">
+                <h3>Результаты аппроксимации сборки: ${escapeHtml(data.assembly_name)}</h3>
+                <div style="margin: 16px 0; text-align: center;">
+                    <img src="${data.plot}" style="max-width: 100%; border: 1px solid #ddd; border-radius: 8px;">
+                </div>
+                <div class="tabs" id="assemblyApproxTabs">
+                    <button class="tab-btn active" onclick="switchAssemblyApproxTab('coeffs')">Коэффициенты Лежандра</button>
+                    <button class="tab-btn" onclick="switchAssemblyApproxTab('params')">Параметры</button>
+                    <button class="tab-btn" onclick="switchAssemblyApproxTab('coords')">Преобразованные координаты</button>
+                </div>
+                <div id="assemblyApproxCoords" class="tab-content" style="display:none;">
+                    <div class="table-wrapper"><table class="data-table"><thead><tr><th>Лопатка</th><th>Профиль</th><th>X</th><th>Y</th></tr></thead><tbody id="assemblyCoordsBody"></tbody></table></div>
+                </div>
+                <div id="assemblyApproxCoeffs" class="tab-content active">
+                    <div class="table-wrapper"><table class="data-table"><thead><tr><th>Лопатка</th><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr></thead><tbody id="assemblyCoeffsBody"></tbody></table></div>
+                </div>
+                <div id="assemblyApproxParams" class="tab-content" style="display:none;">
+                    <div class="table-wrapper"><table class="data-table"><thead><tr><th>Лопатка</th><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R²</th></tr></thead><tbody id="assemblyParamsBody"></tbody></table></div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="closeModal('assemblyApproxModal')">Закрыть</button>
+                    <button class="btn-primary" onclick="saveAssemblyApproxToFile('${data.assembly_name}')">Сохранить в файлы</button>
+                </div>
+            </div>
+        </div>
+    `;
+    // Удаляем старую модалку, если есть
+    const oldModal = document.getElementById('assemblyApproxModal');
+    if (oldModal) oldModal.remove();
+    document.body.insertAdjacentHTML('beforeend', modalContent);
+    // Заполняем таблицы
+    const coeffsBody = document.getElementById('assemblyCoeffsBody');
+    const paramsBody = document.getElementById('assemblyParamsBody');
+    const coordsBody = document.getElementById('assemblyCoordsBody');
+    coeffsBody.innerHTML = '';
+    paramsBody.innerHTML = '';
+    coordsBody.innerHTML = '';
+    for (const blade of data.blades) {
+        // Коэффициенты
+        blade.legendre_coeffs.forEach((c, idx) => {
+            coeffsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>${idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`;
+        });
+        // Параметры
+        const up = blade.params.upper;
+        const low = blade.params.lower;
+        paramsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Верхний</td><td>${up.max_y.toFixed(4)}</td><td>${up.x_at_max.toFixed(4)}</td><td>${up.r2.toFixed(4)}</td></tr>`;
+        paramsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Нижний</td><td>${low.max_y.toFixed(4)}</td><td>${low.x_at_max.toFixed(4)}</td><td>${low.r2.toFixed(4)}</td></tr>`;
+        // Координаты
+        for (const p of blade.transformed_coords.upper) {
+            coordsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Верхний</td><td>${p.x.toFixed(6)}</td><td>${p.y.toFixed(6)}</td></tr>`;
+        }
+        for (const p of blade.transformed_coords.lower) {
+            coordsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Нижний</td><td>${p.x.toFixed(6)}</td><td>${p.y.toFixed(6)}</td></tr>`;
+        }
+    }
+}
+
+function switchAssemblyApproxTab(tabName) {
+    const tabs = ['coeffs', 'params', 'coords'];
+    tabs.forEach(t => {
+        const el = document.getElementById(`assemblyApprox${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        if (el) el.style.display = 'none';
+        const btn = document.querySelector(`#assemblyApproxTabs .tab-btn[onclick*="${t}"]`);
+        if (btn) btn.classList.remove('active');
+    });
+    document.getElementById(`assemblyApprox${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).style.display = 'block';
+    const activeBtn = document.querySelector(`#assemblyApproxTabs .tab-btn[onclick*="${tabName}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+}
+
+async function saveAssemblyApproxToFile(assemblyName) {
+    // Получаем данные о последней аппроксимации сборки (они уже в модалке, но можно сделать запрос)
+    // Чтобы не дублировать, лучше переиспользовать данные из текущей модалки.
+    // Для простоты: сделаем отдельный вызов на сервер для сохранения файлов.
+    try {
+        const res = await fetch(`/approximation/assembly/save/${encodeURIComponent(assemblyName)}`, { method: 'GET' });
+        if (!res.ok) throw new Error('Ошибка сохранения');
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `approx_${assemblyName}.zip`;  // или отдельные файлы
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (e) {
+        alert('❌ Ошибка: ' + e.message);
+    }
+}
