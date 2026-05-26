@@ -96,8 +96,8 @@ class ApproximationService:
     def _approx_single_blade_full(self, blade_id: int, blade_name: str) -> Dict[str, Any]:
         """
         Полная аппроксимация одной лопатки.
-        Возвращает как исходные координаты (для визуализации в сборке),
-        так и преобразованные (для аппроксимации и хранения в БД).
+        Возвращает исходные координаты, преобразованные (нормированные), коэффициенты Лежандра,
+        а также параметры масштабирования для отображения аппроксимированных кривых в исходном масштабе.
         """
         coords = self.session.scalars(
             select(ProfileCoordinate).where(ProfileCoordinate.blade_id == blade_id)
@@ -116,6 +116,14 @@ class ApproximationService:
         x_l_orig = np.array([p[0] for p in lower])
         y_l_orig = np.array([p[1] for p in lower])
 
+        # Вычисляем простые параметры исходного масштаба (без учёта поворота)
+        min_x_orig = min(np.min(x_u_orig), np.min(x_l_orig))
+        max_x_orig = max(np.max(x_u_orig), np.max(x_l_orig))
+        chord_orig = max_x_orig - min_x_orig
+        if chord_orig == 0:
+            chord_orig = 1.0
+        max_y_orig = max(np.max(y_u_orig), np.max(y_l_orig))
+
         # Преобразованные (нормированные) координаты
         x_u_t, y_u_t, x_l_t, y_l_t = transform_coordinates(x_u_orig, y_u_orig, x_l_orig, y_l_orig)
 
@@ -127,7 +135,7 @@ class ApproximationService:
 
         legendre_coeffs = [{"upper": float(L_u[i]), "lower": float(L_l[i])} for i in range(len(L_u))]
 
-        # Параметры аппроксимации
+        # Параметры аппроксимации (нормированные)
         y_u_calc = np.dot(L_u, Lezh(x_u_t))
         max_y_u = float(np.max(y_u_calc))
         x_max_u = float(x_u_t[np.argmax(y_u_calc)])
@@ -157,6 +165,9 @@ class ApproximationService:
         return {
             "blade_id": blade_id,
             "blade_name": blade_name,
+            "chord": chord_orig,
+            "min_x": min_x_orig,
+            "max_y_orig": max_y_orig,
             "original_coords": original_coords,
             "transformed_coords": transformed_coords,
             "legendre_coeffs": legendre_coeffs,
@@ -169,9 +180,9 @@ class ApproximationService:
 
     def _generate_combined_plot(self, outer: Dict, inner: Dict, title: str) -> str:
         """
-        Генерирует PNG‑график сборки, используя исходные (абсолютные) координаты лопаток,
-        но с отражением по Y (чтобы профиль не был перевёрнут) и сохранением пропорций.
-        Аппроксимированные кривые не рисуются – только точки исходных профилей.
+        Генерирует PNG‑график сборки, используя исходные (абсолютные) координаты лопаток
+        с отражением по Y, а также аппроксимированные кривые (полиномы Лежандра),
+        приведённые к исходному масштабу.
         """
         import matplotlib
         matplotlib.use('Agg')
@@ -180,33 +191,55 @@ class ApproximationService:
         import base64
         import numpy as np
 
-        # Собираем все исходные координаты и находим глобальный максимум Y для отражения
-        all_y_outer = [p["y"] for p in outer["original_coords"]["upper"]] + [p["y"] for p in outer["original_coords"]["lower"]]
-        all_y_inner = [p["y"] for p in inner["original_coords"]["upper"]] + [p["y"] for p in inner["original_coords"]["lower"]]
-        if all_y_outer and all_y_inner:
-            max_y = max(max(all_y_outer), max(all_y_inner))
-        elif all_y_outer:
-            max_y = max(all_y_outer)
-        else:
-            max_y = max(all_y_inner) if all_y_inner else 0
+        # Глобальный максимум Y для отражения (из обеих лопаток)
+        max_y_global = max(outer['max_y_orig'], inner['max_y_orig'])
 
         plt.figure(figsize=(8, 4.5))
 
-        def plot_profile(coords_dict, color, label_prefix):
-            """Рисует профиль: верхний — кружками, нижний — плюсами, с отражением Y."""
+        # ---------- Точки исходных профилей ----------
+        def plot_points(coords_dict, color, label_prefix):
             up = coords_dict["upper"]
             low = coords_dict["lower"]
             if up:
                 x_up = [p["x"] for p in up]
-                y_up_reflected = [max_y - p["y"] for p in up]  # отражение
-                plt.plot(x_up, y_up_reflected, 'o', markersize=3, color=color, label=f"{label_prefix} (верх)")
+                y_up_ref = [max_y_global - p["y"] for p in up]
+                plt.plot(x_up, y_up_ref, 'o', markersize=3, color=color, label=f"{label_prefix} (верх)")
             if low:
                 x_low = [p["x"] for p in low]
-                y_low_reflected = [max_y - p["y"] for p in low]  # отражение
-                plt.plot(x_low, y_low_reflected, '+', markersize=4, color=color, label=f"{label_prefix} (низ)")
+                y_low_ref = [max_y_global - p["y"] for p in low]
+                plt.plot(x_low, y_low_ref, '+', markersize=4, color=color, label=f"{label_prefix} (низ)")
 
-        plot_profile(outer["original_coords"], 'blue', outer['blade_name'])
-        plot_profile(inner["original_coords"], 'red', inner['blade_name'])
+        plot_points(outer["original_coords"], 'blue', outer['blade_name'])
+        plot_points(inner["original_coords"], 'red', inner['blade_name'])
+
+        # ---------- Аппроксимированные кривые (Лежандр) ----------
+        def plot_approx(blade_data, color, label_prefix):
+            chord = blade_data['chord']
+            min_x = blade_data['min_x']
+            legendre = blade_data['legendre_coeffs']
+            # Коэффициенты
+            L_u = np.array([c["upper"] for c in legendre])
+            L_l = np.array([c["lower"] for c in legendre])
+            x_norm = np.linspace(0, 1, 200)
+            lezh_mat = Lezh(x_norm)
+            y_u_norm = np.dot(L_u, lezh_mat)   # нормализованная высота
+            y_l_norm = np.dot(L_l, lezh_mat)
+            # Переводим в исходные координаты (без поворота, только масштабирование и сдвиг)
+            # Это приближение, но для визуализации даёт разумное совпадение с точками.
+            x_orig = min_x + x_norm * chord
+            y_u_orig = y_u_norm * blade_data['max_y_orig']
+            y_l_orig = y_l_norm * blade_data['max_y_orig']
+            # Отражаем Y
+            y_u_ref = max_y_global - y_u_orig
+            y_l_ref = max_y_global - y_l_orig
+
+            plt.plot(x_orig, y_u_ref, '-', linewidth=2, color=color, alpha=0.7,
+                     label=f"{label_prefix} (аппрокс. верх)")
+            plt.plot(x_orig, y_l_ref, '--', linewidth=2, color=color, alpha=0.7,
+                     label=f"{label_prefix} (аппрокс. низ)")
+
+        plot_approx(outer, 'blue', outer['blade_name'])
+        plot_approx(inner, 'red', inner['blade_name'])
 
         plt.legend(loc='best', fontsize='small')
         plt.grid(True, alpha=0.6)
