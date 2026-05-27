@@ -849,3 +849,14 @@ body {
     font-size: 0.75rem;
     white-space: nowrap;
 }
+
+.task-cards-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+@media (max-width: 768px) {
+    .task-cards-grid {
+        grid-template-columns: 1fr;
+    }
+}
