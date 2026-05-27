@@ -590,9 +590,9 @@ class SimulationService:
             eps_files = sorted(glob.glob(os.path.join(sim_dir, "plot_*.eps")))
             titles = {
                 'plot_1': 'Сетка',
-                'plot_2': 'Функция тока ψ',
+                'plot_2': 'Функция ψ',
                 'plot_3': 'Поле скорости',
-                'plot_4': 'Давление p',
+                'plot_4': 'Давление (p)',
                 'plot_5': 'Давление (изолинии)'
             }
             for eps in eps_files:
@@ -614,7 +614,7 @@ class SimulationService:
                     png_file = temp_final.replace('.eps', '.png')
                     img.save(png_file, 'PNG')
                     with open(png_file, 'rb') as f:
-                        plots['Температурное поле (финальное)'] = base64.b64encode(f.read()).decode('utf-8')
+                        plots['Температурное поле в конце моделирования'] = base64.b64encode(f.read()).decode('utf-8')
                 except Exception as e:
                     logger.warning(f"Не удалось конвертировать temp_final.eps: {e}")
 
