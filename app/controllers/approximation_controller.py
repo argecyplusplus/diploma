@@ -2,6 +2,9 @@ import io
 import base64
 import numpy as np
 import matplotlib
+from io import BytesIO
+import zipfile
+from flask import send_file
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -32,12 +35,18 @@ def index():
     return render_template('approximation.html')
 
 
-@approx_bp.route('/blades', methods=['GET'])
-def get_blades():
+@approx_bp.route('/items', methods=['GET'])
+def get_items():
     session = g.db_session if 'db_session' in g else get_db_session()
-    from ..models.blade import Blade
+    from ..models.blade import Blade, BladeAssembly
     blades = session.scalars(select(Blade)).all()
-    return jsonify([{"id": b.blade_id, "name": b.name} for b in blades])
+    assemblies = session.scalars(select(BladeAssembly)).all()
+    items = []
+    for b in blades:
+        items.append({"id": b.blade_id, "name": b.name, "type": "blade"})
+    for a in assemblies:
+        items.append({"id": a.blade_assembly_id, "name": a.name, "type": "assembly"})
+    return jsonify(items)
 
 
 @approx_bp.route('/execute/<int:blade_id>', methods=['POST'])
@@ -140,3 +149,62 @@ def get_plot(blade_id):
 
     # ✅ Исправленный data URI
     return jsonify({"image": f"data:image/png;base64,{img_b64}"})
+
+@approx_bp.route('/execute_assembly/<int:assembly_id>', methods=['POST'])
+def execute_assembly_approximation(assembly_id):
+    """Аппроксимация сборки (ровно две лопатки)"""
+    session = g.db_session if 'db_session' in g else get_db_session()
+    service = ApproximationService(session)
+    try:
+        result = service.execute_assembly_approximation(assembly_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@approx_bp.route('/assembly/save/<path:assembly_name>', methods=['GET'])
+def save_assembly_approx_files(assembly_name):
+    """Генерирует zip-архив с файлами out_L_имя.csv и params_L_имя.csv для всех лопаток в сборке"""
+    from ..models.blade import BladeAssembly, Blade, LegendreCoefficient, ApproximationParameter
+    from sqlalchemy import select
+    session = g.db_session if 'db_session' in g else get_db_session()
+    assembly = session.scalar(select(BladeAssembly).where(BladeAssembly.name == assembly_name))
+    if not assembly:
+        return jsonify({"error": "Сборка не найдена"}), 404
+    members = assembly.members
+    if not members:
+        return jsonify({"error": "В сборке нет лопаток"}), 404
+
+    out_lines = []
+    params_lines = []
+    for member in members:
+        blade = member.blade
+        if not blade: continue
+        approx = session.scalar(
+            select(Approximation).where(Approximation.blade_id == blade.blade_id)
+            .order_by(Approximation.approximation_id.desc())
+        )
+        if not approx: continue
+        coeffs = session.scalars(
+            select(LegendreCoefficient).where(LegendreCoefficient.approximation_id == approx.approximation_id)
+            .order_by(LegendreCoefficient.legendre_coefficients_id)
+        ).all()
+        if len(coeffs) < 10: continue
+        upper_vals = " ".join(f"{c.upper_value:.15f}" for c in coeffs)
+        lower_vals = " ".join(f"{c.lower_value:.15f}" for c in coeffs)
+        out_lines.append(upper_vals)
+        out_lines.append(lower_vals)
+
+        params = session.scalars(
+            select(ApproximationParameter).where(ApproximationParameter.approximation_id == approx.approximation_id)
+        ).all()
+        for p in params:
+            params_lines.append(f"{p.max_profile_value:.4f} {p.x_coordinate_max:.4f} {p.r_squared:.4f}")
+
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        zipf.writestr(f"out_L_{assembly_name}.csv", "\n".join(out_lines))
+        zipf.writestr(f"params_L_{assembly_name}.csv", "\n".join(params_lines))
+    zip_buffer.seek(0)
+
+    return send_file(zip_buffer, as_attachment=True, download_name=f"approx_{assembly_name}.zip", mimetype='application/zip')

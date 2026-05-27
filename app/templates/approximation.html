@@ -16,7 +16,7 @@
     <div style="padding: 20px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
         <div class="form-group" style="margin: 0; flex: 1; min-width: 240px;">
             <label for="bladeSelect">Выберите лопатку</label>
-            <select id="bladeSelect" onchange="onBladeSelect(this.value)">
+            <select id="bladeSelect" onchange="onItemSelect(this.options[this.selectedIndex]?.dataset.id, this.options[this.selectedIndex]?.dataset.type)">
                 <option value="">-- Загрузка списка --</option>
             </select>
         </div>

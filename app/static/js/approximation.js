@@ -1,56 +1,74 @@
 let currentData = { coords: [], coeffs: [], params: [] };
-let currentBladeId = null;
+let currentItemId = null;
+let currentItemType = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    await loadBladesList();
+    await loadItemsList();
     const urlParams = new URLSearchParams(window.location.search);
-    const preselectBladeId = urlParams.get('blade_id');
-    if (preselectBladeId) {
+    const preselectId = urlParams.get('item_id');
+    const preselectType = urlParams.get('item_type');
+    if (preselectId && preselectType) {
         const select = document.getElementById('bladeSelect');
-        if (select && select.querySelector(`option[value="${preselectBladeId}"]`)) {
-            select.value = preselectBladeId;
-            await onBladeSelect(preselectBladeId);
-            window.history.replaceState({}, document.title, window.location.pathname);
+        const option = select.querySelector(`option[data-id="${preselectId}"][data-type="${preselectType}"]`);
+        if (option) {
+            select.value = option.value;
+            await onItemSelect(preselectId, preselectType);
         }
+        window.history.replaceState({}, document.title, window.location.pathname);
     }
 });
 
-async function loadBladesList() {
+async function loadItemsList() {
     try {
-        const res = await fetch('/approximation/blades');
+        const res = await fetch('/approximation/items');
         if (!res.ok) throw new Error('Ошибка загрузки списка');
-        const blades = await res.json();
+        const items = await res.json();
         const sel = document.getElementById('bladeSelect');
-        sel.innerHTML = '<option value="">-- Выберите лопатку --</option>' +
-            blades.map(b => `<option value="${b.id}">${escapeHtml(b.name)} (ID: ${b.id})</option>`).join('');
+        sel.innerHTML = '<option value="">-- Выберите объект --</option>';
+        for (const item of items) {
+            const option = document.createElement('option');
+            option.value = `${item.type}_${item.id}`;
+            option.textContent = `${item.name} (${item.type === 'blade' ? 'лопатка' : 'сборка'})`;
+            option.dataset.id = item.id;
+            option.dataset.type = item.type;
+            sel.appendChild(option);
+        }
     } catch (err) {
         console.error('Ошибка:', err);
-        showError('Не удалось загрузить список лопаток');
+        showError('Не удалось загрузить список объектов');
     }
 }
 
-async function onBladeSelect(bladeId) {
-    if (!bladeId) {
+async function onItemSelect(id, type) {
+    if (!id) {
         document.getElementById('results').style.display = 'none';
         document.getElementById('retryBtn').style.display = 'none';
         return;
     }
-    currentBladeId = bladeId;
+    currentItemId = id;
+    currentItemType = type;
     await executeApproximation();
 }
 
 async function executeApproximation() {
-    if (!currentBladeId) return;
+    if (!currentItemId || !currentItemType) return;
     setLoading(true);
     document.getElementById('results').style.display = 'none';
     document.getElementById('error').style.display = 'none';
     document.getElementById('retryBtn').style.display = 'none';
 
     try {
-        const res = await fetch(`/approximation/execute/${currentBladeId}`, { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Ошибка выполнения аппроксимации');
-        await loadResults(currentBladeId);
+        if (currentItemType === 'blade') {
+            const execRes = await fetch(`/approximation/execute/${currentItemId}`, { method: 'POST' });
+            const execData = await execRes.json();
+            if (!execRes.ok) throw new Error(execData.error || 'Ошибка выполнения аппроксимации');
+            await loadResults(currentItemId);
+        } else {
+            const res = await fetch(`/approximation/execute_assembly/${currentItemId}`, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Ошибка выполнения аппроксимации');
+            displayResults(data);
+        }
     } catch (e) {
         showError('Ошибка: ' + e.message);
         document.getElementById('retryBtn').style.display = 'inline-block';
@@ -71,32 +89,78 @@ async function loadResults(bladeId) {
                 return r.json();
             })
         ]);
-
-        document.getElementById('plotImg').src = resPlot.image;
-
-        document.getElementById('coordsBody').innerHTML = (resData.transformed_coords || []).map(c =>
-            `<tr><td>${c.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${c.x.toFixed(6)}</td><td>${c.y.toFixed(6)}</td></tr>`
-        ).join('') || '<tr><td colspan="3" style="text-align:center;color:#64748b">Нет данных</td></tr>';
-
-        document.getElementById('coeffsBody').innerHTML = (resData.legendre_coeffs || []).map(c =>
-            `<tr><td>${c.idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`
-        ).join('') || '<tr><td colspan="3" style="text-align:center;color:#64748b">Нет данных</td></tr>';
-
-        document.getElementById('paramsBody').innerHTML = (resData.approximation_params || []).map(p =>
-            `<tr><td>${p.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${p.max_val?.toFixed(4) || '—'}</td><td>${p.x_max?.toFixed(4) || '—'}</td><td>${p.r2?.toFixed(4) || '—'}</td></tr>`
-        ).join('') || '<tr><td colspan="4" style="text-align:center;color:#64748b">Нет данных</td></tr>';
-
-        currentData.coords = resData.transformed_coords || [];
-        currentData.coeffs = resData.legendre_coeffs || [];
-        currentData.params = resData.approximation_params || [];
-
-        document.getElementById('results').style.display = 'block';
-        switchTab('plot');
+        const data = {
+            plot: resPlot.image,
+            transformed_coords: resData.transformed_coords,
+            legendre_coeffs: resData.legendre_coeffs.map(c => ({ upper: c.upper, lower: c.lower })),
+            approximation_params: resData.approximation_params
+        };
+        displayResults(data);
     } catch (e) {
         showError('Ошибка загрузки данных: ' + e.message);
         document.getElementById('results').style.display = 'none';
         document.getElementById('retryBtn').style.display = 'inline-block';
     }
+}
+
+function displayResults(data) {
+    if (data.outer && data.inner) {
+        document.getElementById('plotImg').src = data.plot;
+        const combinedCoords = [];
+        const combinedCoeffs = [];
+        const combinedParams = [];
+
+        for (const c of data.outer.transformed_coords) {
+            combinedCoords.push({ ...c, blade_name: data.outer.blade_name });
+        }
+        data.outer.legendre_coeffs.forEach((c, idx) => {
+            combinedCoeffs.push({ idx, upper: c.upper, lower: c.lower, blade_name: data.outer.blade_name });
+        });
+        combinedParams.push({ profile: 'верхний', ...data.outer.params.upper, blade_name: data.outer.blade_name });
+        combinedParams.push({ profile: 'нижний', ...data.outer.params.lower, blade_name: data.outer.blade_name });
+
+        for (const c of data.inner.transformed_coords) {
+            combinedCoords.push({ ...c, blade_name: data.inner.blade_name });
+        }
+        data.inner.legendre_coeffs.forEach((c, idx) => {
+            combinedCoeffs.push({ idx, upper: c.upper, lower: c.lower, blade_name: data.inner.blade_name });
+        });
+        combinedParams.push({ profile: 'верхний', ...data.inner.params.upper, blade_name: data.inner.blade_name });
+        combinedParams.push({ profile: 'нижний', ...data.inner.params.lower, blade_name: data.inner.blade_name });
+
+        document.getElementById('coordsBody').innerHTML = combinedCoords.map(c =>
+            `<tr><td>${escapeHtml(c.blade_name)}</td><td>${c.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${c.x.toFixed(6)}</td><td>${c.y.toFixed(6)}</td></tr>`
+        ).join('') || '<tr><td colspan="4" class="status-message">Нет данных</td></tr>';
+
+        document.getElementById('coeffsBody').innerHTML = combinedCoeffs.map(c =>
+            `<tr><td>${escapeHtml(c.blade_name)}</td><td>${c.idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`
+        ).join('') || '<tr><td colspan="4" class="status-message">Нет данных</td></tr>';
+
+        document.getElementById('paramsBody').innerHTML = combinedParams.map(p =>
+            `<tr><td>${escapeHtml(p.blade_name)}</td><td>${p.profile === 'верхний' ? 'Верхний' : 'Нижний'}</td><td>${p.max_y?.toFixed(4) || '—'}</td><td>${p.x_at_max?.toFixed(4) || '—'}</td><td>${p.r2?.toFixed(4) || '—'}</td></tr>`
+        ).join('') || '<tr><td colspan="5" class="status-message">Нет данных</td></tr>';
+
+        currentData.coords = combinedCoords;
+        currentData.coeffs = combinedCoeffs;
+        currentData.params = combinedParams;
+    } else {
+        document.getElementById('plotImg').src = data.plot;
+        document.getElementById('coordsBody').innerHTML = (data.transformed_coords || []).map(c =>
+            `<tr><td>${c.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${c.x.toFixed(6)}</td><td>${c.y.toFixed(6)}</td><tr>`
+        ).join('') || '<tr><td colspan="3" class="status-message">Нет данных</td></tr>';
+        document.getElementById('coeffsBody').innerHTML = (data.legendre_coeffs || []).map((c, idx) =>
+            `<tr><td>${idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`
+        ).join('') || '<tr><td colspan="3" class="status-message">Нет данных</td></tr>';
+        document.getElementById('paramsBody').innerHTML = (data.approximation_params || []).map(p =>
+            `<tr><td>${p.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${p.max_val?.toFixed(4) || '—'}</td><td>${p.x_max?.toFixed(4) || '—'}</td><td>${p.r2?.toFixed(4) || '—'}</td></tr>`
+        ).join('') || '<tr><td colspan="4" class="status-message">Нет данных</td></tr>';
+        currentData.coords = data.transformed_coords || [];
+        currentData.coeffs = data.legendre_coeffs || [];
+        currentData.params = data.approximation_params || [];
+    }
+
+    document.getElementById('results').style.display = 'block';
+    switchTab('plot');
 }
 
 function switchTab(tabName) {
@@ -155,7 +219,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-window.onBladeSelect = onBladeSelect;
+window.onItemSelect = onItemSelect;
 window.executeApproximation = executeApproximation;
 window.switchTab = switchTab;
 window.savePlot = savePlot;

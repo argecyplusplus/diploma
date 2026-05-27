@@ -39,7 +39,12 @@ def R2(y_calc, y_exp):
 
 
 def transform_coordinates(x_upper, y_upper, x_lower, y_lower):
-    """Трансформация координат: сдвиг, поворот, нормировка на хорду"""
+    """Трансформация координат: отражение Y, сдвиг, поворот, нормировка на хорду.
+
+    Возвращает (x_u_norm, y_u_norm, x_l_norm, y_l_norm, transform_params), где
+    transform_params — словарь со всеми параметрами трансформации, необходимыми
+    для корректного обратного преобразования через inverse_transform().
+    """
     max_y = np.max(np.concatenate((y_upper, y_lower)))
     y_upper_t = max_y - y_upper
     y_lower_t = max_y - y_lower
@@ -65,11 +70,63 @@ def transform_coordinates(x_upper, y_upper, x_lower, y_lower):
     y_l_f = rotated_lower[1] + shift_y
 
     min_x = np.min([np.min(x_u_f), np.min(x_l_f)])
+    min_x_correction = float(min_x) if min_x < 0 else 0.0
     if min_x < 0:
         x_u_f -= min_x
         x_l_f -= min_x
 
     chord = np.max([x_u_f[-1] - x_u_f[0], x_l_f[-1] - x_l_f[0]])
-    if chord == 0: chord = 1.0
+    if chord == 0:
+        chord = 1.0
 
-    return x_u_f / chord, y_u_f / chord, x_l_f / chord, y_l_f / chord
+    transform_params = {
+        'max_y': float(max_y),
+        'delta_x': float(delta_x),
+        'phi': float(phi),
+        'R': R,
+        'shift_x': float(shift_x),
+        'shift_y': float(shift_y),
+        'min_x_correction': min_x_correction,
+        'chord': float(chord),
+    }
+
+    return x_u_f / chord, y_u_f / chord, x_l_f / chord, y_l_f / chord, transform_params
+
+
+def inverse_transform(x_norm, y_norm, transform_params):
+    """Обратное преобразование из нормированного пространства в исходные координаты.
+
+    Применяет все шаги трансформации в обратном порядке:
+    нормировка -> коррекция min_x -> обратный поворот -> отражение Y.
+
+    Args:
+        x_norm, y_norm: координаты в нормированном пространстве (np.array)
+        transform_params: словарь, возвращённый transform_coordinates()
+
+    Returns:
+        x_orig, y_orig: координаты в исходном абсолютном пространстве
+    """
+    chord          = transform_params['chord']
+    max_y          = transform_params['max_y']
+    delta_x        = transform_params['delta_x']
+    R              = transform_params['R']
+    shift_x        = transform_params['shift_x']
+    shift_y        = transform_params['shift_y']
+    min_x_corr     = transform_params['min_x_correction']
+
+    x_f = x_norm * chord
+    y_f = y_norm * chord
+
+    x_f = x_f + min_x_corr
+
+    x_r = x_f - shift_x
+    y_r = y_f - shift_y
+    unrotated = R.T.dot(np.array([x_r, y_r]))
+    x_t = unrotated[0] + shift_x
+    y_t = unrotated[1] + shift_y
+
+    x_orig = x_t + delta_x
+
+    y_orig = max_y - y_t
+
+    return x_orig, y_orig

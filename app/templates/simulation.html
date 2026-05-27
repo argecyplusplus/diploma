@@ -33,7 +33,7 @@
             <!-- Задачи расчёта -->
             <div class="form-group">
                 <label>Физическая задача</label>
-                <div class="task-cards" id="taskCardsContainer">
+                <div class="task-cards task-cards-grid" id="taskCardsContainer">
                     <label class="task-card" data-value="gas_dynamics">
                         <input type="radio" name="task_type" value="gas_dynamics"
                                data-requires="potential_flow,boundaries,construction,blade_chord" checked>
@@ -58,6 +58,14 @@
                             <small>лопатка или объединение</small>
                         </div>
                     </label>
+                    <label class="task-card" data-value="thermal_transient">
+                        <input type="radio" name="task_type" value="thermal_transient"
+                               data-requires="time_parameters,initial_temps,construction,blade_chord">
+                        <div class="task-info">
+                            <strong>4. Моделирование переходных тепловых процессов в тонких криволинейных покрытиях лопаток ГТД</strong>
+                            <small>лопатка или объединение</small>
+                        </div>
+                </label>
                 </div>
                 <div id="taskHelpText" class="card-hint" style="margin-top: 12px; padding: 10px; background: #f8fafc; border-left: 3px solid var(--accent);">
                     Выберите задачу, чтобы увидеть требования к начальным условиям.
