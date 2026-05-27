@@ -405,19 +405,22 @@ class SimulationService:
         ic_id = sim.initial_conditions_id
         task_type = TaskType(sim.task_type)
 
+        # Записываем все коэффициенты в ОДИН файл (как в рабочей версии)
+        coeffs_csv = os.path.join(sim_dir, "out_L.csv")
         outer_coeffs = self._get_blade_legendre_coeffs(outer_blade_id)
-        self._write_coeffs_csv(
-            os.path.join(sim_dir, "out_L_outer.csv"),
-            [c.upper_value for c in outer_coeffs],
-            [c.lower_value for c in outer_coeffs]
-        )
-
         inner_coeffs = self._get_blade_legendre_coeffs(inner_blade_id)
-        self._write_coeffs_csv(
-            os.path.join(sim_dir, "out_L_inner.csv"),
-            [c.upper_value for c in inner_coeffs],
-            [c.lower_value for c in inner_coeffs]
-        )
+
+        with open(coeffs_csv, 'w', encoding='utf-8') as f:
+            # Внешняя лопатка: 10 upper + 10 lower
+            for c in outer_coeffs:
+                f.write(f"{float(c.upper_value):.15f}\n")
+            for c in outer_coeffs:
+                f.write(f"{float(c.lower_value):.15f}\n")
+            # Внутренняя лопатка: 10 upper + 10 lower
+            for c in inner_coeffs:
+                f.write(f"{float(c.upper_value):.15f}\n")
+            for c in inner_coeffs:
+                f.write(f"{float(c.lower_value):.15f}\n")
 
         chord = self.session.scalar(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id))
         constr = self.session.scalar(
