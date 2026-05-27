@@ -1,0 +1,105 @@
+// Задача 2: Тепловое поле — объединение (внешняя лопатка + внутренняя полость)
+// Контур 1 (внешняя лопатка): коэффициенты из out_L_outer.csv, хорда Chord1, метка S1
+// Контур 2 (внутренняя полость): коэффициенты из out_L_inner.csv, хорда Chord2, метка S2
+
+int S1 = {{S1}};
+int S2 = {{S2}};
+real Chord1 = {{Chord1}};
+real Chord2 = {{Chord2}};
+real RC = 3. * Chord1;
+
+border C(t=0, 2*pi){ x=Chord1/2. + RC*cos(t); y=RC*sin(t); }
+
+load "iovtk"
+int plotCounter = 0;
+string plotName;
+
+// --- Коэффициенты внешней лопатки ---
+real[int] coeffsUp1(10);
+real[int] coeffsLow1(10);
+ifstream fl1("out_L_outer.csv");
+for(int i=0; i<coeffsUp1.n; i++) fl1 >> coeffsUp1(i);
+for(int i=0; i<coeffsLow1.n; i++) fl1 >> coeffsLow1(i);
+
+// --- Коэффициенты внутренней полости ---
+real[int] coeffsUp2(10);
+real[int] coeffsLow2(10);
+ifstream fl2("out_L_inner.csv");
+for(int i=0; i<coeffsUp2.n; i++) fl2 >> coeffsUp2(i);
+for(int i=0; i<coeffsLow2.n; i++) fl2 >> coeffsLow2(i);
+
+func real Lezh(real[int] L, real t) {
+    real[int] yy(10);
+    yy(0)=1.; yy(1)=t; yy(2)=(3.*t^2-1.)/2.; yy(3)=(5.*t^3-3.*t)/2.;
+    yy(4)=(35.*t^4-30.*t^2+3.)/8.; yy(5)=(63.*t^5-70.*t^3+15.*t)/8.;
+    yy(6)=231./16.*t^6-315./16.*t^4+105./16.*t^2-5./16.;
+    yy(7)=429./16.*t^7-693./16.*t^5+315./16.*t^3-35./16.*t;
+    yy(8)=6435./128.*t^8-3003./32.*t^6+3465./64.*t^4-315./32.*t^2+35./128.;
+    yy(9)=12155./128.*t^9-6435./32.*t^7+9009./64.*t^5-1155./32.*t^3+315./128.*t;
+    return L'*yy;
+}
+
+// --- Контуры внешней лопатки (S1) ---
+border Splus1(t=0., 1.){ x=Chord1*t; y=Chord1*Lezh(coeffsUp1,t); label=S1; }
+border Sminus1(t=1., 0.){ x=Chord1*t; y=Chord1*Lezh(coeffsLow1,t); label=S1; }
+border Spm1(t=0,1.){ x=0; y=Chord1*Lezh(coeffsLow1,0)+t*Chord1*(Lezh(coeffsUp1,0)-Lezh(coeffsLow1,0)); label=S1; }
+border Smp1(t=1.,0.){ x=Chord1; y=Chord1*Lezh(coeffsLow1,1)+t*Chord1*(Lezh(coeffsUp1,1)-Lezh(coeffsLow1,1)); label=S1; }
+
+// --- Контуры внутренней полости (S2) ---
+// Внутренний контур задаётся с обратным обходом (знак минус у числа точек)
+// чтобы FreeFEM++ понял, что это дыра внутри внешней лопатки
+real xOff = Chord1*0.1;  // смещение внутреннего контура по X
+real yOff = Chord1*(Lezh(coeffsUp1,0.5)+Lezh(coeffsLow1,0.5))/2 - Chord2*(Lezh(coeffsUp2,0.5)+Lezh(coeffsLow2,0.5))/2;
+border Splus2(t=0., 1.){ x=xOff+Chord2*t; y=yOff+Chord2*Lezh(coeffsUp2,t); label=S2; }
+border Sminus2(t=1., 0.){ x=xOff+Chord2*t; y=yOff+Chord2*Lezh(coeffsLow2,t); label=S2; }
+border Spm2(t=0,1.){ x=xOff; y=yOff+Chord2*Lezh(coeffsLow2,0)+t*Chord2*(Lezh(coeffsUp2,0)-Lezh(coeffsLow2,0)); label=S2; }
+border Smp2(t=1.,0.){ x=xOff+Chord2; y=yOff+Chord2*Lezh(coeffsLow2,1)+t*Chord2*(Lezh(coeffsUp2,1)-Lezh(coeffsLow2,1)); label=S2; }
+
+real xblade = Chord1*0.25;
+real yblade = Chord1*(Lezh(coeffsUp1,0.5)+Lezh(coeffsLow1,0.5))/2;
+
+// Строим сетку: внешний круг + внешняя лопатка (CCW) + внутренняя полость (CW = отрицательное число точек)
+mesh Th = buildmesh(
+    C({{NC}})
+    + Splus1({{NSp}}) + Spm1({{NSpm}}) + Sminus1({{NSm}}) + Smp1({{NSpm}})
+    - Splus2({{NSp}}) - Spm2({{NSpm}}) - Sminus2({{NSm}}) - Smp2({{NSpm}})
+);
+plotCounter++;
+plotName = "plot_"+plotCounter+".eps";
+plot(Th, wait=0, ps=plotName);
+
+int steel = Th(xblade, yblade).region;
+int air   = Th(-RC/2., -RC/2.).region;
+
+// Тепловые параметры
+real dt = {{dt}}, nbT = {{nbT}};
+real ksteel = {{ksteel}};
+real kair   = {{kair}};
+real Tinitial    = {{T_initial}};
+real Tinitialair = 25.0;
+
+fespace Vh(Th, P2);
+Vh T = Tinitial*(region==steel) + Tinitialair*(region==air), Told, v;
+func real kappa() { return (region==steel) ? ksteel : kair; }
+
+problem thermal(T, v)
+    = int2d(Th)( T*v/dt + kappa()*(dx(T)*dx(v) + dy(T)*dy(v)) )
+    - int2d(Th)( Told*v/dt )
+    - int1d(Th, C)(  0.0 * v )
+    - int1d(Th, S1)( 0.0 * v )
+    - int1d(Th, S2)( 0.0 * v );
+
+for(int i=0; i<nbT; i++) {
+    Told = T;
+    thermal;
+    if (i % 10 == 0) {
+        plotCounter++;
+        plotName = "plot_"+plotCounter+".eps";
+        plot(T, wait=0, fill=1, value=1, ps=plotName);
+    }
+}
+plotCounter++;
+plotName = "plot_"+plotCounter+".eps";
+plot(T, wait=0, fill=1, value=1, ps=plotName);
+
+savevtk("result.vtk", Th, T);
