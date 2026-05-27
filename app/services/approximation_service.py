@@ -1,4 +1,3 @@
-# app/services/approximation_service.py
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete
@@ -11,9 +10,6 @@ class ApproximationService:
     def __init__(self, session: Session):
         self.session = session
 
-    # ------------------------------------------------------------
-    # Аппроксимация одной лопатки (сохраняется в БД)
-    # ------------------------------------------------------------
     def execute_approximation(self, blade_id: int) -> Dict[str, Any]:
         stmt = select(ProfileCoordinate).where(ProfileCoordinate.blade_id == blade_id)
         coords = self.session.scalars(stmt).all()
@@ -65,9 +61,6 @@ class ApproximationService:
         self.session.flush()
         return {"approximation_id": aid, "message": "Аппроксимация выполнена успешно"}
 
-    # ------------------------------------------------------------
-    # Аппроксимация объединения (ровно две лопатки)
-    # ------------------------------------------------------------
     def execute_assembly_approximation(self, assembly_id: int) -> Dict[str, Any]:
         assembly = self.session.get(BladeAssembly, assembly_id)
         if not assembly:
@@ -110,24 +103,20 @@ class ApproximationService:
         if not upper or not lower:
             raise ValueError(f"У лопатки {blade_name} отсутствует верхний или нижний профиль")
 
-        # Исходные координаты (абсолютные)
         x_u_orig = np.array([p[0] for p in upper])
         y_u_orig = np.array([p[1] for p in upper])
         x_l_orig = np.array([p[0] for p in lower])
         y_l_orig = np.array([p[1] for p in lower])
 
-        # Вычисляем границы по X и Y для возврата в результате
         min_x_orig = float(min(np.min(x_u_orig), np.min(x_l_orig)))
         max_x_orig = float(max(np.max(x_u_orig), np.max(x_l_orig)))
         chord_orig = max_x_orig - min_x_orig if max_x_orig != min_x_orig else 1.0
         max_y_orig = float(max(np.max(y_u_orig), np.max(y_l_orig)))
 
-        # Трансформация + сохранение всех параметров для обратного преобразования
         x_u_t, y_u_t, x_l_t, y_l_t, tr_params = transform_coordinates(
             x_u_orig, y_u_orig, x_l_orig, y_l_orig
         )
 
-        # Коэффициенты Лежандра
         L_u = calc_L(x_u_t, y_u_t)
         L_l = calc_L(x_l_t, y_l_t)
         if L_u is None or L_l is None:
@@ -135,7 +124,6 @@ class ApproximationService:
 
         legendre_coeffs = [{"upper": float(L_u[i]), "lower": float(L_l[i])} for i in range(len(L_u))]
 
-        # Параметры аппроксимации (нормированные)
         y_u_calc = np.dot(L_u, Lezh(x_u_t))
         max_y_u  = float(np.max(y_u_calc))
         x_max_u  = float(x_u_t[np.argmax(y_u_calc)])
@@ -146,26 +134,16 @@ class ApproximationService:
         x_max_l  = float(x_l_t[np.argmax(y_l_calc)])
         r2_l     = float(R2(y_l_calc, y_l_t))
 
-        # Преобразованные координаты для детального просмотра
         transformed_coords = []
         for i in range(len(x_u_t)):
             transformed_coords.append({"type": "upper", "x": float(x_u_t[i]), "y": float(y_u_t[i])})
         for i in range(len(x_l_t)):
             transformed_coords.append({"type": "lower", "x": float(x_l_t[i]), "y": float(y_l_t[i])})
 
-        # Исходные координаты для визуализации
         original_coords = {
             "upper": [{"x": float(x), "y": float(y)} for x, y in zip(x_u_orig, y_u_orig)],
             "lower": [{"x": float(x), "y": float(y)} for x, y in zip(x_l_orig, y_l_orig)]
         }
-
-        # ---- Построение аппроксимированной кривой в исходных абсолютных координатах ----
-        #
-        # Строим кривую в нормированном пространстве [0, 1], затем применяем
-        # полное обратное преобразование через inverse_transform() — это единственный
-        # корректный способ, т.к. transform_coordinates включает сдвиг, поворот и
-        # отражение Y, которые нельзя инвертировать простым умножением на chord/max_y.
-        #
         x_norm = np.linspace(float(np.min(x_u_t)), float(np.max(x_u_t)), 200)
         lezh_mat   = Lezh(x_norm)
         y_u_norm   = np.dot(L_u, lezh_mat)
@@ -179,7 +157,6 @@ class ApproximationService:
             "lower": {"x": x_l_curve.tolist(), "y": y_l_curve.tolist()}
         }
 
-        # Индивидуальный график (нормированные координаты)
         plot_img = self._generate_single_plot(x_u_t, y_u_t, x_l_t, y_l_t, L_u, L_l, blade_name)
 
         return {
@@ -216,7 +193,6 @@ class ApproximationService:
 
         plt.figure(figsize=(8, 4.5))
 
-        # Исходные точки (отражаем Y для правильной визуальной ориентации профиля)
         def plot_points(coords_dict, color, label_prefix):
             up  = coords_dict["upper"]
             low = coords_dict["lower"]
@@ -232,8 +208,6 @@ class ApproximationService:
         plot_points(outer["original_coords"], 'blue', outer['blade_name'])
         plot_points(inner["original_coords"], 'red',  inner['blade_name'])
 
-        # Аппроксимированные кривые — уже в исходном пространстве,
-        # отражаем Y так же, как исходные точки
         def plot_approx(blade_data, color, label_prefix):
             curve = blade_data["approx_curve_original"]
             x_u = np.array(curve["upper"]["x"])

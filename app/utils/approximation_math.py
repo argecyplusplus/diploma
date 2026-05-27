@@ -114,24 +114,19 @@ def inverse_transform(x_norm, y_norm, transform_params):
     shift_y        = transform_params['shift_y']
     min_x_corr     = transform_params['min_x_correction']
 
-    # 1. Отменяем нормировку на chord
     x_f = x_norm * chord
     y_f = y_norm * chord
 
-    # 2. Отменяем коррекцию отрицательного min_x
     x_f = x_f + min_x_corr
 
-    # 3. Отменяем сдвиг shift, обратный поворот (R^-1 = R^T), возвращаем shift
     x_r = x_f - shift_x
     y_r = y_f - shift_y
     unrotated = R.T.dot(np.array([x_r, y_r]))
     x_t = unrotated[0] + shift_x
     y_t = unrotated[1] + shift_y
 
-    # 4. Отменяем сдвиг delta_x
     x_orig = x_t + delta_x
 
-    # 5. Отменяем отражение Y: y_t = max_y - y_orig  =>  y_orig = max_y - y_t
     y_orig = max_y - y_t
 
     return x_orig, y_orig

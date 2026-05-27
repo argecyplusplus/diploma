@@ -46,9 +46,7 @@ class SimulationService:
             return {"error": "Not found"}
         return {"status": sim.status, "progress": getattr(sim, 'progress', 0)}
 
-    # ------------------------------------------------------------------
-    # Автоматическая аппроксимация лопатки перед расчётом
-    # ------------------------------------------------------------------
+
     def _ensure_approximation(self, blade_id: int):
         """
         Проверяет наличие актуальной аппроксимации для лопатки.
@@ -59,7 +57,6 @@ class SimulationService:
             .order_by(Approximation.approximation_id.desc())
         )
         if approx:
-            # 🔥 ИСПРАВЛЕНИЕ: используем func.count() для подсчёта коэффициентов
             coeffs_count = self.session.scalar(
                 select(func.count(LegendreCoefficient.legendre_coefficients_id))
                 .where(LegendreCoefficient.approximation_id == approx.approximation_id)
@@ -83,7 +80,6 @@ class SimulationService:
         if not approx:
             raise ValueError(f"Аппроксимация для лопатки {blade_id} не найдена даже после автозапуска.")
 
-        # 🔥 ИСПРАВЛЕНИЕ: добавляем .limit(10) чтобы гарантировать ровно 10 коэффициентов
         coeffs = self.session.scalars(
             select(LegendreCoefficient)
             .where(LegendreCoefficient.approximation_id == approx.approximation_id)
@@ -98,9 +94,6 @@ class SimulationService:
         logger.debug(f"Получено {len(coeffs)} коэффициентов для лопатки {blade_id}")
         return coeffs
 
-    # ------------------------------------------------------------------
-    # Запись коэффициентов в CSV (десятичный формат — безопасен для FreeFEM++)
-    # ------------------------------------------------------------------
     @staticmethod
     def _write_coeffs_csv(path: str, upper_vals, lower_vals):
         """
@@ -112,7 +105,6 @@ class SimulationService:
         def fmt(v):
             return f"{float(v):.15f}"
 
-        # 🔥 ИСПРАВЛЕНИЕ: берём срез [:10] на случай дублирования в БД
         upper_vals = upper_vals[:10]
         lower_vals = lower_vals[:10]
 
@@ -122,9 +114,6 @@ class SimulationService:
 
         logger.debug(f"Записано {len(upper_vals)} коэффициентов в {path}")
 
-    # ------------------------------------------------------------------
-    # Создание симуляции
-    # ------------------------------------------------------------------
     def create_simulation(self, data: SimulationCreateRequest):
         if data.task_type == TaskType.GAS_DYNAMICS:
             if data.assembly_id is not None or data.blade_id is None:
@@ -285,9 +274,7 @@ class SimulationService:
     def get_simulations_list(self):
         return self.repo.get_all_simulations()
 
-    # ------------------------------------------------------------------
-    # Генерация .edp для одиночной лопатки
-    # ------------------------------------------------------------------
+
     def _generate_freefem_code(self, sim_id: int, sim_dir: str, edp_path: str):
         sim = self.session.get(Simulation, sim_id)
         if not sim.blade_id:
@@ -394,9 +381,7 @@ class SimulationService:
         self._render_template(template_name, replacements, edp_path)
         logger.info(f"Скрипт {task_type.value} (одиночная) сохранён: {edp_path}")
 
-    # ------------------------------------------------------------------
-    # Генерация .edp для объединения (задачи 2-3)
-    # ------------------------------------------------------------------
+
     def _generate_assembly_freefem_code(
             self, sim_id: int, sim_dir: str, edp_path: str,
             outer_blade_id: int, inner_blade_id: int
@@ -405,18 +390,15 @@ class SimulationService:
         ic_id = sim.initial_conditions_id
         task_type = TaskType(sim.task_type)
 
-        # Записываем все коэффициенты в ОДИН файл (как в рабочей версии)
         coeffs_csv = os.path.join(sim_dir, "out_L.csv")
         outer_coeffs = self._get_blade_legendre_coeffs(outer_blade_id)
         inner_coeffs = self._get_blade_legendre_coeffs(inner_blade_id)
 
         with open(coeffs_csv, 'w', encoding='utf-8') as f:
-            # Внешняя лопатка: 10 upper + 10 lower
             for c in outer_coeffs:
                 f.write(f"{float(c.upper_value):.15f}\n")
             for c in outer_coeffs:
                 f.write(f"{float(c.lower_value):.15f}\n")
-            # Внутренняя лопатка: 10 upper + 10 lower
             for c in inner_coeffs:
                 f.write(f"{float(c.upper_value):.15f}\n")
             for c in inner_coeffs:

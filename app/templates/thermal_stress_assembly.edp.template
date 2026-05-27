@@ -1,6 +1,3 @@
-// Задача 3: Термоупругость — объединение (внешняя лопатка + внутренняя полость)
-// Параметры заменяются через {{PARAM}}
-
 int S1 = {{S1}};
 int S2 = {{S2}};
 real Chord1 = {{Chord1}};
@@ -13,7 +10,6 @@ load "iovtk"
 int plotCounter = 0;
 string plotName;
 
-// === Чтение коэффициентов Лежандра из ОДНОГО файла ===
 real[int] allCoeffs(40);
 ifstream fl("out_L.csv");
 for(int i=0; i<40; i++) fl >> allCoeffs(i);
@@ -27,7 +23,6 @@ for(int i=0; i<10; i++) {
     coeffsLow2(i) = allCoeffs[30+i];
 }
 
-// === Полиномы Лежандра ===
 func real Lezh(real[int] L, real t) {
     real[int] yy(10);
     yy(0)=1.; yy(1)=t; yy(2)=(3.*t^2-1.)/2.; yy(3)=(5.*t^3-3.*t)/2.;
@@ -39,13 +34,11 @@ func real Lezh(real[int] L, real t) {
     return L'*yy;
 }
 
-// === Контуры внешней лопатки (метка S1) ===
 border Splus1(t=0., 1.){ x = Chord1*t; y = Chord1*Lezh(coeffsUp1,t); label = S1; }
 border Sminus1(t=1., 0.){ x = Chord1*t; y = Chord1*Lezh(coeffsLow1,t); label = S1; }
 border Spm1(t=0,1.){ x = 0; y = Chord1*Lezh(coeffsLow1,0) + t*Chord1*(Lezh(coeffsUp1,0)-Lezh(coeffsLow1,0)); label = S1; }
 border Smp1(t=1.,0.){ x = Chord1; y = Chord1*Lezh(coeffsLow1,1) + t*Chord1*(Lezh(coeffsUp1,1)-Lezh(coeffsLow1,1)); label = S1; }
 
-// === Контуры внутренней полости (метка S2) ===
 real xOff = Chord1*0.1;
 real yOff = Chord1*(Lezh(coeffsUp1,0.5)+Lezh(coeffsLow1,0.5))/2.
           - Chord2*(Lezh(coeffsUp2,0.5)+Lezh(coeffsLow2,0.5))/2.;  // ← добавлена ;
@@ -58,7 +51,6 @@ border Smp2(t=1.,0.){ x = xOff + Chord2; y = yOff + Chord2*Lezh(coeffsLow2,1) + 
 real xblade = Chord1*0.25;
 real yblade = Chord1*(Lezh(coeffsUp1,0.5)+Lezh(coeffsLow1,0.5))/2.;
 
-// === Построение сетки ===
 mesh Th = buildmesh(
     C({{NC}})
     + Splus1({{NSp}}) + Spm1({{NSpm}}) + Sminus1({{NSm}}) + Smp1({{NSpm}})
@@ -71,7 +63,6 @@ plot(Th, wait=0, ps=plotName);
 int steel = Th(xblade, yblade).region;
 int air   = Th(-RC/2., -RC/2.).region;
 
-// === Тепловые параметры ===
 real dt = {{dt}};
 real nbT = {{nbT}};
 real aSteel = {{a_steel}};
@@ -83,7 +74,6 @@ fespace Vh(Th, P2);
 Vh T = Tinitial*(region==steel) + Tinitialair*(region==air), Told, v;
 func real a0() { return (region==steel) ? aSteel : aAir; }
 
-// === Задача теплопроводности ===
 problem thermic(T, v)
     = int2d(Th)( T*v/dt + a0()*(dx(T)*dx(v) + dy(T)*dy(v)) )
     - int2d(Th)( Told*v/dt )
@@ -94,7 +84,6 @@ for(int i=0; i<nbT; i++) {
     thermic;
 }
 
-// === Упругие параметры ===
 real b = {{b}};
 real nu = {{nu}};
 real Esteel = {{E_steel}};
@@ -108,7 +97,6 @@ func real lammod() { return Emod()*nu/((1.+nu)*(1.-2.*nu)); }
 
 real sqrt2 = sqrt(2.);
 
-// Макросы для деформаций и напряжений
 macro epsilon(u1,u2) [dx(u1), dy(u2), (dy(u1)+dx(u2))/sqrt2] //
 macro divg(u1,u2) (dx(u1)+dy(u2)) //
 macro sig1(u1,u2) lammod()*divg(u1,u2) - 3.*Kmod()*KLT*(T-Tinitial)*(region==steel) + 2.*mumod()*dx(u1) //
@@ -121,7 +109,6 @@ macro eps12(u1,u2) (dx(u2)+dy(u1))/2. //
 fespace Wh(Th, P2);
 Wh u1, u2, uu, vv;
 
-// === Задача упругости (термоупругость) ===
 solve lame([u1, u2], [uu, vv])
     = int2d(Th)( lammod()*divg(u1,u2)*divg(uu,vv)
                + 2.*mumod()*(epsilon(u1,u2)'*epsilon(uu,vv)) )
@@ -129,7 +116,6 @@ solve lame([u1, u2], [uu, vv])
     + on(S1, u1=0, u2=0)
     + on(S2, u1=0, u2=0);
 
-// Вычисление полей
 Wh Sig1  = sig1(u1,u2);
 Wh Sig2  = sig2(u1,u2);
 Wh Sig12 = sig12(u1,u2);
@@ -137,12 +123,10 @@ Wh Eps1  = eps1(u1);
 Wh Eps2  = eps2(u2);
 Wh Eps12 = eps12(u1,u2);
 
-// Визуализация
 plotCounter++; plotName = "plot_"+plotCounter+".eps"; plot(Sig1, wait=0, fill=1, value=1, ps=plotName);
 plotCounter++; plotName = "plot_"+plotCounter+".eps"; plot(Sig2, wait=0, fill=1, value=1, ps=plotName);
 plotCounter++; plotName = "plot_"+plotCounter+".eps"; plot(Sig12, wait=0, fill=1, value=1, ps=plotName);
 
-// === Вывод данных по контуру внешней лопатки ===
 real delt = {{delt}};
 int Npt = {{Npt}};
 real dt1 = 1.0/Npt;
@@ -151,7 +135,6 @@ ofstream ff0("Profout.csv");
 ofstream ff1("TSout.csv");
 ofstream ff2("TEpsout.csv");
 
-// Функции для вычисления точек на контуре со смещением
 func real[int] ContUp(real d, real t) {
     real[int] x0(2), x1(2);
     real nn;
@@ -178,7 +161,6 @@ func real[int] ContLw(real d, real t) {
     return x1;
 }
 
-// Цикл вывода по контуру
 for(int k=0; k<=Npt; k++) {
     real t = 1.0 - k*dt1;
 
@@ -202,5 +184,4 @@ ff0.close();
 ff1.close();
 ff2.close();
 
-// Сохранение результатов в VTK
 savevtk("result.vtk", Th, T, Sig1, Sig2, Sig12, Eps1, Eps2, Eps12, dataname="ThermoElastic");

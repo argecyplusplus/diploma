@@ -615,7 +615,7 @@ async function saveAssemblyApproxToFile(assemblyName) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `approx_${assemblyName}.zip`;  // или отдельные файлы
+        a.download = `approx_${assemblyName}.zip`;
         document.body.appendChild(a);
         a.click();
         a.remove();

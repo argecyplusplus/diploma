@@ -1,30 +1,19 @@
-// Задача 2: Тепловое поле — объединение (внешняя лопатка + внутренняя полость)
-// Параметры заменяются через {{PARAM}}
-
 int S1 = {{S1}};
 int S2 = {{S2}};
 real Chord1 = {{Chord1}};
 real Chord2 = {{Chord2}};
 real RC = 3. * Chord1;
 
-// Внешняя граница расчётной области
 border C(t=0, 2*pi){ x = Chord1/2. + RC*cos(t); y = RC*sin(t); }
 
 load "iovtk"
 int plotCounter = 0;
 string plotName;
 
-// === Чтение коэффициентов Лежандра из ОДНОГО файла ===
-// Формат файла out_L.csv (40 строк):
-//   0-9:   внешняя лопатка, верхний профиль
-//   10-19: внешняя лопатка, нижний профиль
-//   20-29: внутренняя полость, верхний профиль
-//   30-39: внутренняя полость, нижний профиль
 real[int] allCoeffs(40);
 ifstream fl("out_L.csv");
 for(int i=0; i<40; i++) fl >> allCoeffs(i);
 
-// Распределяем по массивам
 real[int] coeffsUp1(10), coeffsLow1(10), coeffsUp2(10), coeffsLow2(10);
 for(int i=0; i<10; i++) {
     coeffsUp1(i) = allCoeffs(i);
@@ -33,7 +22,6 @@ for(int i=0; i<10; i++) {
     coeffsLow2(i) = allCoeffs[30+i];
 }
 
-// === Полиномы Лежандра (скалярная версия для FreeFEM++) ===
 func real Lezh(real[int] L, real t) {
     real[int] yy(10);
     yy(0)=1.; yy(1)=t; yy(2)=(3.*t^2-1.)/2.; yy(3)=(5.*t^3-3.*t)/2.;
@@ -45,13 +33,11 @@ func real Lezh(real[int] L, real t) {
     return L'*yy;
 }
 
-// === Контуры внешней лопатки (метка S1, обход против часовой) ===
 border Splus1(t=0., 1.){ x = Chord1*t; y = Chord1*Lezh(coeffsUp1,t); label = S1; }
 border Sminus1(t=1., 0.){ x = Chord1*t; y = Chord1*Lezh(coeffsLow1,t); label = S1; }
 border Spm1(t=0,1.){ x = 0; y = Chord1*Lezh(coeffsLow1,0) + t*Chord1*(Lezh(coeffsUp1,0)-Lezh(coeffsLow1,0)); label = S1; }
 border Smp1(t=1.,0.){ x = Chord1; y = Chord1*Lezh(coeffsLow1,1) + t*Chord1*(Lezh(coeffsUp1,1)-Lezh(coeffsLow1,1)); label = S1; }
 
-// === Контуры внутренней полости (метка S2, обход по часовой для "дыры") ===
 real xOff = Chord1*0.1;
 real yOff = Chord1*(Lezh(coeffsUp1,0.5)+Lezh(coeffsLow1,0.5))/2.
           - Chord2*(Lezh(coeffsUp2,0.5)+Lezh(coeffsLow2,0.5))/2.;  // ← добавлена ;
@@ -61,11 +47,9 @@ border Sminus2(t=1., 0.){ x = xOff + Chord2*t; y = yOff + Chord2*Lezh(coeffsLow2
 border Spm2(t=0,1.){ x = xOff; y = yOff + Chord2*Lezh(coeffsLow2,0) + t*Chord2*(Lezh(coeffsUp2,0)-Lezh(coeffsLow2,0)); label = S2; }
 border Smp2(t=1.,0.){ x = xOff + Chord2; y = yOff + Chord2*Lezh(coeffsLow2,1) + t*Chord2*(Lezh(coeffsUp2,1)-Lezh(coeffsLow2,1)); label = S2; }
 
-// Точка внутри материала лопатки для определения region
 real xblade = Chord1*0.25;
 real yblade = Chord1*(Lezh(coeffsUp1,0.5)+Lezh(coeffsLow1,0.5))/2.;
 
-// === Построение сетки ===
 plot(C({{NC}}),
      Splus1({{NSp}}), Spm1({{NSpm}}), Sminus1({{NSm}}), Smp1({{NSpm}}),
      Splus2(-{{NSp}}), Spm2(-{{NSpm}}), Sminus2(-{{NSm}}), Smp2(-{{NSpm}}),
@@ -80,11 +64,9 @@ mesh Th = buildmesh(
 plotCounter++; plotName = "plot_"+plotCounter+".eps";
 plot(Th, wait=0, ps=plotName);
 
-// Определение областей: сталь (лопатка) и воздух
 int steel = Th(xblade, yblade).region;
 int air   = Th(-RC/2., -RC/2.).region;
 
-// === Параметры теплопереноса ===
 real dt = {{dt}};
 real nbT = {{nbT}};
 real ksteel = {{ksteel}};
@@ -97,7 +79,6 @@ Vh T = Tinitial*(region==steel) + Tinitialair*(region==air), Told, v;
 
 func real kappa() { return (region==steel) ? ksteel : kair; }
 
-// === Задача теплопроводности ===
 problem thermal(T, v)
     = int2d(Th)( T*v/dt + kappa()*(dx(T)*dx(v) + dy(T)*dy(v)) )
     - int2d(Th)( Told*v/dt )
@@ -113,9 +94,7 @@ for(int i=0; i<nbT; i++) {
     }
 }
 
-// Финальный кадр
 plotCounter++; plotName = "plot_"+plotCounter+".eps";
 plot(T, wait=0, fill=1, value=1, ps=plotName);
 
-// Сохранение результатов в VTK
 savevtk("result.vtk", Th, T, dataname="Temperature");
