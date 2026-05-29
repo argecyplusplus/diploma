@@ -1,5 +1,42 @@
 const simId = parseInt(window.location.pathname.split('/').slice(-2)[0]);
 
+// Добавить в начало файла
+let statusPollInterval = null;
+
+async function checkAndPollStatus() {
+    try {
+        const res = await fetch(`/simulation/${simId}/status`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.status === 'running') {
+            if (!statusPollInterval) {
+                statusPollInterval = setInterval(() => checkAndPollStatus(), 3000);
+            }
+            document.getElementById('statusMessage')?.remove();
+            const container = document.getElementById('plotsContent');
+            if (container && !container.querySelector('.status-running')) {
+                container.innerHTML = '<div class="status-message status-running">⏳ Расчёт выполняется... Страница обновится автоматически.</div>';
+            }
+        } else if (data.status === 'completed') {
+            if (statusPollInterval) clearInterval(statusPollInterval);
+            await loadPlots();
+            await loadFiles();
+        } else if (data.status === 'failed') {
+            if (statusPollInterval) clearInterval(statusPollInterval);
+            const container = document.getElementById('plotsContent');
+            if (container) {
+                container.innerHTML = `<div class="status-message" style="color:#ef4444;">❌ Ошибка расчёта: ${data.error_message || 'Неизвестная ошибка'}</div>`;
+            }
+        }
+    } catch(e) {
+        console.error('Poll error:', e);
+    }
+}
+
+
+
+
 async function loadPlots() {
     const container = document.getElementById('plotsContent');
     if (!container) return;
@@ -58,6 +95,7 @@ async function loadFiles() {
 document.addEventListener('DOMContentLoaded', () => {
     loadPlots();
     loadFiles();
+    checkAndPollStatus();
 });
 
 // Вспомогательная функция

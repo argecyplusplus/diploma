@@ -174,12 +174,7 @@ class SimulationService:
             self.session.commit()
             return sim_id
 
-        thread = threading.Thread(
-            target=self._run_simulation_background,
-            args=(sim_id, edp_path, sim_dir),
-            daemon=True
-        )
-        thread.start()
+        # Не запускаем поток автоматически
         return sim_id
 
     def _create_single_simulation(self, data: SimulationCreateRequest) -> int:
@@ -204,6 +199,7 @@ class SimulationService:
 
         try:
             self._generate_freefem_code(sim_id, sim_dir, edp_path)
+            logger.info(f"Скрипт сгенерирован: {edp_path}")
         except Exception as e:
             logger.error(traceback.format_exc())
             sim.status = 'failed'
@@ -211,13 +207,46 @@ class SimulationService:
             self.session.commit()
             return sim_id
 
+        return sim_id
+
+    def run_simulation_now(self, sim_id: int):
+        """Запускает симуляцию в фоне (вызывается по кнопке)"""
+        sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
+        edp_path = os.path.join(sim_dir, "blade_sim.edp")
+
+        sim = self.session.get(Simulation, sim_id)
+        if not sim:
+            raise ValueError("Симуляция не найдена")
+
+        if sim.status == 'running' or sim.status == 'completed':
+            raise ValueError("Расчёт уже запущен или завершён")
+
+        sim.status = "running"
+        sim.progress = 0
+        self.session.commit()
+
         thread = threading.Thread(
             target=self._run_simulation_background,
             args=(sim_id, edp_path, sim_dir),
             daemon=True
         )
         thread.start()
-        return sim_id
+        return {"message": "Расчёт запущен"}
+
+    def get_edp_content(self, sim_id: int) -> str:
+        """Возвращает содержимое .edp файла для скачивания"""
+        sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
+        edp_path = os.path.join(sim_dir, "blade_sim.edp")
+        if not os.path.exists(edp_path):
+            raise ValueError(f"Файл {edp_path} не найден")
+        with open(edp_path, 'r', encoding='utf-8') as f:
+            return f.read()
+
+    def get_edp_path(self, sim_id: int) -> str:
+        """Возвращает путь к .edp файлу"""
+        sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
+        edp_path = os.path.join(sim_dir, "blade_sim.edp")
+        return edp_path
 
     def _run_simulation_background(self, sim_id: int, edp_path: str, sim_dir: str):
         from sqlalchemy.orm import sessionmaker
@@ -231,7 +260,6 @@ class SimulationService:
             sim = session.get(Simulation, sim_id)
             if not sim:
                 return
-            sim.status = "running"
             sim.progress = 30
             session.commit()
 
@@ -696,55 +724,4 @@ class SimulationService:
                 plt.savefig(buf, format='png', dpi=100);
                 buf.seek(0)
                 plots['Деформация Мизеса'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                plt.close()
-
-                plt.figure(figsize=(8, 5))
-                plt.plot(x_coords, data[:, 2], 'r-', label='Спинка')
-                plt.plot(x_coords, data[:, 7], 'b-', label='Корытце')
-                plt.xlabel('X, мм');
-                plt.ylabel('Температура, °C')
-                plt.title('Распределение температуры по поверхности лопатки');
-                plt.legend()
-                buf = BytesIO();
-                plt.savefig(buf, format='png', dpi=100);
-                buf.seek(0)
-                plots['Температура (поверхность)'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                plt.close()
-
-            stress_path = os.path.join(sim_dir, "TSout.csv")
-            if os.path.exists(stress_path):
-                data = np.loadtxt(stress_path)
-                x_coords = data[:, 0]
-                sig_up = calc_eigMiz(data[:, 3:6])[:, 2]
-                sig_lw = calc_eigMiz(data[:, 8:11])[:, 2]
-                plt.figure(figsize=(8, 5))
-                plt.plot(x_coords, sig_up, 'ro-', label='Спинка')
-                plt.plot(x_coords, sig_lw, 'bo-', label='Корытце')
-                plt.xlabel('X, мм');
-                plt.ylabel('Напряжение, МПа')
-                plt.title('Эквивалентное напряжение Мизеса');
-                plt.legend()
-                buf = BytesIO();
-                plt.savefig(buf, format='png', dpi=100);
-                buf.seek(0)
-                plots['Напряжение Мизеса'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                plt.close()
-
-            eps_remaining = glob.glob(os.path.join(sim_dir, "*.eps"))
-            for eps in eps_remaining:
-                base = os.path.basename(eps).replace('.eps', '')
-                if base.startswith('plot_') or base.startswith('temp_'):
-                    continue
-                try:
-                    img = Image.open(eps)
-                    png_file = eps.replace('.eps', '.png')
-                    img.save(png_file, 'PNG')
-                    with open(png_file, 'rb') as f:
-                        name = ('Напряжение σ₁' if 'sig1' in base.lower() else
-                                'Напряжение σ₂' if 'sig2' in base.lower() else
-                                'Напряжение σ₁₂' if 'sig12' in base.lower() else base)
-                        plots[name] = base64.b64encode(f.read()).decode('utf-8')
-                except Exception as e:
-                    logger.warning(f"Не удалось конвертировать {eps}: {e}")
-
-        return plots
+                plt.close

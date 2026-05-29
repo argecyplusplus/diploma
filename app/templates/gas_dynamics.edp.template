@@ -38,7 +38,7 @@ real xblade = Chord1*0.25, yblade = Chord1*(Lezh(coeffsUp,0.5)+Lezh(coeffsLow,0.
 mesh Th = buildmesh(C({{NC}})+Splus({{NSp}})+Spm({{NSpm}})+Sminus({{NSm}})+Smp({{NSpm}}));
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot(Th, wait=0, ps=plotName);
+plot(Th, wait=1, ps=plotName);
 
 fespace Vh(Th, P2);
 Vh psi, w, vx, vy, p;
@@ -53,16 +53,16 @@ p = 1 - rho/(2*B)*(vx^2+vy^2);
 
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot(psi, wait=0, fill=1, value=1, ps=plotName);
+plot(psi, wait=1, fill=1, value=1, ps=plotName);
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot([vx,vy], wait=0, value=1, ps=plotName);
+plot([vx,vy], wait=1, value=1, ps=plotName);
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot(p, wait=0, fill=1, value=1, ps=plotName);
+plot(p, wait=1, fill=1, value=1, ps=plotName);
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot(p, wait=0, nbiso=20, value=1, ps=plotName);
+plot(p, wait=1, nbiso=20, value=1, ps=plotName);
 
 int blade = Th(xblade, yblade).region, outspace=Th(-1, -1).region;
 cout << blade << " " << outspace << endl;
@@ -109,7 +109,7 @@ for(int i=0; i<nbT; i++) {
     thermic;
     plotCounter++;
     plotName = "temp_" + i + ".eps";
-    plot(v, wait=0, fill=1, value=1, ps=plotName);
+    plot(v, wait=1, fill=1, value=1, ps=plotName);
 }
 plotName = "temp_final.eps";
-plot(v, wait=0, nbiso=20, value=1, ps=plotName);
+plot(v, wait=1, nbiso=20, value=1, ps=plotName);

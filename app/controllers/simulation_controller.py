@@ -1,4 +1,7 @@
 import os
+import subprocess
+import threading
+
 from flask import Blueprint, request, jsonify, g, render_template, send_file, abort
 from pydantic import ValidationError
 from ..services.simulation_service import SimulationService
@@ -342,3 +345,72 @@ def get_result_files(sim_id):
         if os.path.exists(os.path.join(sim_dir, filename)):
             files.append({'name': filename, 'description': description, 'category': category})
     return jsonify(files)
+
+@sim_bp.route('/<int:sim_id>/run', methods=['POST'])
+def run_simulation(sim_id):
+    """Запустить расчёт (меняет статус на running)"""
+    service = get_service()
+    try:
+        sim = service.session.get(Simulation, sim_id)
+        if not sim:
+            return jsonify({"error": "Симуляция не найдена"}), 404
+        if sim.status != 'pending':
+            return jsonify({"error": f"Расчёт уже в статусе {sim.status}"}), 400
+        sim.status = 'running'
+        service.session.commit()
+        return jsonify({"message": "Расчёт запущен"}), 200
+    except Exception as e:
+        service.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@sim_bp.route('/<int:sim_id>/download_edp', methods=['GET'])
+def download_edp(sim_id):
+    """Скачать .edp файл"""
+    service = get_service()
+    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    edp_path = os.path.join(sim_dir, "blade_sim.edp")
+    if not os.path.exists(edp_path):
+        return jsonify({"error": "Файл не найден"}), 404
+    return send_file(edp_path, as_attachment=True, download_name=f"simulation_{sim_id}.edp")
+
+
+@sim_bp.route('/<int:sim_id>/run_local', methods=['POST'])
+def run_local(sim_id):
+    """Запустить FreeFEM локально с открытым окном (как при ручном запуске)"""
+    import subprocess
+
+    service = get_service()
+    try:
+        sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+        edp_path = os.path.join(sim_dir, "blade_sim.edp")
+
+        if not os.path.exists(edp_path):
+            return jsonify({"error": "EDP файл не найден"}), 404
+
+        sim = service.session.get(Simulation, sim_id)
+        if not sim:
+            return jsonify({"error": "Симуляция не найдена"}), 404
+
+        if sim.status == 'running':
+            return jsonify({"error": "Расчёт уже выполняется"}), 400
+
+        sim.status = "running"
+        service.session.commit()
+
+        ff_path = os.getenv("FREEFEM_PATH", "FreeFem++")
+
+        if os.name == 'nt':
+            subprocess.Popen(f'explorer /select,"{edp_path}"', shell=True)
+
+            return jsonify({
+                "message": "Папка с файлом открыта. Дважды кликните по simulation_X.edp, чтобы запустить FreeFEM++",
+                "edp_path": edp_path,
+                "instruction": True
+            }), 200
+        else:
+            subprocess.Popen([ff_path, edp_path])
+
+        return jsonify({"message": "FreeFEM запущен", "edp_path": edp_path}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
