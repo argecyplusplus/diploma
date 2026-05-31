@@ -863,7 +863,7 @@ body {
 
 .btn-run {
     background: #10b981;
-    color: white;
+    color: black;
     border: none;
     padding: 4px 8px;
     border-radius: 4px;
@@ -871,4 +871,8 @@ body {
 }
 .btn-run:hover {
     background: #059669;
+}
+
+.btn-warning.btn-sm {
+    color: black;
 }

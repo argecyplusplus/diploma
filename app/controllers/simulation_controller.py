@@ -270,22 +270,29 @@ def get_simulation_log(sim_id):
         content = f.read()
     return jsonify({"log": content})
 
+
 @sim_bp.route('/<int:sim_id>/result/<file_type>')
 def download_result_file(sim_id, file_type):
     sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
-    if file_type == 'vtk':
-        file_path = os.path.join(sim_dir, "result.vtk")
-    elif file_type == 'profout':
-        file_path = os.path.join(sim_dir, "Profout.csv")
-    elif file_type == 'tsout':
-        file_path = os.path.join(sim_dir, "TSout.csv")
-    elif file_type == 'tepsout':
-        file_path = os.path.join(sim_dir, "TEpsout.csv")
-    else:
+
+    # Маппинг типов файлов
+    file_map = {
+        'vtk': 'result.vtk',
+        'profout': 'Profout.csv',
+        'tsout': 'TSout.csv',
+        'tepsout': 'TEpsout.csv'
+    }
+
+    if file_type not in file_map:
         abort(404)
+
+    file_path = os.path.join(sim_dir, file_map[file_type])
+
     if not os.path.exists(file_path):
         abort(404)
-    return send_file(file_path, as_attachment=True, download_name=f"{file_type}_{sim_id}.csv")
+
+    return send_file(file_path, as_attachment=True,
+                     download_name=f"{file_type}_{sim_id}{os.path.splitext(file_map[file_type])[1]}")
 
 # ================= УДАЛЕНИЕ СИМУЛЯЦИЙ =================
 @sim_bp.route('/<int:sim_id>', methods=['DELETE'])
@@ -330,10 +337,12 @@ def get_plots(sim_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/<int:sim_id>/files')
 def get_result_files(sim_id):
     sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
     files = []
+
     # Определяем возможные файлы и их описания
     candidates = [
         ('result.vtk', 'Файл VTK', 'vtk'),
@@ -341,9 +350,12 @@ def get_result_files(sim_id):
         ('TSout.csv', 'Напряжения (TSout.csv)', 'csv'),
         ('TEpsout.csv', 'Деформации (TEpsout.csv)', 'csv')
     ]
+
     for filename, description, category in candidates:
-        if os.path.exists(os.path.join(sim_dir, filename)):
+        full_path = os.path.join(sim_dir, filename)
+        if os.path.exists(full_path):
             files.append({'name': filename, 'description': description, 'category': category})
+
     return jsonify(files)
 
 @sim_bp.route('/<int:sim_id>/run', methods=['POST'])
@@ -377,8 +389,11 @@ def download_edp(sim_id):
 
 @sim_bp.route('/<int:sim_id>/run_local', methods=['POST'])
 def run_local(sim_id):
-    """Запустить FreeFEM локально с открытым окном (как при ручном запуске)"""
-    import subprocess
+    """Запустить FreeFEM локально и отслеживать завершение"""
+    import time
+    import threading
+    from ..utils.database import get_db_session, get_engine
+    from sqlalchemy.orm import sessionmaker
 
     service = get_service()
     try:
@@ -395,22 +410,120 @@ def run_local(sim_id):
         if sim.status == 'running':
             return jsonify({"error": "Расчёт уже выполняется"}), 400
 
+        # Меняем статус на running
         sim.status = "running"
         service.session.commit()
 
-        ff_path = os.getenv("FREEFEM_PATH", "FreeFem++")
-
+        # Открываем папку с файлом
         if os.name == 'nt':
             subprocess.Popen(f'explorer /select,"{edp_path}"', shell=True)
 
-            return jsonify({
-                "message": "Папка с файлом открыта. Дважды кликните по simulation_X.edp, чтобы запустить FreeFEM++",
-                "edp_path": edp_path,
-                "instruction": True
-            }), 200
-        else:
-            subprocess.Popen([ff_path, edp_path])
+        # Функция мониторинга с отдельной сессией
+        def check_completion():
+            # Создаём отдельную сессию для фонового потока
+            engine = get_engine()
+            SessionLocal = sessionmaker(bind=engine)
+            db_session = SessionLocal()
 
-        return jsonify({"message": "FreeFEM запущен", "edp_path": edp_path}), 200
+            vtk_path = os.path.join(sim_dir, "result.vtk")
+            max_wait = 3600  # 1 час
+            waited = 0
+            while waited < max_wait:
+                time.sleep(10)  # Проверяем каждые 10 секунд
+                waited += 10
+                if os.path.exists(vtk_path):
+                    # Файл появился - расчёт завершён
+                    try:
+                        sim_obj = db_session.get(Simulation, sim_id)
+                        if sim_obj:
+                            sim_obj.status = "completed"
+                            sim_obj.progress = 100
+                            db_session.commit()
+                            print(f"✅ Симуляция {sim_id} завершена! Файл VTK найден.")
+                    except Exception as e:
+                        print(f"Ошибка при обновлении статуса: {e}")
+                    finally:
+                        db_session.close()
+                    return
+            # Таймаут
+            try:
+                sim_obj = db_session.get(Simulation, sim_id)
+                if sim_obj and sim_obj.status == 'running':
+                    sim_obj.status = "failed"
+                    sim_obj.error_message = "Превышено время ожидания (1 час)"
+                    db_session.commit()
+            except Exception as e:
+                print(f"Ошибка при установке статуса failed: {e}")
+            finally:
+                db_session.close()
+
+        thread = threading.Thread(target=check_completion, daemon=True)
+        thread.start()
+
+        return jsonify({
+            "message": "Папка с файлом открыта. Дважды кликните по .edp файлу для запуска FreeFEM++",
+            "edp_path": edp_path,
+            "instruction": True
+        }), 200
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@sim_bp.route('/<int:sim_id>/reset_status', methods=['POST'])
+def reset_simulation_status(sim_id):
+    """Сбросить статус расчёта (для перезапуска)"""
+    service = get_service()
+    try:
+        sim = service.session.get(Simulation, sim_id)
+        if not sim:
+            return jsonify({"error": "Симуляция не найдена"}), 404
+        sim.status = 'pending'
+        sim.progress = 0
+        sim.error_message = None
+        service.session.commit()
+        return jsonify({"message": "Статус сброшен"}), 200
+    except Exception as e:
+        service.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@sim_bp.route('/<int:sim_id>/check_completion', methods=['POST'])
+def check_completion_manual(sim_id):
+    """Ручная проверка завершения расчёта по наличию result.vtk"""
+    service = get_service()
+    try:
+        sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+        vtk_path = os.path.join(sim_dir, "result.vtk")
+
+        sim = service.session.get(Simulation, sim_id)
+        if not sim:
+            return jsonify({"error": "Симуляция не найдена"}), 404
+
+        if os.path.exists(vtk_path) and sim.status == 'running':
+            sim.status = "completed"
+            sim.progress = 100
+            service.session.commit()
+            return jsonify({"status": "completed", "message": "Расчёт завершён!"}), 200
+        elif sim.status == 'completed':
+            return jsonify({"status": "completed", "message": "Расчёт уже завершён"}), 200
+        else:
+            return jsonify({"status": sim.status, "message": "Расчёт ещё не завершён"}), 200
+    except Exception as e:
+        service.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@sim_bp.route('/<int:sim_id>/reset', methods=['POST'])
+def reset_simulation(sim_id):
+    """Сбросить статус расчёта для перезапуска"""
+    service = get_service()
+    try:
+        sim = service.session.get(Simulation, sim_id)
+        if not sim:
+            return jsonify({"error": "Симуляция не найдена"}), 404
+        sim.status = 'pending'
+        sim.progress = 0
+        sim.error_message = None
+        service.session.commit()
+        return jsonify({"message": "Статус сброшен"}), 200
+    except Exception as e:
+        service.session.rollback()
         return jsonify({"error": str(e)}), 500

@@ -1,7 +1,20 @@
 const simId = parseInt(window.location.pathname.split('/').slice(-2)[0]);
-
-// Добавить в начало файла
 let statusPollInterval = null;
+let currentTaskType = null;
+
+async function getSimulationInfo() {
+    try {
+        const res = await fetch(`/simulation/api/simulations`);
+        if (!res.ok) return;
+        const sims = await res.json();
+        const sim = sims.find(s => s.simulation_id === simId);
+        if (sim) {
+            currentTaskType = sim.task_display;
+        }
+    } catch(e) {
+        console.error('Error getting sim info:', e);
+    }
+}
 
 async function checkAndPollStatus() {
     try {
@@ -11,16 +24,23 @@ async function checkAndPollStatus() {
 
         if (data.status === 'running') {
             if (!statusPollInterval) {
-                statusPollInterval = setInterval(() => checkAndPollStatus(), 3000);
+                statusPollInterval = setInterval(() => checkAndPollStatus(), 5000);
             }
-            document.getElementById('statusMessage')?.remove();
             const container = document.getElementById('plotsContent');
             if (container && !container.querySelector('.status-running')) {
-                container.innerHTML = '<div class="status-message status-running">⏳ Расчёт выполняется... Страница обновится автоматически.</div>';
+                container.innerHTML = '<div class="status-message status-running">⏳ Расчёт выполняется... Обновите страницу после завершения.</div>';
             }
         } else if (data.status === 'completed') {
             if (statusPollInterval) clearInterval(statusPollInterval);
-            await loadPlots();
+            // Для задачи 1 показываем только файлы
+            if (currentTaskType === '1') {
+                const container = document.getElementById('plotsContent');
+                if (container) {
+                    container.innerHTML = '<div class="status-message">✅ Расчёт завершён! Файлы результатов доступны для скачивания выше.</div>';
+                }
+            } else {
+                await loadPlots();
+            }
             await loadFiles();
         } else if (data.status === 'failed') {
             if (statusPollInterval) clearInterval(statusPollInterval);
@@ -34,12 +54,16 @@ async function checkAndPollStatus() {
     }
 }
 
-
-
-
 async function loadPlots() {
     const container = document.getElementById('plotsContent');
     if (!container) return;
+
+    // Для задачи 1 не загружаем графики
+    if (currentTaskType === '1') {
+        container.innerHTML = '<div class="status-message">Для этой задачи графики не генерируются. Используйте VTK файл для визуализации.</div>';
+        return;
+    }
+
     container.innerHTML = '<div class="status-message">⏳ Загрузка графиков...</div>';
     try {
         const res = await fetch(`/simulation/${simId}/plots`);
@@ -48,10 +72,8 @@ async function loadPlots() {
         if (data.error) throw new Error(data.error);
 
         let html = '';
-        // Перебираем все ключи – они уже содержат нормальные названия
         for (const [title, imgBase64] of Object.entries(data)) {
             if (title === 'error') continue;
-            // Для анимации (GIF) тип image/gif, для остальных image/png
             const isGif = title === 'Анимация температурного поля';
             const mimeType = isGif ? 'image/gif' : 'image/png';
             html += `
@@ -84,7 +106,14 @@ async function loadFiles() {
         files.forEach(file => {
             let btnClass = 'btn-secondary';
             if (file.name === 'result.vtk') btnClass = 'btn-primary';
-            html += `<a href="/simulation/${simId}/result/${file.name.split('.')[0].toLowerCase()}" class="${btnClass}">📥 ${file.description}</a>`;
+            let fileType = '';
+            if (file.name === 'result.vtk') fileType = 'vtk';
+            else if (file.name === 'Profout.csv') fileType = 'profout';
+            else if (file.name === 'TSout.csv') fileType = 'tsout';
+            else if (file.name === 'TEpsout.csv') fileType = 'tepsout';
+            else fileType = file.name.split('.')[0].toLowerCase();
+
+            html += `<a href="/simulation/${simId}/result/${fileType}" class="${btnClass}">📥 ${file.description}</a>`;
         });
         container.innerHTML = html;
     } catch(e) {
@@ -92,16 +121,45 @@ async function loadFiles() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadPlots();
-    loadFiles();
-    checkAndPollStatus();
-});
-
-// Вспомогательная функция
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
+
+async function checkStatusManually() {
+    try {
+        const res = await fetch(`/simulation/${simId}/status`);
+        const data = await res.json();
+        alert(`Статус расчёта: ${data.status}\nПрогресс: ${data.progress}%\n${data.error_message ? 'Ошибка: ' + data.error_message : ''}`);
+        if (data.status === 'completed') {
+            location.reload();
+        }
+    } catch(e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+async function checkCompletionManually() {
+    try {
+        const res = await fetch(`/simulation/${simId}/check_completion`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'completed') {
+            alert('✅ Расчёт завершён! Страница будет обновлена.');
+            location.reload();
+        } else {
+            alert(`Статус расчёта: ${data.status}\n${data.message || ''}`);
+        }
+    } catch(e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await getSimulationInfo();
+    await loadFiles();
+    await checkAndPollStatus();
+    if (currentTaskType !== '1') {
+        await loadPlots();
+    }
+});

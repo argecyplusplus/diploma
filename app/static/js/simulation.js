@@ -294,6 +294,7 @@ async function loadMaterialsCheckboxes() {
 }
 
 // ===== ИСТОРИЯ РАСЧЁТОВ =====
+// ===== ИСТОРИЯ РАСЧЁТОВ =====
 async function loadSimulationsList() {
     const tbody = document.getElementById('simulations-table-body');
     if (!tbody) return;
@@ -302,7 +303,7 @@ async function loadSimulationsList() {
         if (!res.ok) throw new Error('Ошибка загрузки');
         const sims = await res.json();
         if (sims.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Расчеты еще не выполнялись</td></td>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Расчеты еще не выполнялись</td></tr>';
             return;
         }
         let html = '';
@@ -311,13 +312,21 @@ async function loadSimulationsList() {
                                 s.status === 'running' ? '<span class="badge badge-warning">⏳ Запущен</span>' :
                                 s.status === 'failed' ? '<span class="badge badge-danger">❌ Ошибка</span>' :
                                 '<span class="badge badge-secondary">' + s.status + '</span>';
+
             const logBtn = (s.status === 'failed') ?
                 `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">Лог</button>` : '';
+
             const resultsBtn = `<button class="btn-secondary btn-sm" onclick="viewResults(${s.simulation_id})">Результаты</button>`;
             const deleteBtn = `<button class="btn-delete btn-sm" onclick="deleteSimulation(${s.simulation_id})">Удалить</button>`;
-            const runBtn = (s.status === 'pending') ?
-                `<button class="btn-run" onclick="runSimulation(${s.simulation_id})">▶ Моделировать</button>` : '';
-            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">${runBtn} ${logBtn} ${resultsBtn} ${deleteBtn}</div>`;
+            const resetBtn = `<button class="btn-warning btn-sm" onclick="resetSimulation(${s.simulation_id})">Сбросить</button>`;
+
+            // Кнопка Моделировать показывается для статусов: pending, failed, completed (можно перезапустить)
+            const canRun = (s.status === 'pending' || s.status === 'failed' || s.status === 'completed');
+            const runBtn = canRun ?
+                `<button class="btn-run" onclick="runSimulation(${s.simulation_id})">Моделировать</button>` : '';
+
+            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">${runBtn} ${resetBtn} ${logBtn} ${resultsBtn} ${deleteBtn}</div>`;
+
             html += `
                 <tr>
                     <td><span class="id-badge">#${s.simulation_id}</span></td>
@@ -514,4 +523,17 @@ if (typeof escapeHtml !== 'function') {
         div.textContent = text;
         return div.innerHTML;
     };
+}
+
+// Добавить в конец файла
+async function resetSimulation(simId) {
+    if (!confirm('Сбросить статус расчёта? Это позволит запустить его заново.')) return;
+    try {
+        const res = await fetch(`/simulation/${simId}/reset`, { method: 'POST' });
+        if (!res.ok) throw new Error('Ошибка сброса');
+        alert('✅ Статус сброшен');
+        loadSimulationsList();
+    } catch(e) {
+        alert('❌ Ошибка: ' + e.message);
+    }
 }

@@ -109,7 +109,7 @@ for(int i=0; i<nbT; i++) {
     thermic;
     plotCounter++;
     plotName = "temp_" + i + ".eps";
-    plot(v, wait=1, fill=1, value=1, ps=plotName);
+    plot(v, wait=0, fill=1, value=1, ps=plotName);
 }
 plotName = "temp_final.eps";
-plot(v, wait=1, nbiso=20, value=1, ps=plotName);
+plot(v, wait=0, nbiso=20, value=1, ps=plotName);
