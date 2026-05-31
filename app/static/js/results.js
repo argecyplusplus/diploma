@@ -50,7 +50,8 @@ async function showAppropriateContent() {
         plotsContainer.innerHTML = '<div class="status-message">✅ Расчёт завершён!<br>Визуализация результатов доступна через VTK файл.</div>';
     }
     else if (currentTaskType === '2') {
-        plotsContainer.innerHTML = '<div class="status-message">✅ Расчёт завершён!<br>Графики температурного поля были показаны в окне FreeFEM.<br>Результаты можно скачать ниже.</div>';
+        // Задача 2: загружаем график температуры по контуру из TFout.csv
+        await loadMatplotlibPlots();
     }
     else if (currentTaskType === '3') {
         // Задача 3: загружаем matplotlib графики из CSV
@@ -74,7 +75,6 @@ async function loadMatplotlibPlots() {
 
         const data = await res.json();
 
-        // Проверяем, что данные получены и не содержат ошибку
         if (!data || typeof data !== 'object') {
             throw new Error('Некорректный ответ от сервера');
         }
@@ -83,19 +83,23 @@ async function loadMatplotlibPlots() {
             throw new Error(data.error);
         }
 
-        // Ожидаемые ключи для задачи 3 из simulation_service.py
-        const expectedKeys = [
-            'Профиль лопатки',
-            'Деформация Мизеса',
-            'Температура (поверхность)',
-            'Напряжение Мизеса'
-        ];
-
         let html = '';
         let hasContent = false;
 
-        // Проверяем ожидаемые ключи
-        for (const key of expectedKeys) {
+        // Ключи для задачи 2
+        if (data['Распределение температуры по контуру']) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h4>Распределение температуры по контуру лопатки</h4>
+                    <img src="data:image/png;base64,${data['Распределение температуры по контуру']}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+            `;
+            hasContent = true;
+        }
+
+        // Ключи для задачи 3
+        const task3Keys = ['Профиль лопатки', 'Деформация Мизеса', 'Температура (поверхность)', 'Напряжение Мизеса'];
+        for (const key of task3Keys) {
             if (data[key]) {
                 html += `
                     <div style="margin-bottom: 30px;">
@@ -107,9 +111,9 @@ async function loadMatplotlibPlots() {
             }
         }
 
-        // Также проверяем другие возможные ключи
+        // Другие возможные ключи
         for (const [key, value] of Object.entries(data)) {
-            if (key !== 'error' && !expectedKeys.includes(key)) {
+            if (key !== 'error' && !task3Keys.includes(key) && key !== 'Распределение температуры по контуру') {
                 html += `
                     <div style="margin-bottom: 30px;">
                         <h4>${escapeHtml(key)}</h4>
