@@ -10,6 +10,7 @@ async function getSimulationInfo() {
         const sim = sims.find(s => s.simulation_id === simId);
         if (sim) {
             currentTaskType = sim.task_display;
+            console.log('Task type:', currentTaskType);
         }
     } catch(e) {
         console.error('Error getting sim info:', e);
@@ -26,22 +27,10 @@ async function checkAndPollStatus() {
             if (!statusPollInterval) {
                 statusPollInterval = setInterval(() => checkAndPollStatus(), 5000);
             }
-            const container = document.getElementById('plotsContent');
-            if (container && !container.querySelector('.status-running')) {
-                container.innerHTML = '<div class="status-message status-running">⏳ Расчёт выполняется... Обновите страницу после завершения.</div>';
-            }
         } else if (data.status === 'completed') {
             if (statusPollInterval) clearInterval(statusPollInterval);
-            // Для задачи 1 показываем только файлы
-            if (currentTaskType === '1') {
-                const container = document.getElementById('plotsContent');
-                if (container) {
-                    container.innerHTML = '<div class="status-message">✅ Расчёт завершён! Файлы результатов доступны для скачивания выше.</div>';
-                }
-            } else {
-                await loadPlots();
-            }
             await loadFiles();
+            await showAppropriateContent();
         } else if (data.status === 'failed') {
             if (statusPollInterval) clearInterval(statusPollInterval);
             const container = document.getElementById('plotsContent');
@@ -54,39 +43,91 @@ async function checkAndPollStatus() {
     }
 }
 
-async function loadPlots() {
+async function showAppropriateContent() {
+    const plotsContainer = document.getElementById('plotsContent');
+
+    if (currentTaskType === '1') {
+        plotsContainer.innerHTML = '<div class="status-message">✅ Расчёт завершён!<br>Визуализация результатов доступна через VTK файл.</div>';
+    }
+    else if (currentTaskType === '2') {
+        plotsContainer.innerHTML = '<div class="status-message">✅ Расчёт завершён!<br>Графики температурного поля были показаны в окне FreeFEM.<br>Результаты можно скачать ниже.</div>';
+    }
+    else if (currentTaskType === '3') {
+        // Задача 3: загружаем matplotlib графики из CSV
+        await loadMatplotlibPlots();
+    }
+    else {
+        plotsContainer.innerHTML = '<div class="status-message">Неизвестный тип задачи</div>';
+    }
+}
+
+async function loadMatplotlibPlots() {
     const container = document.getElementById('plotsContent');
     if (!container) return;
-
-    // Для задачи 1 не загружаем графики
-    if (currentTaskType === '1') {
-        container.innerHTML = '<div class="status-message">Для этой задачи графики не генерируются. Используйте VTK файл для визуализации.</div>';
-        return;
-    }
 
     container.innerHTML = '<div class="status-message">⏳ Загрузка графиков...</div>';
     try {
         const res = await fetch(`/simulation/${simId}/plots`);
-        if (!res.ok) throw new Error('Ошибка загрузки');
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
+
+        // Проверяем, что данные получены и не содержат ошибку
+        if (!data || typeof data !== 'object') {
+            throw new Error('Некорректный ответ от сервера');
+        }
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        // Ожидаемые ключи для задачи 3 из simulation_service.py
+        const expectedKeys = [
+            'Профиль лопатки',
+            'Деформация Мизеса',
+            'Температура (поверхность)',
+            'Напряжение Мизеса'
+        ];
 
         let html = '';
-        for (const [title, imgBase64] of Object.entries(data)) {
-            if (title === 'error') continue;
-            const isGif = title === 'Анимация температурного поля';
-            const mimeType = isGif ? 'image/gif' : 'image/png';
-            html += `
-                <div style="margin-bottom: 30px;">
-                    <h4>${escapeHtml(title)}</h4>
-                    <img src="data:${mimeType};base64,${imgBase64}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
-                </div>
-            `;
+        let hasContent = false;
+
+        // Проверяем ожидаемые ключи
+        for (const key of expectedKeys) {
+            if (data[key]) {
+                html += `
+                    <div style="margin-bottom: 30px;">
+                        <h4>${escapeHtml(key)}</h4>
+                        <img src="data:image/png;base64,${data[key]}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                    </div>
+                `;
+                hasContent = true;
+            }
         }
-        if (html === '') html = '<div class="status-message">Нет данных для отображения</div>';
-        container.innerHTML = html;
+
+        // Также проверяем другие возможные ключи
+        for (const [key, value] of Object.entries(data)) {
+            if (key !== 'error' && !expectedKeys.includes(key)) {
+                html += `
+                    <div style="margin-bottom: 30px;">
+                        <h4>${escapeHtml(key)}</h4>
+                        <img src="data:image/png;base64,${value}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                    </div>
+                `;
+                hasContent = true;
+            }
+        }
+
+        if (!hasContent) {
+            container.innerHTML = '<div class="status-message">Нет данных для отображения</div>';
+        } else {
+            container.innerHTML = html;
+        }
     } catch(e) {
-        container.innerHTML = `<div class="status-message" style="color:#ef4444;">Ошибка: ${e.message}</div>`;
+        console.error('Load matplotlib plots error:', e);
+        container.innerHTML = `<div class="status-message" style="color:#ef4444;">Ошибка загрузки графиков: ${e.message}</div>`;
     }
 }
 
@@ -140,6 +181,7 @@ async function checkStatusManually() {
         alert('Ошибка: ' + e.message);
     }
 }
+
 async function checkCompletionManually() {
     try {
         const res = await fetch(`/simulation/${simId}/check_completion`, { method: 'POST' });
@@ -159,7 +201,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     await getSimulationInfo();
     await loadFiles();
     await checkAndPollStatus();
-    if (currentTaskType !== '1') {
-        await loadPlots();
+
+    // Если статус уже completed, показываем соответствующий контент
+    const statusRes = await fetch(`/simulation/${simId}/status`);
+    const statusData = await statusRes.json();
+    if (statusData.status === 'completed') {
+        await showAppropriateContent();
     }
 });

@@ -111,7 +111,24 @@ function viewResults(simId) {
 
 // ===== ЗАПУСК РАСЧЁТА ПО КНОПКЕ =====
 async function runSimulation(simId) {
-    if (!confirm('Запустить расчёт?\n\nОткроется папка с файлом. Дважды кликните по файлу .edp, чтобы запустить FreeFEM++.')) return;
+    // Сначала получаем тип задачи
+    let taskType = null;
+    try {
+        const res = await fetch('/simulation/api/simulations');
+        const sims = await res.json();
+        const sim = sims.find(s => s.simulation_id === simId);
+        if (sim) taskType = sim.task_display;
+    } catch(e) {
+        console.error('Error getting task type:', e);
+    }
+
+    let message = 'Запустить расчёт?\n\nОткроется папка с файлом. Дважды кликните по файлу .edp, чтобы запустить FreeFEM++.';
+    if (taskType === '3') {
+        message = 'Запустить расчёт?\n\nПосле запуска FreeFEM++ и завершения расчёта нажмите "Обновить результаты" для отображения графиков.';
+    }
+
+    if (!confirm(message)) return;
+
     try {
         const res = await fetch(`/simulation/${simId}/run_local`, { method: 'POST' });
         const data = await res.json();

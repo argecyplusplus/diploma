@@ -592,6 +592,7 @@ class SimulationService:
         from numpy.linalg import eig
         from PIL import Image
         import glob
+        import os
 
         sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
         sim = self.session.get(Simulation, sim_id)
@@ -614,6 +615,7 @@ class SimulationService:
                 eigMiz[i] = mizes2(T_mat)
             return eigMiz
 
+        # ================= ЗАДАЧА 1: ГАЗОДИНАМИКА =================
         if task_type == 'gas_dynamics':
             eps_files = sorted(glob.glob(os.path.join(sim_dir, "plot_*.eps")))
             titles = {
@@ -663,6 +665,7 @@ class SimulationService:
                     with open(gif_path, 'rb') as f:
                         plots['Анимация температурного поля'] = base64.b64encode(f.read()).decode('utf-8')
 
+        # ================= ЗАДАЧА 2: ТЕПЛОВОЕ ПОЛЕ =================
         elif task_type == 'thermal_field':
             eps_files = sorted(glob.glob(os.path.join(sim_dir, "plot_*.eps")))
             if eps_files:
@@ -688,40 +691,119 @@ class SimulationService:
                     except Exception as e:
                         logger.warning(f"Не удалось конвертировать {eps}: {e}")
 
+        # ================= ЗАДАЧА 3: ТЕРМОУПРУГОСТЬ =================
         elif task_type == 'thermal_stress':
+            # 1. Профиль лопатки (Profout.csv)
             prof_path = os.path.join(sim_dir, "Profout.csv")
             if os.path.exists(prof_path):
-                data = np.loadtxt(prof_path)
-                plt.figure(figsize=(8, 5))
-                plt.plot(data[:, 0], data[:, 1], 'b-', label='Спинка')
-                plt.plot(data[:, 0], data[:, 2], 'b-', label='Корытце')
-                plt.plot(data[:, 3], data[:, 4], 'r-', label='Спинка смещ.')
-                plt.plot(data[:, 3], data[:, 5], 'r-', label='Корытце смещ.')
-                plt.xlabel('X, мм');
-                plt.ylabel('Y, мм')
-                plt.title('Профиль лопатки');
-                plt.legend()
-                buf = BytesIO();
-                plt.savefig(buf, format='png', dpi=100);
-                buf.seek(0)
-                plots['Профиль лопатки'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                plt.close()
+                try:
+                    data = np.loadtxt(prof_path)
+                    plt.figure(figsize=(8, 5))
+                    plt.plot(data[:, 0], data[:, 1], 'b-', label='Спинка (исх.)')
+                    plt.plot(data[:, 0], data[:, 2], 'b-', label='Корытце (исх.)')
+                    plt.plot(data[:, 3], data[:, 4], 'r-', label='Спинка (деф.)')
+                    plt.plot(data[:, 3], data[:, 5], 'r-', label='Корытце (деф.)')
+                    plt.xlabel('X, мм')
+                    plt.ylabel('Y, мм')
+                    plt.title('Профиль лопатки')
+                    plt.legend(loc='best')
+                    plt.grid(True, alpha=0.3)
+                    buf = BytesIO()
+                    plt.savefig(buf, format='png', dpi=100)
+                    buf.seek(0)
+                    plots['Профиль лопатки'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                    plt.close()
+                except Exception as e:
+                    logger.error(f"Ошибка при построении профиля лопатки: {e}")
 
+            # 2. Деформации (TEpsout.csv) и температура
             eps_path = os.path.join(sim_dir, "TEpsout.csv")
             if os.path.exists(eps_path):
-                data = np.loadtxt(eps_path)
-                x_coords = data[:, 0]
-                eps_up = calc_eigMiz(data[:, 3:6])[:, 2] * 100
-                eps_lw = calc_eigMiz(data[:, 8:11])[:, 2] * 100
-                plt.figure(figsize=(8, 5))
-                plt.plot(x_coords, eps_up, 'ro-', label='Спинка')
-                plt.plot(x_coords, eps_lw, 'bo-', label='Корытце')
-                plt.xlabel('X, мм');
-                plt.ylabel('Деформация, %')
-                plt.title('Эквивалентная деформация Мизеса');
-                plt.legend()
-                buf = BytesIO();
-                plt.savefig(buf, format='png', dpi=100);
-                buf.seek(0)
-                plots['Деформация Мизеса'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                plt.close
+                try:
+                    data = np.loadtxt(eps_path)
+                    x_coords = data[:, 0]
+
+                    # Деформация Мизеса
+                    eps_up = calc_eigMiz(data[:, 3:6])[:, 2] * 100
+                    eps_lw = calc_eigMiz(data[:, 8:11])[:, 2] * 100
+
+                    plt.figure(figsize=(8, 5))
+                    plt.plot(x_coords, eps_up, 'ro-', label='Спинка', markersize=4)
+                    plt.plot(x_coords, eps_lw, 'bo-', label='Корытце', markersize=4)
+                    plt.xlabel('X, мм')
+                    plt.ylabel('Деформация, %')
+                    plt.title('Эквивалентная деформация Мизеса')
+                    plt.legend()
+                    plt.grid(True, alpha=0.3)
+                    buf = BytesIO()
+                    plt.savefig(buf, format='png', dpi=100)
+                    buf.seek(0)
+                    plots['Деформация Мизеса'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                    plt.close()
+
+                    # Температура на поверхности
+                    plt.figure(figsize=(8, 5))
+                    plt.plot(x_coords, data[:, 2], 'r-', label='Спинка', linewidth=2)
+                    plt.plot(x_coords, data[:, 7], 'b-', label='Корытце', linewidth=2)
+                    plt.xlabel('X, мм')
+                    plt.ylabel('Температура, °C')
+                    plt.title('Распределение температуры по поверхности лопатки')
+                    plt.legend()
+                    plt.grid(True, alpha=0.3)
+                    buf = BytesIO()
+                    plt.savefig(buf, format='png', dpi=100)
+                    buf.seek(0)
+                    plots['Температура (поверхность)'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                    plt.close()
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке TEpsout.csv: {e}")
+
+            # 3. Напряжения (TSout.csv)
+            stress_path = os.path.join(sim_dir, "TSout.csv")
+            if os.path.exists(stress_path):
+                try:
+                    data = np.loadtxt(stress_path)
+                    x_coords = data[:, 0]
+                    sig_up = calc_eigMiz(data[:, 3:6])[:, 2]
+                    sig_lw = calc_eigMiz(data[:, 8:11])[:, 2]
+
+                    plt.figure(figsize=(8, 5))
+                    plt.plot(x_coords, sig_up, 'ro-', label='Спинка', markersize=4)
+                    plt.plot(x_coords, sig_lw, 'bo-', label='Корытце', markersize=4)
+                    plt.xlabel('X, мм')
+                    plt.ylabel('Напряжение, МПа')
+                    plt.title('Эквивалентное напряжение Мизеса')
+                    plt.legend()
+                    plt.grid(True, alpha=0.3)
+                    buf = BytesIO()
+                    plt.savefig(buf, format='png', dpi=100)
+                    buf.seek(0)
+                    plots['Напряжение Мизеса'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                    plt.close()
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке TSout.csv: {e}")
+
+            # 4. Дополнительные компоненты напряжений из EPS (sig1, sig2, sig12)
+            eps_remaining = glob.glob(os.path.join(sim_dir, "*.eps"))
+            for eps in eps_remaining:
+                base = os.path.basename(eps).replace('.eps', '')
+                if base.startswith('plot_') or base.startswith('temp_'):
+                    continue
+                try:
+                    img = Image.open(eps)
+                    png_file = eps.replace('.eps', '.png')
+                    img.save(png_file, 'PNG')
+                    with open(png_file, 'rb') as f:
+                        if 'sig1' in base.lower():
+                            name = 'Напряжение σ₁'
+                        elif 'sig2' in base.lower():
+                            name = 'Напряжение σ₂'
+                        elif 'sig12' in base.lower():
+                            name = 'Напряжение σ₁₂'
+                        else:
+                            name = base
+                        plots[name] = base64.b64encode(f.read()).decode('utf-8')
+                except Exception as e:
+                    logger.warning(f"Не удалось конвертировать {eps}: {e}")
+
+        return plots
