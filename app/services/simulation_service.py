@@ -279,6 +279,12 @@ class SimulationService:
                 if os.path.exists(vtk_path):
                     repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
 
+                if sim.task_type == TaskType.THERMAL_FIELD.value:
+                    for csv_file in ["TFout.csv", "Profout.csv"]:
+                        csv_path = os.path.join(sim_dir, csv_file)
+                        if os.path.exists(csv_path):
+                            repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
+
                 if sim.task_type == TaskType.THERMAL_STRESS.value:
                     for csv_file in ["Profout.csv", "TSout.csv", "TEpsout.csv"]:
                         csv_path = os.path.join(sim_dir, csv_file)
@@ -670,48 +676,15 @@ class SimulationService:
 
         # ================= ЗАДАЧА 2: ТЕПЛОВОЕ ПОЛЕ =================
         elif task_type == 'thermal_field':
-            # Финальный снимок температурного поля
-            final_eps = os.path.join(sim_dir, "plots", "ThermalDistrib.eps")
-            if os.path.exists(final_eps):
-                try:
-                    img = Image.open(final_eps)
-                    png_file = final_eps.replace('.eps', '.png')
-                    img.save(png_file, 'PNG')
-                    with open(png_file, 'rb') as f:
-                        plots['Распределение температуры (сечение)'] = base64.b64encode(f.read()).decode('utf-8')
-                except Exception as e:
-                    logger.warning(f"Не удалось конвертировать ThermalDistrib.eps: {e}")
-
-            # Промежуточные снимки температурного поля
-            frame_eps = sorted(glob.glob(os.path.join(sim_dir, "plots", "ThermalDistrib_*.eps")))
-            for k, eps in enumerate(frame_eps, 1):
-                try:
-                    img = Image.open(eps)
-                    png_file = eps.replace('.eps', '.png')
-                    img.save(png_file, 'PNG')
-                    with open(png_file, 'rb') as f:
-                        plots[f'Температурное поле (кадр {k})'] = base64.b64encode(f.read()).decode('utf-8')
-                except Exception as e:
-                    logger.warning(f"Не удалось конвертировать {eps}: {e}")
-
-            # Сетка
-            mesh_eps = os.path.join(sim_dir, "plots", "Mesh.eps")
-            if os.path.exists(mesh_eps):
-                try:
-                    img = Image.open(mesh_eps)
-                    png_file = mesh_eps.replace('.eps', '.png')
-                    img.save(png_file, 'PNG')
-                    with open(png_file, 'rb') as f:
-                        plots['Сетка'] = base64.b64encode(f.read()).decode('utf-8')
-                except Exception as e:
-                    logger.warning(f"Не удалось конвертировать Mesh.eps: {e}")
-
-            # Диаграмма распределения температуры по контуру (TFout.csv)
+            # Единственный график: диаграмма распределения температуры по внешнему контуру (TFout.csv)
             tf_path = os.path.join(sim_dir, "TFout.csv")
+            logger.info(f"[task2] Ищем TFout.csv: {tf_path}, exists={os.path.exists(tf_path)}")
             if os.path.exists(tf_path):
                 try:
                     data = np.loadtxt(tf_path)
-                    # Столбцы: xdc ydUp T(верх) ydLw T(низ)
+                    if data.ndim == 1:
+                        data = data.reshape(1, -1)
+                    # Столбцы: xdc  ydUp  T(верх)  ydLw  T(низ)
                     x_coords = data[:, 0]
                     T_up = data[:, 2]
                     T_lw = data[:, 4]
@@ -720,16 +693,19 @@ class SimulationService:
                     plt.plot(x_coords, T_lw, 'bx', label='Корытце', markersize=5)
                     plt.xlabel('X, мм')
                     plt.ylabel('Температура, °C')
-                    plt.title('Распределение температуры по внешнему контуру лопатки')
+                    plt.title('Распределение температуры по внешнему контуру лопатки после охлаждения')
                     plt.legend()
                     plt.grid(True, alpha=0.3)
                     buf = BytesIO()
                     plt.savefig(buf, format='png', dpi=100)
                     buf.seek(0)
-                    plots['Температура по контуру'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                    plots['Распределение температуры по контуру'] = base64.b64encode(buf.getvalue()).decode('utf-8')
                     plt.close()
+                    logger.info(f"[task2] График температуры по контуру построен успешно")
                 except Exception as e:
-                    logger.error(f"Ошибка при построении графика температуры: {e}")
+                    logger.error(f"[task2] Ошибка при построении графика температуры: {e}", exc_info=True)
+            else:
+                logger.warning(f"[task2] TFout.csv не найден — возможно FreeFEM не завершил запись или шаблон не обновлён")
 
         # ================= ЗАДАЧА 3: ТЕРМОУПРУГОСТЬ =================
         elif task_type == 'thermal_stress':
@@ -756,14 +732,13 @@ class SimulationService:
                 except Exception as e:
                     logger.error(f"Ошибка при построении профиля лопатки: {e}")
 
-            # 2. Деформации (TEpsout.csv) и температура
+            # 2. Деформации Мизеса (TEpsout.csv)
             eps_path = os.path.join(sim_dir, "TEpsout.csv")
             if os.path.exists(eps_path):
                 try:
                     data = np.loadtxt(eps_path)
                     x_coords = data[:, 0]
 
-                    # Деформация Мизеса
                     eps_up = calc_eigMiz(data[:, 3:6])[:, 2] * 100
                     eps_lw = calc_eigMiz(data[:, 8:11])[:, 2] * 100
 
@@ -772,28 +747,13 @@ class SimulationService:
                     plt.plot(x_coords, eps_lw, 'bo-', label='Корытце', markersize=4)
                     plt.xlabel('X, мм')
                     plt.ylabel('Деформация, %')
-                    plt.title('Эквивалентная деформация Мизеса')
+                    plt.title('Эквивалентная деформация Мизеса по контуру лопатки')
                     plt.legend()
                     plt.grid(True, alpha=0.3)
                     buf = BytesIO()
                     plt.savefig(buf, format='png', dpi=100)
                     buf.seek(0)
                     plots['Деформация Мизеса'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                    plt.close()
-
-                    # Температура на поверхности
-                    plt.figure(figsize=(8, 5))
-                    plt.plot(x_coords, data[:, 2], 'r-', label='Спинка', linewidth=2)
-                    plt.plot(x_coords, data[:, 7], 'b-', label='Корытце', linewidth=2)
-                    plt.xlabel('X, мм')
-                    plt.ylabel('Температура, °C')
-                    plt.title('Распределение температуры по поверхности лопатки')
-                    plt.legend()
-                    plt.grid(True, alpha=0.3)
-                    buf = BytesIO()
-                    plt.savefig(buf, format='png', dpi=100)
-                    buf.seek(0)
-                    plots['Температура (поверхность)'] = base64.b64encode(buf.getvalue()).decode('utf-8')
                     plt.close()
                 except Exception as e:
                     logger.error(f"Ошибка при обработке TEpsout.csv: {e}")

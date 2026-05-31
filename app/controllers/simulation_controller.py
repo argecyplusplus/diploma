@@ -277,9 +277,10 @@ def download_result_file(sim_id, file_type):
 
     # Маппинг типов файлов
     file_map = {
-        'vtk': 'result.vtk',
+        'vtk':     'result.vtk',
+        'tfout':   'TFout.csv',
         'profout': 'Profout.csv',
-        'tsout': 'TSout.csv',
+        'tsout':   'TSout.csv',
         'tepsout': 'TEpsout.csv'
     }
 
@@ -346,6 +347,7 @@ def get_result_files(sim_id):
     # Определяем возможные файлы и их описания
     candidates = [
         ('result.vtk', 'Файл VTK', 'vtk'),
+        ('TFout.csv', 'Температура по контуру (TFout.csv)', 'csv'),
         ('Profout.csv', 'Профиль лопатки (Profout.csv)', 'csv'),
         ('TSout.csv', 'Напряжения (TSout.csv)', 'csv'),
         ('TEpsout.csv', 'Деформации (TEpsout.csv)', 'csv')
