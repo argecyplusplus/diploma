@@ -135,7 +135,15 @@ class SimulationService:
         assembly = self.session.get(BladeAssembly, data.assembly_id)
         if not assembly or not assembly.members:
             raise ValueError("Объединение не содержит лопаток")
-        members = list(assembly.members)
+        members = sorted(
+            list(assembly.members),
+            key=lambda m: (
+                0 if (m.description or '').lower() == 'outer' else
+                1 if (m.description or '').lower() == 'inner' else
+                2,
+                m.blade_assembly_members_id
+            )
+        )
         if len(members) != 2:
             raise ValueError("Объединение для задач 2-3 должно содержать ровно две лопатки")
 
@@ -448,10 +456,14 @@ class SimulationService:
             select(BoundaryIdentifier).where(BoundaryIdentifier.initial_conditions_id == ic_id))
 
         chord_outer = float(chord.value) if chord else 1.0
-        all_chords = self.session.scalars(
-            select(BladeChord).where(BladeChord.initial_conditions_id == ic_id)
-        ).all()
-        chord_inner = float(all_chords[1].value) if len(all_chords) >= 2 else chord_outer * 0.8
+        outer_source_chord = self._get_profile_source_chord(outer_blade_id)
+        inner_source_chord = self._get_profile_source_chord(inner_blade_id)
+        if outer_source_chord and inner_source_chord:
+            chord_inner = chord_outer * inner_source_chord / outer_source_chord
+        else:
+            chord_inner = chord_outer * (9.0 / 21.7)
+        if chord_inner <= 0 or chord_inner >= chord_outer:
+            chord_inner = chord_outer * (9.0 / 21.7)
 
         S1 = int(boundary.value) if boundary else 100
         S2 = S1 + 1
@@ -524,6 +536,16 @@ class SimulationService:
 
         self._render_template(template_name, replacements, edp_path)
         logger.info(f"Скрипт {task_type.value} (сборка) сохранён: {edp_path}")
+
+    def _get_profile_source_chord(self, blade_id: int):
+        coords = self.session.scalars(
+            select(ProfileCoordinate).where(ProfileCoordinate.blade_id == blade_id)
+        ).all()
+        xs = [float(c.x) for c in coords]
+        if not xs:
+            return None
+        chord = max(xs) - min(xs)
+        return chord if chord > 0 else None
 
     def _render_template(self, template_name: str, replacements: dict, output_path: str):
         template_path = Path(__file__).parent.parent / "templates" / template_name

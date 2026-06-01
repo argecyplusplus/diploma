@@ -1,4 +1,4 @@
-int S1 = {{S1}};
+int S = {{S1}};
 real Chord1 = {{Chord1}};
 real RC = 3. * Chord1;
 
@@ -29,16 +29,16 @@ func real Lezh(real[int] L, real t) {
     return L'*yy;
 }
 
-border Splus(t=0., 1.){ x=Chord1*t; y=Chord1*Lezh(coeffsUp,t); label=S1; }
-border Sminus(t=1., 0.){ x=Chord1*t; y=Chord1*Lezh(coeffsLow,t); label=S1; }
-border Spm(t=0,1.){ x=0; y=Chord1*Lezh(coeffsLow,0)+t*Chord1*(Lezh(coeffsUp,0)-Lezh(coeffsLow,0)); label=S1; }
-border Smp(t=1.,0.){ x=Chord1; y=Chord1*Lezh(coeffsLow,1)+t*Chord1*(Lezh(coeffsUp,1)-Lezh(coeffsLow,1)); label=S1; }
+border Splus(t=0., 1.){ x=Chord1*t; y=Chord1*Lezh(coeffsUp,t); label=S; }
+border Sminus(t=1., 0.){ x=Chord1*t; y=Chord1*Lezh(coeffsLow,t); label=S; }
+border Spm(t=0,1.){ x=0; y=Chord1*Lezh(coeffsLow,0)+t*Chord1*(Lezh(coeffsUp,0)-Lezh(coeffsLow,0)); label=S; }
+border Smp(t=1.,0.){ x=Chord1; y=Chord1*Lezh(coeffsLow,1)+t*Chord1*(Lezh(coeffsUp,1)-Lezh(coeffsLow,1)); label=S; }
 
 real xblade = Chord1*0.25, yblade = Chord1*(Lezh(coeffsUp,0.5)+Lezh(coeffsLow,0.5))/2;
 mesh Th = buildmesh(C({{NC}})+Splus({{NSp}})+Spm({{NSpm}})+Sminus({{NSm}})+Smp({{NSpm}}));
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot(Th, wait=1, ps=plotName);
+plot(Th, wait=0, ps=plotName);
 
 fespace Vh(Th, P2);
 Vh psi, w, vx, vy, p;
@@ -47,22 +47,22 @@ real cost = cos(beta*pi/180.), sint=sin(beta*pi/180.);
 solve potential(psi, w)
   = int2d(Th)(dx(psi)*dx(w)+dy(psi)*dy(w))
   + on(C, psi = cost*y - sint*x)
-  + on(S1, psi=0);
+  + on(S, psi=0);
 vx = dx(psi); vy = dy(psi);
 p = 1 - rho/(2*B)*(vx^2+vy^2);
 
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot(psi, wait=1, fill=1, value=1, ps=plotName);
+plot(psi, wait=0, fill=1, value=1, ps=plotName);
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot([vx,vy], wait=1, value=1, ps=plotName);
+plot([vx,vy], wait=0, value=1, ps=plotName);
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot(p, wait=1, fill=1, value=1, ps=plotName);
+plot(p, wait=0, fill=1, value=1, ps=plotName);
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
-plot(p, wait=1, nbiso=20, value=1, ps=plotName);
+plot(p, wait=0, nbiso=20, value=1, ps=plotName);
 
 int blade = Th(xblade, yblade).region, outspace=Th(-1, -1).region;
 cout << blade << " " << outspace << endl;
@@ -84,7 +84,7 @@ real ksteel = {{ksteel}};
 real kair = {{kair}};
 
 border D(t=0, 2.){ x=0.5+t*cost; y=+t*sint; }
-mesh Sh = buildmesh(C({{NC}}) + Splus(-90) + Spm(-2) + Sminus(-90) + Smp(-2) + D(200));
+mesh Sh = buildmesh(C(70) + Splus(-90) + Spm(-2) + Sminus(-90) + Smp(-2) + D(200));
 int steel = Sh(xblade, yblade).region, air = Sh(-1, -1).region;
 
 fespace Wh(Sh, P1);
