@@ -172,7 +172,7 @@ for(real tt = 1; tt >= 0; tt -= dt1) {
     real xdc  = ContUp(delt, tt, dt1)(0);
     real ydUp = ContUp(delt, tt, dt1)(1);
     real ydLw = ContLw(-delt, tt, dt1)(1);
-    if (ydUp > ydLw) {
+    if (abs(ydUp - ydLw) > 1e-6) {
         ff0 << x0c  << " " << y0Up << " " << y0Lw << " " << xdc << " " << ydUp << " " << ydLw << endl;
         ff1 << xdc  << " " << ydUp << " " << T(xdc,ydUp)
             << " " << Sig1(xdc,ydUp) << " " << Sig2(xdc,ydUp) << " " << Sig12(xdc,ydUp)
