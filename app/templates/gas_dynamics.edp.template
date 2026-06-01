@@ -19,14 +19,14 @@ for(int i=0; i<coeffsUp.n; i++) fl >> coeffsUp(i);
 for(int i=0; i<coeffsLow.n; i++) fl >> coeffsLow(i);
 
 func real Lezh(real[int] L, real t) {
-    real[int] yy(10);
-    yy(0)=1.; yy(1)=t; yy(2)=(3.*t^2-1.)/2.; yy(3)=(5.*t^3-3.*t)/2.;
-    yy(4)=(35.*t^4-30.*t^2+3.)/8.; yy(5)=(63.*t^5-70.*t^3+15.*t)/8.;
-    yy(6)=231./16.*t^6-315./16.*t^4+105./16.*t^2-5./16.;
-    yy(7)=429./16.*t^7-693./16.*t^5+315./16.*t^3-35./16.*t;
-    yy(8)=6435./128.*t^8-3003./32.*t^6+3465./64.*t^4-315./32.*t^2+35./128.;
-    yy(9)=12155./128.*t^9-6435./32.*t^7+9009./64.*t^5-1155./32.*t^3+315./128.*t;
-    return L'*yy;
+    real[int] y(10);
+    y(0)=1.; y(1)=t; y(2)=(3.*t^2-1.)/2.; y(3)=(5.*t^3-3.*t)/2.;
+    y(4)=(35.*t^4-30.*t^2+3.)/8.; y(5)=(63.*t^5-70.*t^3+15.*t)/8.;
+    y(6)=231./16.*t^6-315./16.*t^4+105./16.*t^2-5./16.;
+    y(7)=429./16.*t^7-693./16.*t^5+315./16.*t^3-35./16.*t;
+    y(8)=6435./128.*t^8-3003./32.*t^6+3465./64.*t^4-315./32.*t^2+35./128.;
+    y(9)=12155./128.*t^9-6435./32.*t^7+9009./64.*t^5-1155./32.*t^3+315./128.*t;
+    return L'*y;
 }
 
 border Splus(t=0., 1.){ x=Chord1*t; y=Chord1*Lezh(coeffsUp,t); label=S; }
@@ -35,7 +35,7 @@ border Spm(t=0,1.){ x=0; y=Chord1*Lezh(coeffsLow,0)+t*Chord1*(Lezh(coeffsUp,0)-L
 border Smp(t=1.,0.){ x=Chord1; y=Chord1*Lezh(coeffsLow,1)+t*Chord1*(Lezh(coeffsUp,1)-Lezh(coeffsLow,1)); label=S; }
 
 real xblade = Chord1*0.25, yblade = Chord1*(Lezh(coeffsUp,0.5)+Lezh(coeffsLow,0.5))/2;
-mesh Th = buildmesh(C({{NC}})+Splus({{NSp}})+Spm({{NSpm}})+Sminus({{NSm}})+Smp({{NSpm}}));
+mesh Th = buildmesh(C(50)+Splus(70)+Spm(2)+Sminus(70)+Smp(2));
 plotCounter++;
 plotName = "plot_"+plotCounter+".eps";
 plot(Th, wait=0, ps=plotName);
@@ -80,27 +80,30 @@ savevtk("result.vtk", Th, p);
 real dt = {{dt}};
 real nbT = {{nbT}};
 real Tinitial = {{T_initial}};
-real ksteel = {{ksteel}};
-real kair = {{kair}};
 
+// Mesh для теплового расчёта (как в оригинале)
 border D(t=0, 2.){ x=0.5+t*cost; y=+t*sint; }
 mesh Sh = buildmesh(C(70) + Splus(-90) + Spm(-2) + Sminus(-90) + Smp(-2) + D(200));
 int steel = Sh(xblade, yblade).region, air = Sh(-1, -1).region;
+
+cout << Sh(Chord1/2., 0).region << " " << Sh(Chord1/2.- RC, 0).region << endl;
 
 fespace Wh(Sh, P1);
 Wh vv;
 
 fespace W0(Sh, P0);
-W0 k = kair*(region == air) + ksteel*(region == steel);
+W0 k = 0.01*(region == air) + 0.1*(region == steel);
 W0 u1 = dy(psi)*(region == air), u2 = -dx(psi)*(region == air);
 Wh v = Tinitial*(region == steel), vold;
 
+// pul label 10 on inflow boundary to inforce the temperature.
 Sh = change(Sh, flabel = (label == C && [u1,u2]'*N < 0) ? 10 : label);
 
 problem thermic(v, vv, solver=LU)
   = int2d(Sh)(
-      v*vv/dt + k*(dx(v)*dx(vv)+dy(v)*dy(vv)) + 10*(u1*dx(v)+u2*dy(v))*vv
-    )
+      v*vv/dt + k*(dx(v)*dx(vv) + dy(v)*dy(vv))
+    + 10*(u1*dx(v) + u2*dy(v))*vv
+  )
   - int2d(Sh)(vold*vv/dt)
   + on(10, v=0);
 
@@ -108,8 +111,17 @@ for(int i=0; i<nbT; i++) {
     vold[] = v[];
     thermic;
     plotCounter++;
-    plotName = "temp_" + i + ".eps";
+    plotName = "temp_"+i+".eps";
     plot(v, wait=0, fill=1, value=1, ps=plotName);
 }
+plotCounter++;
 plotName = "temp_final.eps";
+plot(v, wait=0, fill=1, value=1, ps=plotName);
+plotCounter++;
+plotName = "temp_final_nbiso.eps";
 plot(v, wait=0, nbiso=20, value=1, ps=plotName);
+
+Wh vsteel = v*(region == steel);
+Wh vair = v*(region == air);
+cout << "max T steel = " << vsteel[].max << endl;
+cout << "max T air = " << vair[].max << endl;
