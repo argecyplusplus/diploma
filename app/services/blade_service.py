@@ -80,8 +80,10 @@ class BladeService:
 
     def create_assembly(self, data: BladeAssemblyCreateRequest) -> BladeAssemblyResponse:
         assembly = self.assembly_repo.create(name=data.name)
-        for bid in data.blade_ids:
-            self.assembly_repo.add_member(assembly.blade_assembly_id, bid)
+        roles = ['outer', 'inner']
+        for index, bid in enumerate(data.blade_ids):
+            description = roles[index] if len(data.blade_ids) == 2 and index < len(roles) else None
+            self.assembly_repo.add_member(assembly.blade_assembly_id, bid, description=description)
         return BladeAssemblyResponse.model_validate(assembly)
 
     def get_all_assemblies(self) -> List[BladeAssemblyResponse]:

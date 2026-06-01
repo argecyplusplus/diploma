@@ -1,12 +1,10 @@
-int S1 = {{S1}};
-real Chord1 = {{Chord1}};
-real RC = 3. * Chord1;
+int S = {{S1}};
+real Chord = {{Chord1}};
+real RC = 1. * Chord;
 
-border C(t=0, 2*pi){ x=Chord1/2. + RC*cos(t); y=RC*sin(t); }
+border C(t=0, 2*pi){ x=Chord/2. + RC*cos(t); y=RC*sin(t); }
 
 load "iovtk"
-int plotCounter = 0;
-string plotName;
 
 real[int] coeffsUp(10);
 real[int] coeffsLow(10);
@@ -25,47 +23,116 @@ func real Lezh(real[int] L, real t) {
     return L'*y;
 }
 
-border Splus(t=0., 1.){ x=Chord1*t; y=Chord1*Lezh(coeffsUp,t); label=S1; }
-border Sminus(t=1., 0.){ x=Chord1*t; y=Chord1*Lezh(coeffsLow,t); label=S1; }
-border Spm(t=0,1.){ x=0; y=Chord1*Lezh(coeffsLow,0)+t*Chord1*(Lezh(coeffsUp,0)-Lezh(coeffsLow,0)); label=S1; }
-border Smp(t=1.,0.){ x=Chord1; y=Chord1*Lezh(coeffsLow,1)+t*Chord1*(Lezh(coeffsUp,1)-Lezh(coeffsLow,1)); label=S1; }
+// Функции смещённого контура (для вывода температуры по поверхности)
+func real[int] ContUp(real delt, real t, real dt1) {
+    real[int] x0(2), x1(2);
+    real nn;
+    x0(0) = Chord*dt1;
+    x0(1) = Chord*(Lezh(coeffsUp, t+dt1) - Lezh(coeffsUp, t));
+    nn = sqrt(x0(0)^2 + x0(1)^2);
+    x0 = x0/nn;
+    x1(0) = x0(1)*delt + Chord*t;
+    x1(1) = -x0(0)*delt + Chord*Lezh(coeffsUp, t);
+    return x1;
+}
 
-real xblade = Chord1*0.25, yblade = Chord1*(Lezh(coeffsUp,0.5)+Lezh(coeffsLow,0.5))/2;
+func real[int] ContLw(real delt, real t, real dt1) {
+    real[int] x0(2), x1(2);
+    real nn;
+    x0(0) = Chord*dt1;
+    x0(1) = Chord*(Lezh(coeffsLow, t+dt1) - Lezh(coeffsLow, t));
+    nn = sqrt(x0(0)^2 + x0(1)^2);
+    x0 = x0/nn;
+    x1(0) = x0(1)*delt + Chord*t;
+    x1(1) = -x0(0)*delt + Chord*Lezh(coeffsLow, t);
+    return x1;
+}
+
+border Splus(t=1., 0.){ x=Chord*t; y=Chord*Lezh(coeffsUp,t); label=S; }
+border Sminus(t=0., 1.){ x=Chord*t; y=Chord*Lezh(coeffsLow,t); label=S; }
+border Spm(t=1.,0.){ x=0; y=Chord*Lezh(coeffsLow,0)+t*Chord*(Lezh(coeffsUp,0)-Lezh(coeffsLow,0)); label=S; }
+border Smp(t=0.,1.){ x=Chord; y=Chord*Lezh(coeffsLow,1)+t*Chord*(Lezh(coeffsUp,1)-Lezh(coeffsLow,1)); label=S; }
+
+real xblade = Chord*0.25;
+real yblade = Chord*(Lezh(coeffsUp,0.5)+Lezh(coeffsLow,0.5))/2;
+
 mesh Th = buildmesh(C({{NC}})+Splus({{NSp}})+Spm({{NSpm}})+Sminus({{NSm}})+Smp({{NSpm}}));
-plotCounter++;
-plotName = "plot_"+plotCounter+".eps";
-plot(Th, wait=0, ps=plotName);
+plot(Th, wait=0, ps="plots/Mesh.eps");
 
 int steel = Th(xblade, yblade).region, air = Th(-RC/2., -RC/2.).region;
 
-// Тепловые параметры
-real dt = {{dt}}, nbT = {{nbT}};
-real ksteel = {{ksteel}};
-real kair = {{kair}};
-real Tinitial = {{T_initial}};
-real Tinitialair = 25.0;
+// Коэффициенты температуропроводности [мм²/с]
+real[int] ai = [{{a_steel}}, {{a_air}}];
+func real a0() {
+    if(Th(x,y).region == steel) return ai[0];
+    else return ai[1];
+}
+
+// Начальные температуры [°C]
+real[int] T0i = [{{T_initial}}, 25.];
+func real T0() {
+    if(Th(x,y).region == steel) return T0i[0];
+    else return T0i[1];
+}
+
+func dTin  = 0.;
+func dTout = 0.;
+
+real Time = {{Time}};
+real dt   = {{dt}};
+int Niter = int(Time/dt);
+int Nplot = {{Nplot}};
+int dNplot = max(1, Niter/Nplot);
+string fileplotName;
 
 fespace Vh(Th, P2);
-Vh T = Tinitial*(region==steel) + Tinitialair*(region==air), Told, v;
-func real kappa() { return (region==steel) ? ksteel : kair; }
+Vh T = T0(), v, Told;
 
-problem thermal(T, v)
-    = int2d(Th)( T*v/dt + kappa()*(dx(T)*dx(v) + dy(T)*dy(v)) )
+problem thermic(T, v)
+    = int2d(Th)(
+        T*v/dt
+        + a0()*(dx(T)*dx(v) + dy(T)*dy(v))
+    )
     - int2d(Th)( Told*v/dt )
-    - int1d(Th, C)( 0.0 * v )
-    - int1d(Th, S1)( 0.0 * v );
+    - int1d(Th, C)( dTout * v )
+    - int1d(Th, S)( dTin  * v );
 
-for(int i=0; i<nbT; i++) {
+int i = 0;
+for(real t = 0; t <= Time; t += dt) {
     Told = T;
-    thermal;
-    if (i % 10 == 0) {
-        plotCounter++;
-        plotName = "plot_"+plotCounter+".eps";
-        plot(T, wait=0, fill=1, value=1, ps=plotName);
+    thermic;
+    i++;
+    if (i % dNplot == 0) {
+        fileplotName = "plots/ThermalDistrib_" + t + "_.eps";
+        plot(T, value=true, fill=true, ps=fileplotName, wait=0);
     }
 }
-plotCounter++;
-plotName = "plot_"+plotCounter+".eps";
-plot(T, wait=0, fill=1, value=1, ps=plotName);
+plot(T, value=true, fill=true, ps="plots/ThermalDistrib.eps", wait=0);
+
+Vh Tsteel = T*(region == steel);
+Vh Tair   = T*(region == air);
+cout << "max T steel = " << Tsteel[].max << endl;
+cout << "max T air   = " << Tair[].max   << endl;
+
+// Вывод температуры по внешнему контуру лопатки
+real delt = {{delt}};
+real Npt  = {{Npt}};
+real dt1  = 1.0/Npt;
+
+ofstream ff0("Profout.csv");
+ofstream ff1("TFout.csv");   // температура вдоль контура
+
+for(real tt = 1; tt >= 0; tt -= dt1) {
+    real x0c  = ContUp(0., tt, dt1)(0);
+    real y0Up = ContUp(0., tt, dt1)(1);
+    real y0Lw = ContLw(0., tt, dt1)(1);
+    real xdc  = ContUp(delt, tt, dt1)(0);
+    real ydUp = ContUp(delt, tt, dt1)(1);
+    real ydLw = ContLw(-delt, tt, dt1)(1);
+    if (abs(ydUp - ydLw) > 1e-6) {
+        ff0 << x0c << " " << y0Up << " " << y0Lw << " " << xdc << " " << ydUp << " " << ydLw << endl;
+        ff1 << xdc << " " << ydUp << " " << T(xdc,ydUp) << " " << ydLw << " " << T(xdc,ydLw) << endl;
+    }
+}
 
 savevtk("result.vtk", Th, T);

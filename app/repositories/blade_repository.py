@@ -87,6 +87,8 @@ class BladeAssemblyRepository:
             Blade, BladeAssemblyMember.blade_id == Blade.blade_id
         ).where(
             BladeAssemblyMember.blade_assembly_id == assembly_id
+        ).order_by(
+            BladeAssemblyMember.blade_assembly_members_id
         )
         # .mappings() возвращает результат в виде словарей (dict-like)
         return self.session.execute(stmt).mappings().all()

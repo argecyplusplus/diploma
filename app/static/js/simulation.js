@@ -109,6 +109,43 @@ function viewResults(simId) {
     window.location.href = `/simulation/${simId}/results`;
 }
 
+// ===== ЗАПУСК РАСЧЁТА ПО КНОПКЕ =====
+async function runSimulation(simId) {
+    // Сначала получаем тип задачи
+    let taskType = null;
+    try {
+        const res = await fetch('/simulation/api/simulations');
+        const sims = await res.json();
+        const sim = sims.find(s => s.simulation_id === simId);
+        if (sim) taskType = sim.task_display;
+    } catch(e) {
+        console.error('Error getting task type:', e);
+    }
+
+    let message = 'Запустить расчёт?\n\nОткроется папка с файлом. Дважды кликните по файлу .edp, чтобы запустить FreeFEM++.';
+    if (taskType === '3') {
+        message = 'Запустить расчёт?\n\nПосле запуска FreeFEM++ и завершения расчёта нажмите "Обновить результаты" для отображения графиков.';
+    }
+
+    if (!confirm(message)) return;
+
+    try {
+        const res = await fetch(`/simulation/${simId}/run_local`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Ошибка запуска');
+
+        if (data.instruction) {
+            alert('✅ Папка с файлом открыта!\n\nНайдите файл simulation_' + simId + '.edp и дважды кликните по нему, чтобы запустить FreeFEM++.\n\nПосле завершения расчёта нажмите "Обновить результаты" на этой странице.');
+        } else {
+            alert('✅ FreeFEM++ запущен! После завершения расчёта обновите страницу.');
+        }
+
+        window.location.href = `/simulation/${simId}/results`;
+    } catch(e) {
+        alert('❌ Ошибка: ' + e.message);
+    }
+}
+
 // ===== ПРОГРЕСС МОДАЛЬНОЕ ОКНО =====
 function showProgressModal() {
     const modal = document.getElementById('progressModal');
@@ -274,6 +311,7 @@ async function loadMaterialsCheckboxes() {
 }
 
 // ===== ИСТОРИЯ РАСЧЁТОВ =====
+// ===== ИСТОРИЯ РАСЧЁТОВ =====
 async function loadSimulationsList() {
     const tbody = document.getElementById('simulations-table-body');
     if (!tbody) return;
@@ -282,7 +320,7 @@ async function loadSimulationsList() {
         if (!res.ok) throw new Error('Ошибка загрузки');
         const sims = await res.json();
         if (sims.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center">Расчеты еще не выполнялись</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Расчеты еще не выполнялись</td></tr>';
             return;
         }
         let html = '';
@@ -291,11 +329,21 @@ async function loadSimulationsList() {
                                 s.status === 'running' ? '<span class="badge badge-warning">⏳ Запущен</span>' :
                                 s.status === 'failed' ? '<span class="badge badge-danger">❌ Ошибка</span>' :
                                 '<span class="badge badge-secondary">' + s.status + '</span>';
+
             const logBtn = (s.status === 'failed') ?
                 `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">Лог</button>` : '';
+
             const resultsBtn = `<button class="btn-secondary btn-sm" onclick="viewResults(${s.simulation_id})">Результаты</button>`;
             const deleteBtn = `<button class="btn-delete btn-sm" onclick="deleteSimulation(${s.simulation_id})">Удалить</button>`;
-            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">${logBtn} ${resultsBtn} ${deleteBtn}</div>`;
+            const resetBtn = `<button class="btn-warning btn-sm" onclick="resetSimulation(${s.simulation_id})">Сбросить</button>`;
+
+            // Кнопка Моделировать показывается для статусов: pending, failed, completed (можно перезапустить)
+            const canRun = (s.status === 'pending' || s.status === 'failed' || s.status === 'completed');
+            const runBtn = canRun ?
+                `<button class="btn-run" onclick="runSimulation(${s.simulation_id})">Моделировать</button>` : '';
+
+            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">${runBtn} ${resetBtn} ${logBtn} ${resultsBtn} ${deleteBtn}</div>`;
+
             html += `
                 <tr>
                     <td><span class="id-badge">#${s.simulation_id}</span></td>
@@ -310,7 +358,7 @@ async function loadSimulationsList() {
         });
         tbody.innerHTML = html;
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="color:#ef4444">Ошибка загрузки</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="color:#ef4444">Ошибка загрузки</td></tr>';
         console.error(e);
     }
 }
@@ -415,8 +463,26 @@ async function createSimulation(e) {
         if (!res.ok) throw new Error(data.error || 'Ошибка');
         const simId = data.id;
         currentSimId = simId;
-        showProgressModal();
-        pollStatus(simId);
+
+        // Показываем модалку с успешным созданием
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `
+            <div class="modal" style="max-width: 450px;">
+                <h3>Расчёт создан</h3>
+                <div style="margin: 20px 0;">
+                    <p>✅ Расчёт успешно создан и сохранён в истории.</p>
+                    <p>Чтобы выполнить расчёт, нажмите кнопку <strong>«Моделировать»</strong> в истории расчётов.</p>
+                    <p>После нажатия файл будет скачан, откроется FreeFEM++ и вы будете перенаправлены на страницу результатов.</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-primary" onclick="window.location.href='/simulation'">Перейти к истории</button>
+                    <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove()">Закрыть</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
     } catch(e) {
         alert('❌ Ошибка: ' + e.message);
         resetBtn();
@@ -427,43 +493,6 @@ async function createSimulation(e) {
         btnText.style.display = 'inline';
         btnLoader.style.display = 'none';
     }
-}
-
-// ===== ОПРОС СТАТУСА =====
-function pollStatus(simId) {
-    if (currentPollInterval) clearInterval(currentPollInterval);
-    currentPollInterval = setInterval(async () => {
-        try {
-            const resp = await fetch(`/simulation/${simId}/status`);
-            if (!resp.ok) throw new Error('Ошибка получения статуса');
-            const statusData = await resp.json();
-            updateProgressModal(statusData);
-            if (statusData.status === 'completed' || statusData.status === 'failed') {
-                clearInterval(currentPollInterval);
-                await loadSimulationsList();
-                if (statusData.status === 'completed') {
-                    // Модалка закроется автоматически через 2 секунды
-                } else {
-                    const errorMsg = statusData.error_message || 'Неизвестная ошибка';
-                    const showLog = confirm(`❌ Ошибка расчёта:\n${errorMsg}\n\nПоказать полный лог?`);
-                    if (showLog) {
-                        await fetchAndShowLog(simId);
-                    }
-                    setTimeout(() => closeProgressModal(), 5000);
-                }
-                const btn = document.getElementById('submitBtn');
-                if (btn) {
-                    btn.disabled = false;
-                    const btnText = btn.querySelector('.btn-text');
-                    const btnLoader = btn.querySelector('.btn-loader');
-                    if (btnText) btnText.style.display = 'inline';
-                    if (btnLoader) btnLoader.style.display = 'none';
-                }
-            }
-        } catch (err) {
-            console.error('Poll error:', err);
-        }
-    }, 2000);
 }
 
 // ===== ОБРАБОТЧИКИ И ИНИЦИАЛИЗАЦИЯ =====
@@ -500,6 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.viewResults = viewResults;
     window.fetchAndShowLog = fetchAndShowLog;
     window.closeProgressModal = closeProgressModal;
+    window.runSimulation = runSimulation;
 });
 
 // escapeHtml
@@ -510,4 +540,17 @@ if (typeof escapeHtml !== 'function') {
         div.textContent = text;
         return div.innerHTML;
     };
+}
+
+// Добавить в конец файла
+async function resetSimulation(simId) {
+    if (!confirm('Сбросить статус расчёта? Это позволит запустить его заново.')) return;
+    try {
+        const res = await fetch(`/simulation/${simId}/reset`, { method: 'POST' });
+        if (!res.ok) throw new Error('Ошибка сброса');
+        alert('✅ Статус сброшен');
+        loadSimulationsList();
+    } catch(e) {
+        alert('❌ Ошибка: ' + e.message);
+    }
 }

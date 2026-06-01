@@ -860,3 +860,19 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+.btn-run {
+    background: #10b981;
+    color: black;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.btn-run:hover {
+    background: #059669;
+}
+
+.btn-warning.btn-sm {
+    color: black;
+}

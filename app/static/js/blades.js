@@ -1,4 +1,4 @@
-let bladesData = [];
+﻿let bladesData = [];
 let assembliesData = [];
 let currentCoords = { upper: [], lower: [] };
 let currentViewBladeId = null;
@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAssemblies();
 });
 
-// ================= ЗАГРУЗКА ДАННЫХ =================
 async function loadBlades() {
     showLoading(true);
     try {
@@ -307,19 +306,21 @@ function exportCoords() {
 }
 
 // ================= ОБЪЕДИНЕНИЯ =================
-function renderMergeBladesCheckboxes(searchTerm = '') {
-    const container = document.getElementById('mergeBladesList');
-    const filtered = bladesData.filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    if (filtered.length === 0) {
-        container.innerHTML = `<div style="padding:12px;color:#64748b;text-align:center">Лопатки не найдены</div>`;
-        return;
-    }
-    container.innerHTML = filtered.map(b => `
-        <div class="checkbox-item">
-            <input type="checkbox" id="merge_cb_${b.blade_id}" value="${b.blade_id}">
-            <label for="merge_cb_${b.blade_id}">${escapeHtml(b.name)}</label>
-        </div>
-    `).join('');
+function renderMergeBladesSelects() {
+    const outerSelect = document.getElementById('mergeOuterBlade');
+    const innerSelect = document.getElementById('mergeInnerBlade');
+    if (!outerSelect || !innerSelect) return;
+    const options = ['<option value="">Выберите лопатку</option>'].concat(
+        bladesData.map(b => `<option value="${b.blade_id}">${escapeHtml(b.name)} (#${b.blade_id})</option>`)
+    ).join('');
+    outerSelect.innerHTML = options;
+    innerSelect.innerHTML = options;
+}
+
+function getSelectedMergeBladeIds() {
+    const outerId = parseInt(document.getElementById('mergeOuterBlade')?.value || '', 10);
+    const innerId = parseInt(document.getElementById('mergeInnerBlade')?.value || '', 10);
+    return [outerId, innerId].filter(Number.isFinite);
 }
 
 function filterMergeBlades() {
@@ -327,32 +328,33 @@ function filterMergeBlades() {
     renderMergeBladesCheckboxes(searchTerm);
 }
 
-function getSelectedMergeBladeIds() {
-    const checkboxes = document.querySelectorAll('#mergeBladesList input[type="checkbox"]:checked');
-    return Array.from(checkboxes).map(cb => parseInt(cb.value));
-}
-
 async function openMergeModal() {
     await loadBlades();
     document.getElementById('mergeAssemblyId').value = '';
     document.getElementById('mergeName').value = '';
     document.getElementById('deleteMergeBtn').style.display = 'none';
-    renderMergeBladesCheckboxes();
+    renderMergeBladesSelects();
     openModal('mergeModal');
 }
 
 async function saveMerge() {
     const assemblyId = document.getElementById('mergeAssemblyId').value;
     const name = document.getElementById('mergeName').value.trim();
-    const bladeIds = getSelectedMergeBladeIds();
-    if (!name || bladeIds.length === 0) {
-        alert('Введите наименование и выберите хотя бы одну лопатку');
+    const [outerBladeId, innerBladeId] = getSelectedMergeBladeIds();
+    if (!name || !outerBladeId || !innerBladeId) {
+        alert('Введите наименование и выберите две лопатки: внешнюю и внутреннюю полость');
+        return;
+    }
+    if (outerBladeId === innerBladeId) {
+        alert('Внешняя лопатка и внутренняя полость должны быть разными');
         return;
     }
     try {
         const url = assemblyId ? `/api/assemblies/${assemblyId}` : '/api/assemblies';
         const method = assemblyId ? 'PUT' : 'POST';
-        const payload = assemblyId ? { name, add_blade_ids: bladeIds } : { name, blade_ids: bladeIds };
+        const payload = assemblyId 
+            ? { name, add_blade_ids: [outerBladeId, innerBladeId] } 
+            : { name, blade_ids: [outerBladeId, innerBladeId] };
         const res = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
@@ -381,61 +383,6 @@ async function deleteMerge(assemblyId) {
         alert('Сборка удалена');
     } catch (e) {
         alert(`Ошибка: ${e.message}`);
-    }
-}
-
-function renderAssemblyBladesCheckboxes(searchTerm = '') {
-    const container = document.getElementById('assemblyBladesList');
-    const filtered = bladesData.filter(b => b.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    if (filtered.length === 0) {
-        container.innerHTML = `<div style="padding:12px;color:#64748b;text-align:center">Лопатки не найдены</div>`;
-        return;
-    }
-    container.innerHTML = filtered.map(b => `
-        <div class="checkbox-item">
-            <input type="checkbox" id="assembly_cb_${b.blade_id}" value="${b.blade_id}">
-            <label for="assembly_cb_${b.blade_id}">${escapeHtml(b.name)}</label>
-            <span class="blade-id">#${b.blade_id}</span>
-        </div>
-    `).join('');
-}
-
-function filterAssemblyBlades() {
-    const searchTerm = document.getElementById('assemblyBladesSearch').value;
-    renderAssemblyBladesCheckboxes(searchTerm);
-}
-
-function getSelectedAssemblyBladeIds() {
-    const checkboxes = document.querySelectorAll('#assemblyBladesList input[type="checkbox"]:checked');
-    return Array.from(checkboxes).map(cb => parseInt(cb.value));
-}
-
-function openCreateAssemblyModal() {
-    document.getElementById('assemblyName').value = '';
-    renderAssemblyBladesCheckboxes();
-    openModal('assemblyCreateModal');
-}
-
-async function saveAssembly() {
-    const name = document.getElementById('assemblyName').value.trim();
-    const bladeIds = getSelectedAssemblyBladeIds();
-    if (!name) return alert('Введите наименование объединения');
-    if (bladeIds.length === 0) return alert('Выберите хотя бы одну лопатку');
-    try {
-        const res = await fetch('/api/assemblies', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, blade_ids: bladeIds })
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Ошибка сохранения');
-        }
-        closeModal('assemblyCreateModal');
-        await loadAssemblies();
-        alert('✅ Объединение создано!');
-    } catch (e) {
-        alert('❌ Ошибка: ' + e.message);
     }
 }
 
@@ -470,25 +417,6 @@ async function openViewAssemblyModal(assemblyId, assemblyName) {
     }
 }
 
-async function approximateAllInAssembly() {
-    const assemblyId = document.getElementById('viewAssemblyId').value;
-    if (!confirm('Запустить аппроксимацию для всех лопаток в этой сборке?')) return;
-    try {
-        const res = await fetch(`/api/assemblies/${assemblyId}/members`);
-        const members = await res.json();
-        const bladeIds = members.map(m => m.blade_id);
-        if (bladeIds.length === 0) return alert('В сборке нет лопаток');
-        let success = 0;
-        for (const id of bladeIds) {
-            const r = await fetch(`/approximation/execute/${id}`, { method: 'POST' });
-            if (r.ok) success++;
-        }
-        alert(`✅ Аппроксимация завершена: ${success}/${bladeIds.length} лопаток`);
-    } catch (e) {
-        alert('❌ Ошибка: ' + e.message);
-    }
-}
-
 async function deleteAssembly() {
     const assemblyId = document.getElementById('viewAssemblyId').value;
     if (!confirm('Удалить это объединение?\nЛопатки останутся в базе.')) return;
@@ -508,119 +436,35 @@ function showLoading(show) {
     const el = document.getElementById('loadingStatus');
     if (el) el.style.display = show ? 'block' : 'none';
 }
+
 function showError(message) {
     alert(message);
 }
+
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
+
 function goToApproximation(bladeId) {
     window.location.href = `/approximation?blade_id=${bladeId}`;
 }
 
-async function approximateAssembly(assemblyId, assemblyName) {
-    if (!confirm(`Выполнить аппроксимацию для всех лопаток в сборке "${assemblyName}"?`)) return;
-    document.getElementById('assemblyApproxProgress').style.display = 'block';
-    try {
-        const res = await fetch(`/approximation/assembly/${assemblyId}`, { method: 'POST' });
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error || 'Ошибка аппроксимации');
-        }
-        const data = await res.json();
-        showAssemblyApproxResults(data);
-    } catch (e) {
-        alert('❌ Ошибка: ' + e.message);
-    } finally {
-        document.getElementById('assemblyApproxProgress').style.display = 'none';
-    }
-}
-
-function showAssemblyApproxResults(data) {
-    const modalContent = `
-        <div class="modal-overlay active" id="assemblyApproxModal">
-            <div class="modal modal-xl">
-                <h3>Результаты аппроксимации сборки: ${escapeHtml(data.assembly_name)}</h3>
-                <div style="margin: 16px 0; text-align: center;">
-                    <img src="${data.plot}" style="max-width: 100%; border: 1px solid #ddd; border-radius: 8px;">
-                </div>
-                <div class="tabs" id="assemblyApproxTabs">
-                    <button class="tab-btn active" onclick="switchAssemblyApproxTab('coeffs')">Коэффициенты Лежандра</button>
-                    <button class="tab-btn" onclick="switchAssemblyApproxTab('params')">Параметры</button>
-                    <button class="tab-btn" onclick="switchAssemblyApproxTab('coords')">Преобразованные координаты</button>
-                </div>
-                <div id="assemblyApproxCoords" class="tab-content" style="display:none;">
-                    <div class="table-wrapper"><table class="data-table"><thead><tr><th>Лопатка</th><th>Профиль</th><th>X</th><th>Y</th></tr></thead><tbody id="assemblyCoordsBody"></tbody></table></div>
-                </div>
-                <div id="assemblyApproxCoeffs" class="tab-content active">
-                    <div class="table-wrapper"><table class="data-table"><thead><tr><th>Лопатка</th><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr></thead><tbody id="assemblyCoeffsBody"></tbody></table></div>
-                </div>
-                <div id="assemblyApproxParams" class="tab-content" style="display:none;">
-                    <div class="table-wrapper"><table class="data-table"><thead><tr><th>Лопатка</th><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R²</th></tr></thead><tbody id="assemblyParamsBody"></tbody></table></div>
-                </div>
-                <div class="modal-actions">
-                    <button class="btn-secondary" onclick="closeModal('assemblyApproxModal')">Закрыть</button>
-                    <button class="btn-primary" onclick="saveAssemblyApproxToFile('${data.assembly_name}')">Сохранить в файлы</button>
-                </div>
-            </div>
-        </div>
-    `;
-    const oldModal = document.getElementById('assemblyApproxModal');
-    if (oldModal) oldModal.remove();
-    document.body.insertAdjacentHTML('beforeend', modalContent);
-    const coeffsBody = document.getElementById('assemblyCoeffsBody');
-    const paramsBody = document.getElementById('assemblyParamsBody');
-    const coordsBody = document.getElementById('assemblyCoordsBody');
-    coeffsBody.innerHTML = '';
-    paramsBody.innerHTML = '';
-    coordsBody.innerHTML = '';
-    for (const blade of data.blades) {
-        blade.legendre_coeffs.forEach((c, idx) => {
-            coeffsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>${idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`;
-        });
-        const up = blade.params.upper;
-        const low = blade.params.lower;
-        paramsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Верхний</td><td>${up.max_y.toFixed(4)}</td><td>${up.x_at_max.toFixed(4)}</td><td>${up.r2.toFixed(4)}</td></tr>`;
-        paramsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Нижний</td><td>${low.max_y.toFixed(4)}</td><td>${low.x_at_max.toFixed(4)}</td><td>${low.r2.toFixed(4)}</td></tr>`;
-        for (const p of blade.transformed_coords.upper) {
-            coordsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Верхний</td><td>${p.x.toFixed(6)}</td><td>${p.y.toFixed(6)}</td></tr>`;
-        }
-        for (const p of blade.transformed_coords.lower) {
-            coordsBody.innerHTML += `<tr><td>${escapeHtml(blade.blade_name)}</td><td>Нижний</td><td>${p.x.toFixed(6)}</td><td>${p.y.toFixed(6)}</td></tr>`;
-        }
-    }
-}
-
-function switchAssemblyApproxTab(tabName) {
-    const tabs = ['coeffs', 'params', 'coords'];
-    tabs.forEach(t => {
-        const el = document.getElementById(`assemblyApprox${t.charAt(0).toUpperCase() + t.slice(1)}`);
-        if (el) el.style.display = 'none';
-        const btn = document.querySelector(`#assemblyApproxTabs .tab-btn[onclick*="${t}"]`);
-        if (btn) btn.classList.remove('active');
-    });
-    document.getElementById(`assemblyApprox${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).style.display = 'block';
-    const activeBtn = document.querySelector(`#assemblyApproxTabs .tab-btn[onclick*="${tabName}"]`);
-    if (activeBtn) activeBtn.classList.add('active');
-}
-
-async function saveAssemblyApproxToFile(assemblyName) {
-    try {
-        const res = await fetch(`/approximation/assembly/save/${encodeURIComponent(assemblyName)}`, { method: 'GET' });
-        if (!res.ok) throw new Error('Ошибка сохранения');
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `approx_${assemblyName}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-    } catch (e) {
-        alert('❌ Ошибка: ' + e.message);
-    }
-}
+// Добавляем глобальные функции для HTML
+window.openCreateBladeModal = openCreateBladeModal;
+window.openMergeModal = openMergeModal;
+window.switchCoordTab = switchCoordTab;
+window.loadCoordsFromFile = loadCoordsFromFile;
+window.addCoordPointToTable = addCoordPointToTable;
+window.saveBlade = saveBlade;
+window.confirmDeleteBlade = confirmDeleteBlade;
+window.deleteMerge = deleteMerge;
+window.saveMerge = saveMerge;
+window.viewBladeCoords = viewBladeCoords;
+window.exportCoords = exportCoords;
+window.openViewAssemblyModal = openViewAssemblyModal;
+window.approximateAllInAssembly = approximateAllInAssembly;
+window.deleteAssembly = deleteAssembly;
+window.closeModal = closeModal;
