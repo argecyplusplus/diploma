@@ -1,0 +1,217 @@
+int S  = {{S1}};
+int S1 = {{S2}};
+real Chord  = {{Chord1}};
+real Chord2 = {{Chord2}};
+real RC = 1. * Chord;
+
+border C(t=0, 2*pi){ x=Chord/2. + RC*cos(t); y=RC*sin(t); }
+
+load "iovtk"
+
+real[int] coeffsUp(10);
+real[int] coeffsLow(10);
+real[int] coeffsUp2(10);
+real[int] coeffsLow2(10);
+ifstream fl("out_L.csv");
+for(int i=0; i<coeffsUp.n;   i++) fl >> coeffsUp(i);
+for(int i=0; i<coeffsLow.n;  i++) fl >> coeffsLow(i);
+for(int i=0; i<coeffsUp2.n;  i++) fl >> coeffsUp2(i);
+for(int i=0; i<coeffsLow2.n; i++) fl >> coeffsLow2(i);
+
+func real Lezh(real[int] L, real t) {
+    real[int] y(10);
+    y(0)=1.; y(1)=t; y(2)=(3.*t^2-1.)/2.; y(3)=(5.*t^3-3.*t)/2.;
+    y(4)=(35.*t^4-30.*t^2+3.)/8.; y(5)=(63.*t^5-70.*t^3+15.*t)/8.;
+    y(6)=231./16.*t^6-315./16.*t^4+105./16.*t^2-5./16.;
+    y(7)=429./16.*t^7-693./16.*t^5+315./16.*t^3-35./16.*t;
+    y(8)=6435./128.*t^8-3003./32.*t^6+3465./64.*t^4-315./32.*t^2+35./128.;
+    y(9)=12155./128.*t^9-6435./32.*t^7+9009./64.*t^5-1155./32.*t^3+315./128.*t;
+    return L'*y;
+}
+
+func real[int] ContUp(real delt, real t, real dt1) {
+    real[int] x0(2), x1(2); real nn;
+    x0(0)=Chord*dt1; x0(1)=Chord*(Lezh(coeffsUp,t+dt1)-Lezh(coeffsUp,t));
+    nn=sqrt(x0(0)^2+x0(1)^2); x0=x0/nn;
+    x1(0)=x0(1)*delt+Chord*t; x1(1)=-x0(0)*delt+Chord*Lezh(coeffsUp,t);
+    return x1;
+}
+func real[int] ContLw(real delt, real t, real dt1) {
+    real[int] x0(2), x1(2); real nn;
+    x0(0)=Chord*dt1; x0(1)=Chord*(Lezh(coeffsLow,t+dt1)-Lezh(coeffsLow,t));
+    nn=sqrt(x0(0)^2+x0(1)^2); x0=x0/nn;
+    x1(0)=x0(1)*delt+Chord*t; x1(1)=-x0(0)*delt+Chord*Lezh(coeffsLow,t);
+    return x1;
+}
+
+real xOffset = (Chord - Chord2) / 10;
+real theta = 15*pi/180;
+real[int,int] R = [[cos(theta), -sin(theta)], [sin(theta), cos(theta)]];
+
+real xblade = Chord*0.25;
+real yUp      = Chord * Lezh(coeffsUp,  0.5);
+real yLow     = Chord * Lezh(coeffsLow, 0.5);
+real yblade   = (yUp + yLow) / 2.0;
+real ySmallUp    = Chord2 * Lezh(coeffsUp2,  0.5);
+real ySmallLow   = Chord2 * Lezh(coeffsLow2, 0.5);
+real ySmallUpLow = (ySmallUp + ySmallLow) / 2.0;
+real yOffset = yblade - ySmallUpLow + 0.3;
+real xCenterSmall = xOffset + Chord2 / 2;
+real yCenterSmall = yOffset;
+
+func real rotateX(real x, real y, real xC, real yC) {
+    return xC + (x-xC)*R(0,0) + (y-yC)*R(0,1); }
+func real rotateY(real x, real y, real xC, real yC) {
+    return yC + (x-xC)*R(1,0) + (y-yC)*R(1,1); }
+
+border Splus( t=1.,0.){ x=Chord*t;  y=Chord*Lezh(coeffsUp,t);  label=S; }
+border Sminus(t=0.,1.){ x=Chord*t;  y=Chord*Lezh(coeffsLow,t); label=S; }
+border Spm(t=1.,0.){ x=0; y=Chord*Lezh(coeffsLow,0)+t*Chord*(Lezh(coeffsUp,0)-Lezh(coeffsLow,0));  label=S; }
+border Smp(t=0.,1.){ x=Chord; y=Chord*Lezh(coeffsLow,1)+t*Chord*(Lezh(coeffsUp,1)-Lezh(coeffsLow,1)); label=S; }
+
+border Splus2(t=1.,0.){
+    real xL=xOffset+Chord2*t; real yL=yOffset+Chord2*Lezh(coeffsUp2,t);
+    x=rotateX(xL,yL,xCenterSmall,yCenterSmall); y=rotateY(xL,yL,xCenterSmall,yCenterSmall); label=S1; }
+border Sminus2(t=0.,1.){
+    real xL=xOffset+Chord2*t; real yL=yOffset+Chord2*Lezh(coeffsLow2,t);
+    x=rotateX(xL,yL,xCenterSmall,yCenterSmall); y=rotateY(xL,yL,xCenterSmall,yCenterSmall); label=S1; }
+border Spm2(t=1.,0.){
+    real xL=xOffset; real yL=yOffset+Chord2*Lezh(coeffsLow2,0)+t*Chord2*(Lezh(coeffsUp2,0)-Lezh(coeffsLow2,0));
+    x=rotateX(xL,yL,xCenterSmall,yCenterSmall); y=rotateY(xL,yL,xCenterSmall,yCenterSmall); label=S1; }
+border Smp2(t=0.,1.){
+    real xL=xOffset+Chord2; real yL=yOffset+Chord2*Lezh(coeffsLow2,1)+t*Chord2*(Lezh(coeffsUp2,1)-Lezh(coeffsLow2,1));
+    x=rotateX(xL,yL,xCenterSmall,yCenterSmall); y=rotateY(xL,yL,xCenterSmall,yCenterSmall); label=S1; }
+
+int NC   = {{NC}};
+int NSp  = {{NSp}};
+int NSm  = {{NSm}};
+int NSpm = {{NSpm}};
+
+mesh Th = buildmesh(C(NC) + Splus(NSp) + Spm(NSpm) + Sminus(NSm) + Smp(NSpm)
+                          + Splus2(-NSp) + Spm2(-NSpm) + Sminus2(-NSm) + Smp2(-NSpm));
+plot(Th, wait=0, ps="plots/Mesh.eps");
+
+int steel = Th(xblade, yblade).region, air = Th(-RC/2., -RC/2.).region;
+cout << steel << " " << air << endl;
+
+real[int] ai = [{{a_steel}}, {{a_air}}];
+func real a0() {
+    if(Th(x,y).region == steel) return ai[0];
+    else return ai[1];
+}
+
+real[int] T0i = [{{T_initial}}, 25.];
+func real T0() {
+    if(Th(x,y).region == steel) return T0i[0];
+    else return T0i[1];
+}
+
+func dTin  = 0.;
+func dTout = 0.;
+
+real Time  = {{Time}};
+real dt    = {{dt}};
+int Niter  = int(Time/dt);
+int Nplot  = {{Nplot}};
+int dNplot = max(1, Niter/Nplot);
+string fileplotName;
+
+fespace Vh(Th, P2);
+Vh T = T0(), T00 = T0(), v, Told;
+Vh u1, u2, uu, vv, Sig1, Sig2, Sig12, Eps1, Eps2, Eps12;
+
+problem thermic(T, v)
+    = int2d(Th)( T*v/dt + a0()*(dx(T)*dx(v)+dy(T)*dy(v)) )
+    - int2d(Th)( Told*v/dt )
+    - int1d(Th, C)(  dTout * v )
+    - int1d(Th, S)(  dTin  * v )
+    - int1d(Th, S1)( dTin  * v );
+
+int i = 0;
+for(real t = 0; t <= Time; t += dt) {
+    Told = T;
+    thermic;
+    i++;
+    if (i % dNplot == 0) {
+        fileplotName = "plots/ThermalDistrib_" + t + "_.eps";
+        plot(T, value=true, fill=true, ps=fileplotName, wait=0);
+    }
+}
+plot(T, value=true, fill=true, ps="plots/ThermalDistrib.eps", wait=0);
+
+Vh Tsteel = T*(region == steel);
+cout << "max T steel = " << Tsteel[].max << endl;
+
+// ===== Упругий расчёт =====
+real b  = {{b}};
+real nu = {{nu}};
+real[int] Ei = [{{E_steel}}, 1.e-5];
+func real E() {
+    if(Th(x,y).region == steel) return Ei[0]*b;
+    else return Ei[1]*b;
+}
+real KLT = {{KLT}};
+
+func K      = -E()/(3*(2*nu - 1));
+func mu     = E()/(2*(1+nu));
+func lambda = E()*nu/((1+nu)*(1-2*nu));
+
+real sqrt2 = sqrt(2.);
+macro epsilon(u1,u2) [dx(u1),dy(u2),(dy(u1)+dx(u2))/sqrt2]  //
+macro div(u1,u2) (dx(u1)+dy(u2))                             //
+macro sig1(u1,u2)  lambda*(div(u1,u2))-3*K*KLT*(T-T00)+2*mu*dx(u1)  //
+macro sig2(u1,u2)  lambda*(div(u1,u2))-3*K*KLT*(T-T00)+2*mu*dy(u2)  //
+macro sig12(u1,u2) mu*(dx(u2)+dy(u1))                        //
+macro eps1(u1)     dx(u1)                                     //
+macro eps2(u2)     dy(u2)                                     //
+macro eps12(u1,u2) (dx(u2)+dy(u1))/2.                        //
+
+solve lame([u1, u2], [uu, vv])
+    = int2d(Th)(
+        lambda*div(u1,u2)*div(uu,vv)
+        + 2.*mu*(epsilon(u1,u2)'*epsilon(uu,vv))
+    )
+    - int2d(Th)( 3.*K*KLT*(T-T00)*div(uu,vv) )
+    + on(S1, u1=0, u2=0);
+
+Sig1  = sig1(u1,u2);
+Sig2  = sig2(u1,u2);
+Sig12 = sig12(u1,u2);
+Eps1  = eps1(u1);
+Eps2  = eps2(u2);
+Eps12 = eps12(u1,u2);
+
+plot(Sig1,  wait=0, value=true, fill=true, ps="plots/sig1.eps");
+plot(Sig2,  wait=0, value=true, fill=true, ps="plots/sig2.eps");
+plot(Sig12, wait=0, value=true, fill=true, ps="plots/sig12.eps");
+
+// ===== Вывод по контуру =====
+real delt = {{delt}};
+real Npt  = {{Npt}};
+real dt1  = 1.0/Npt;
+
+ofstream ff0("Profout.csv");
+ofstream ff1("TSout.csv");
+ofstream ff2("TEpsout.csv");
+
+for(real tt = 1; tt >= 0; tt -= dt1) {
+    real x0c  = ContUp(0., tt, dt1)(0);
+    real y0Up = ContUp(0., tt, dt1)(1);
+    real y0Lw = ContLw(0., tt, dt1)(1);
+    real xdc  = ContUp(delt, tt, dt1)(0);
+    real ydUp = ContUp(delt, tt, dt1)(1);
+    real ydLw = ContLw(-delt, tt, dt1)(1);
+    if (abs(ydUp - ydLw) > 1e-6) {
+        ff0 << x0c  << " " << y0Up << " " << y0Lw << " " << xdc << " " << ydUp << " " << ydLw << endl;
+        ff1 << xdc  << " " << ydUp << " " << T(xdc,ydUp)
+            << " " << Sig1(xdc,ydUp)  << " " << Sig2(xdc,ydUp)  << " " << Sig12(xdc,ydUp)
+            << " " << ydLw << " " << T(xdc,ydLw)
+            << " " << Sig1(xdc,ydLw)  << " " << Sig2(xdc,ydLw)  << " " << Sig12(xdc,ydLw)  << endl;
+        ff2 << xdc  << " " << ydUp << " " << T(xdc,ydUp)
+            << " " << Eps1(xdc,ydUp)  << " " << Eps2(xdc,ydUp)  << " " << Eps12(xdc,ydUp)
+            << " " << ydLw << " " << T(xdc,ydLw)
+            << " " << Eps1(xdc,ydLw)  << " " << Eps2(xdc,ydLw)  << " " << Eps12(xdc,ydLw)  << endl;
+    }
+}
+
+savevtk("result.vtk", Th, T, Sig1, Sig2, Eps1, Eps2);

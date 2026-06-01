@@ -248,10 +248,18 @@ def get_simulations_api():
     result = []
     for s in sims:
         has_vtk = any(r.file_type == 'vtk' for r in s.results)
+        # Для сборки показываем имя сборки, для одиночной — имя лопатки
+        object_name = '—'
+        if s.blade_assembly_id:
+            assembly = session.get(BladeAssembly, s.blade_assembly_id)
+            if assembly:
+                object_name = assembly.name
+        elif s.blade:
+            object_name = s.blade.name
         result.append({
             "simulation_id": s.simulation_id,
             "name": s.name,
-            "blade_name": s.blade.name if s.blade else '—',
+            "blade_name": object_name,
             "created_at": s.results[0].created_at if s.results else '—',
             "status": s.status,
             "has_vtk": has_vtk,

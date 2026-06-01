@@ -129,7 +129,9 @@ class SimulationService:
             return self._create_single_simulation(data)
 
     def _create_assembly_simulation(self, data: SimulationCreateRequest) -> int:
-        """Создаёт одну симуляцию для объединения (задачи 2 и 3)."""
+        """Создаёт одну симуляцию для объединения (задачи 2 и 3).
+        Первый член сборки — внешняя лопатка, второй — внутренняя полость.
+        """
         assembly = self.session.get(BladeAssembly, data.assembly_id)
         if not assembly or not assembly.members:
             raise ValueError("Объединение не содержит лопаток")
@@ -147,7 +149,7 @@ class SimulationService:
 
         sim_data = {
             'name': data.name,
-            'blade_id': outer_blade.blade_id,
+            'blade_id': outer_blade.blade_id,   # внешняя лопатка — основная ссылка
             'blade_assembly_id': data.assembly_id,
             'initial_conditions_id': data.initial_conditions_id,
             'task_type': data.task_type.value,
@@ -169,12 +171,11 @@ class SimulationService:
             )
         except Exception as e:
             logger.error(traceback.format_exc())
-            sim.status = 'failed'
-            sim.error_message = f"Ошибка генерации .edp (сборка): {str(e)}"
+            sim_update = self.session.get(Simulation, sim_id)
+            sim_update.status = 'failed'
+            sim_update.error_message = f"Ошибка генерации .edp (сборка): {str(e)}"
             self.session.commit()
-            return sim_id
 
-        # Не запускаем поток автоматически
         return sim_id
 
     def _create_single_simulation(self, data: SimulationCreateRequest) -> int:
