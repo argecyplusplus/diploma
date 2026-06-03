@@ -438,9 +438,6 @@ class SimulationService:
         outer_coeffs = self._get_blade_legendre_coeffs(outer_blade_id)
         inner_coeffs = self._get_blade_legendre_coeffs(inner_blade_id)
 
-        # FreeFEM читает все коэффициенты через >> из одного файла подряд:
-        # coeffsUp(0..9), coeffsLow(0..9), coeffsUp2(0..9), coeffsLow2(0..9)
-        # Записываем в десятичном формате (не e-нотация) через пробел
         coeffs_csv = os.path.join(sim_dir, "out_L.csv")
         def fmt(v): return f"{float(v):.15f}"
         with open(coeffs_csv, 'w', encoding='utf-8') as f:
