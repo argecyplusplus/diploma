@@ -17,6 +17,17 @@ async function getSimulationInfo() {
     }
 }
 
+async function openSimulationFolder() {
+    try {
+        const res = await fetch(`/simulation/${simId}/open_folder`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Ошибка');
+        alert('✅ Папка с файлами открыта!');
+    } catch(e) {
+        alert('❌ Ошибка: ' + e.message);
+    }
+}
+
 async function checkAndPollStatus() {
     try {
         const res = await fetch(`/simulation/${simId}/status`);
@@ -47,14 +58,15 @@ async function showAppropriateContent() {
     const plotsContainer = document.getElementById('plotsContent');
 
     if (currentTaskType === '1') {
-        plotsContainer.innerHTML = '<div class="status-message">✅ Расчёт завершён!<br>Визуализация результатов доступна через VTK файл.</div>';
+        plotsContainer.innerHTML = '<div class="status-message">✅ Расчёт завершён!<br>Результаты доступны для скачивания.</div>';
     }
     else if (currentTaskType === '2') {
-        // Задача 2: загружаем график температуры по контуру из TFout.csv
         await loadMatplotlibPlots();
     }
     else if (currentTaskType === '3') {
-        // Задача 3: загружаем matplotlib графики из CSV
+        await loadMatplotlibPlots();
+    }
+    else if (currentTaskType === '4') {
         await loadMatplotlibPlots();
     }
     else {
@@ -68,7 +80,14 @@ async function loadMatplotlibPlots() {
 
     container.innerHTML = '<div class="status-message">⏳ Загрузка графиков...</div>';
     try {
-        const res = await fetch(`/simulation/${simId}/plots`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        const res = await fetch(`/simulation/${simId}/plots`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         if (!res.ok) {
             throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
@@ -86,7 +105,18 @@ async function loadMatplotlibPlots() {
         let html = '';
         let hasContent = false;
 
-        // Ключи для задачи 2
+        // ========== ПРОФИЛЬ ЛОПАТКИ (для задач 2 и 3) ==========
+        if (data['Профиль лопатки']) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h4>Профиль лопатки</h4>
+                    <img src="data:image/png;base64,${data['Профиль лопатки']}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+            `;
+            hasContent = true;
+        }
+
+        // ========== ЗАДАЧА 2: ТЕМПЕРАТУРА ==========
         if (data['Распределение температуры по контуру']) {
             html += `
                 <div style="margin-bottom: 30px;">
@@ -97,9 +127,40 @@ async function loadMatplotlibPlots() {
             hasContent = true;
         }
 
-        // Ключи для задачи 3
-        const task3Keys = ['Профиль лопатки', 'Деформация Мизеса', 'Температура (поверхность)', 'Напряжение Мизеса'];
-        for (const key of task3Keys) {
+        // ========== ЗАДАЧА 3: ДЕФОРМАЦИЯ И НАПРЯЖЕНИЕ ==========
+        if (data['Деформация Мизеса']) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h4>Деформация Мизеса</h4>
+                    <img src="data:image/png;base64,${data['Деформация Мизеса']}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+            `;
+            hasContent = true;
+        }
+
+        if (data['Напряжение Мизеса']) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h4>Напряжение Мизеса</h4>
+                    <img src="data:image/png;base64,${data['Напряжение Мизеса']}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+            `;
+            hasContent = true;
+        }
+
+        // ========== ЗАДАЧА 4: ПЕРЕХОДНЫЕ ПРОЦЕССЫ ==========
+        const task4Keys = [
+            'Температура в центре покрытия во времени',
+            'Распределение температуры по профилю',
+            'Карта температурного поля (v = 1 м/с)',
+            'Карта температурного поля (v = 0.01 м/с)',
+            'Распределение температуры по контурам',
+            'Распределение теплового потока',
+            'Изменение температуры во времени',
+            'Анимация температурного поля',
+            'Температурное поле'
+        ];
+        for (const key of task4Keys) {
             if (data[key]) {
                 html += `
                     <div style="margin-bottom: 30px;">
@@ -111,9 +172,10 @@ async function loadMatplotlibPlots() {
             }
         }
 
-        // Другие возможные ключи
+        // ========== ОСТАЛЬНЫЕ КЛЮЧИ (для совместимости) ==========
+        const excludeKeys = ['Профиль лопатки', 'Распределение температуры по контуру', 'Деформация Мизеса', 'Напряжение Мизеса', ...task4Keys];
         for (const [key, value] of Object.entries(data)) {
-            if (key !== 'error' && !task3Keys.includes(key) && key !== 'Распределение температуры по контуру') {
+            if (key !== 'error' && !excludeKeys.includes(key)) {
                 html += `
                     <div style="margin-bottom: 30px;">
                         <h4>${escapeHtml(key)}</h4>
@@ -131,7 +193,11 @@ async function loadMatplotlibPlots() {
         }
     } catch(e) {
         console.error('Load matplotlib plots error:', e);
-        container.innerHTML = `<div class="status-message" style="color:#ef4444;">Ошибка загрузки графиков: ${e.message}</div>`;
+        if (e.name === 'AbortError') {
+            container.innerHTML = '<div class="status-message" style="color:#ef4444;">⏰ Превышено время ожидания (30 сек). Попробуйте обновить страницу.</div>';
+        } else {
+            container.innerHTML = `<div class="status-message" style="color:#ef4444;">Ошибка загрузки графиков: ${e.message}</div>`;
+        }
     }
 }
 
@@ -149,18 +215,25 @@ async function loadFiles() {
         }
         let html = '';
         files.forEach(file => {
+            if (file.name === 'result.vtk') return;
+
             let btnClass = 'btn-secondary';
-            if (file.name === 'result.vtk') btnClass = 'btn-primary';
             let fileType = '';
-            if (file.name === 'result.vtk') fileType = 'vtk';
-            else if (file.name === 'Profout.csv') fileType = 'profout';
+            if (file.name === 'Profout.csv') fileType = 'profout';
             else if (file.name === 'TSout.csv') fileType = 'tsout';
             else if (file.name === 'TEpsout.csv') fileType = 'tepsout';
+            else if (file.name === 'TFout.csv') fileType = 'tfout';
+            else if (file.name === 'gauss_params.csv') fileType = 'gauss_params';
             else fileType = file.name.split('.')[0].toLowerCase();
 
             html += `<a href="/simulation/${simId}/result/${fileType}" class="${btnClass}">📥 ${file.description}</a>`;
         });
-        container.innerHTML = html;
+
+        if (html === '') {
+            container.innerHTML = '<div class="status-message">Нет доступных файлов</div>';
+        } else {
+            container.innerHTML = html;
+        }
     } catch(e) {
         container.innerHTML = `<div class="status-message" style="color:#ef4444;">Ошибка: ${e.message}</div>`;
     }
@@ -206,7 +279,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadFiles();
     await checkAndPollStatus();
 
-    // Если статус уже completed, показываем соответствующий контент
     const statusRes = await fetch(`/simulation/${simId}/status`);
     const statusData = await statusRes.json();
     if (statusData.status === 'completed') {

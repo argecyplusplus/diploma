@@ -164,19 +164,30 @@ def execute_assembly_approximation(assembly_id):
 
 @approx_bp.route('/assembly/save/<path:assembly_name>', methods=['GET'])
 def save_assembly_approx_files(assembly_name):
-    """Генерирует zip-архив с файлами out_L_имя.csv и params_L_имя.csv для всех лопаток в сборке"""
+    """Генерирует файлы out_L_имя.csv и params_L_имя.csv для сборки"""
     from ..models.blade import BladeAssembly, Blade, LegendreCoefficient, ApproximationParameter
     from sqlalchemy import select
     session = g.db_session if 'db_session' in g else get_db_session()
     assembly = session.scalar(select(BladeAssembly).where(BladeAssembly.name == assembly_name))
     if not assembly:
         return jsonify({"error": "Сборка не найдена"}), 404
-    members = assembly.members
-    if not members:
-        return jsonify({"error": "В сборке нет лопаток"}), 404
+
+    members = sorted(
+        list(assembly.members),
+        key=lambda m: (
+            0 if (m.description or '').lower() == 'outer' else
+            1 if (m.description or '').lower() == 'inner' else
+            2,
+            m.blade_assembly_members_id
+        )
+    )
+
+    if len(members) != 2:
+        return jsonify({"error": "Сборка должна содержать ровно две лопатки"}), 400
 
     out_lines = []
     params_lines = []
+
     for member in members:
         blade = member.blade
         if not blade: continue
@@ -190,9 +201,11 @@ def save_assembly_approx_files(assembly_name):
             .order_by(LegendreCoefficient.legendre_coefficients_id)
         ).all()
         if len(coeffs) < 10: continue
-        upper_vals = " ".join(f"{c.upper_value:.15f}" for c in coeffs)
-        lower_vals = " ".join(f"{c.lower_value:.15f}" for c in coeffs)
+
+        upper_vals = " ".join(f"{c.upper_value:.15f}" for c in coeffs[:10])
         out_lines.append(upper_vals)
+
+        lower_vals = " ".join(f"{c.lower_value:.15f}" for c in coeffs[:10])
         out_lines.append(lower_vals)
 
         params = session.scalars(
@@ -205,6 +218,25 @@ def save_assembly_approx_files(assembly_name):
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
         zipf.writestr(f"out_L_{assembly_name}.csv", "\n".join(out_lines))
         zipf.writestr(f"params_L_{assembly_name}.csv", "\n".join(params_lines))
-    zip_buffer.seek(0)
 
-    return send_file(zip_buffer, as_attachment=True, download_name=f"approx_{assembly_name}.zip", mimetype='application/zip')
+    zip_buffer.seek(0)
+    return send_file(zip_buffer, as_attachment=True, download_name=f"approx_{assembly_name}.zip",
+                     mimetype='application/zip')
+
+
+@approx_bp.route('/save/<int:blade_id>', methods=['GET'])
+def save_single_blade_approx_files(blade_id):
+    """Скачать файл out_L_{blade_name}.csv для одной лопатки"""
+    from ..models.blade import Blade
+    session = g.db_session if 'db_session' in g else get_db_session()
+
+    blade = session.get(Blade, blade_id)
+    if not blade:
+        return jsonify({"error": "Лопатка не найдена"}), 404
+
+    service = ApproximationService(session)
+    try:
+        filepath = service.save_single_blade_coeffs_to_file(blade_id, blade.name)
+        return send_file(filepath, as_attachment=True, download_name=f"out_L_{blade.name}.csv", mimetype='text/csv')
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400

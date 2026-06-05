@@ -18,7 +18,7 @@ class Simulation(Base):
     status = Column(Text, nullable=False, default="created")  # created, queued, running, completed, failed
     progress = Column(Integer, nullable=False, default=0)  # 0..100, опционально
     error_message = Column(Text, nullable=True)
-    task_type = Column(Text, nullable=False, default="gas_dynamics")
+    task_type = Column(Text, nullable=False, default="task1")
 
     blade_assembly_id = Column(
         Integer,
@@ -186,6 +186,14 @@ class InitialCondition(Base):
     stress_output_parameters = relationship("StressOutputParameter", back_populates="initial_conditions",
                                             cascade="all, delete-orphan")
 
+    # Новые связи для задачи 4
+    gas_flow_parameters = relationship("GasFlowParameter", back_populates="initial_conditions",
+                                       cascade="all, delete-orphan", uselist=False)
+    material_properties = relationship("MaterialProperty", back_populates="initial_conditions",
+                                      cascade="all, delete-orphan", uselist=False)
+    gas_properties = relationship("GasProperty", back_populates="initial_conditions",
+                                 cascade="all, delete-orphan", uselist=False)
+
     def __repr__(self):
         return f"<InitialCondition(id={self.initial_conditions_id}, name='{self.name}')>"
 
@@ -248,6 +256,7 @@ class ElasticityParameter(Base):
     def __repr__(self):
         return f"<ElasticityParameter(id={self.elasticity_parameters_id}, nu={self.nu})>"
 
+
 # Таблица 22: Construction_parameters (Параметры для построения)
 class ConstructionParameter(Base):
     __tablename__ = 'construction_parameters'
@@ -263,6 +272,7 @@ class ConstructionParameter(Base):
     NSm = Column(Integer, nullable=False)
     NSpn = Column(Integer, nullable=False)
     NSpm = Column(Integer, nullable=False)
+    dely_offset = Column(Float, nullable=True, default=0.003)
 
     initial_conditions = relationship("InitialCondition", back_populates="construction_parameters")
 
@@ -312,3 +322,69 @@ class StressOutputParameter(Base):
 
     def __repr__(self):
         return f"<StressOutputParameter(id={self.stress_output_parameters_id}, coef={self.coef})>"
+
+
+# Таблица 29: Gas_flow_parameters
+class GasFlowParameter(Base):
+    __tablename__ = 'gas_flow_parameters'
+
+    gas_flow_parameters_id = Column(Integer, primary_key=True, autoincrement=True)
+    initial_conditions_id = Column(
+        Integer,
+        ForeignKey('initial_conditions.initial_conditions_id', ondelete="CASCADE"),
+        nullable=False
+    )
+    Tgas = Column(Float, nullable=False, default=673.0, comment="Температура газа, °C")
+    Tcool = Column(Float, nullable=False, default=1223.0, comment="Температура охладителя, °C")
+    U0 = Column(Float, nullable=False, default=1.0, comment="Скорость потока, м/с")
+    beta = Column(Float, nullable=False, default=-10.0, comment="Угол атаки, градусы")
+    Press0 = Column(Float, nullable=False, default=1.5e6, comment="Давление на входе, Па")
+    houter = Column(Float, nullable=False, default=15000.0, comment="Коэф. теплоотдачи внешней поверхности, Вт/(м²·K)")
+    hinner = Column(Float, nullable=False, default=15.0, comment="Коэф. теплоотдачи внутренней поверхности, Вт/(м²·K)")
+
+    initial_conditions = relationship("InitialCondition", back_populates="gas_flow_parameters")
+
+    def __repr__(self):
+        return f"<GasFlowParameter(id={self.gas_flow_parameters_id})>"
+
+
+# Таблица 30: Material_properties
+class MaterialProperty(Base):
+    __tablename__ = 'material_properties'
+
+    material_properties_id = Column(Integer, primary_key=True, autoincrement=True)
+    initial_conditions_id = Column(
+        Integer,
+        ForeignKey('initial_conditions.initial_conditions_id', ondelete="CASCADE"),
+        nullable=False
+    )
+    rhosteel = Column(Float, nullable=False, default=8200.0, comment="Плотность, кг/м³")
+    cpsteel = Column(Float, nullable=False, default=500.0, comment="Удельная теплоемкость, Дж/(кг·К)")
+    ksteel = Column(Float, nullable=False, default=90.5, comment="Теплопроводность, Вт/(м·К)")
+    a_steel = Column(Float, nullable=True)
+    a_air = Column(Float, nullable=True)
+
+    initial_conditions = relationship("InitialCondition", back_populates="material_properties")
+
+    def __repr__(self):
+        return f"<MaterialProperty(id={self.material_properties_id})>"
+
+
+# Таблица 31: Gas_properties 
+class GasProperty(Base):
+    __tablename__ = 'gas_properties'
+
+    gas_properties_id = Column(Integer, primary_key=True, autoincrement=True)
+    initial_conditions_id = Column(
+        Integer,
+        ForeignKey('initial_conditions.initial_conditions_id', ondelete="CASCADE"),
+        nullable=False
+    )
+    Rgas = Column(Float, nullable=False, default=287.0, comment="Газовая постоянная, Дж/(кг·К)")
+    cpgas = Column(Float, nullable=False, default=1150.0, comment="Удельная теплоемкость газа, Дж/(кг·К)")
+    kgas = Column(Float, nullable=False, default=0.08, comment="Теплопроводность газа, Вт/(м·К)")
+
+    initial_conditions = relationship("InitialCondition", back_populates="gas_properties")
+
+    def __repr__(self):
+        return f"<GasProperty(id={self.gas_properties_id})>"

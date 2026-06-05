@@ -34,38 +34,38 @@
             <div class="form-group">
                 <label>Физическая задача</label>
                 <div class="task-cards task-cards-grid" id="taskCardsContainer">
-                    <label class="task-card" data-value="gas_dynamics">
-                        <input type="radio" name="task_type" value="gas_dynamics"
+                    <label class="task-card" data-value="task1">
+                        <input type="radio" name="task_type" value="task1"
                                data-requires="potential_flow,boundaries,construction,blade_chord" checked>
                         <div class="task-info">
                             <strong>1. Моделирование газодинамики и параметров поверхности лопатки</strong>
                             <small>только лопатка</small>
                         </div>
                     </label>
-                    <label class="task-card" data-value="thermal_field">
-                        <input type="radio" name="task_type" value="thermal_field"
+                    <label class="task-card" data-value="task2">
+                        <input type="radio" name="task_type" value="task2"
                                data-requires="time_parameters,initial_temps,construction,blade_chord">
                         <div class="task-info">
                             <strong>2. Моделирование теплового поля на поверхности лопатки</strong>
-                            <small>лопатка или объединение</small>
+                            <small>только объединение</small>
                         </div>
                     </label>
-                    <label class="task-card" data-value="thermal_stress">
-                        <input type="radio" name="task_type" value="thermal_stress"
+                    <label class="task-card" data-value="task3">
+                        <input type="radio" name="task_type" value="task3"
                                data-requires="time_parameters,initial_temps,elasticity,stress_output,construction,blade_chord">
                         <div class="task-info">
                             <strong>3. Моделирование распределения напряжений на поверхности лопатки</strong>
-                            <small>лопатка или объединение</small>
+                            <small>только объединение</small>
                         </div>
                     </label>
-                    <label class="task-card" data-value="thermal_transient">
-                        <input type="radio" name="task_type" value="thermal_transient"
+                    <label class="task-card" data-value="task4">
+                        <input type="radio" name="task_type" value="task4"
                                data-requires="time_parameters,initial_temps,construction,blade_chord">
                         <div class="task-info">
                             <strong>4. Моделирование переходных тепловых процессов в тонких криволинейных покрытиях лопаток ГТД</strong>
-                            <small>лопатка или объединение</small>
+                            <small>только объединение</small>
                         </div>
-                </label>
+                    </label>
                 </div>
                 <div id="taskHelpText" class="card-hint" style="margin-top: 12px; padding: 10px; background: #f8fafc; border-left: 3px solid var(--accent);">
                     Выберите задачу, чтобы увидеть требования к начальным условиям.

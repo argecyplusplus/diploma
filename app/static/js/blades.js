@@ -397,26 +397,19 @@ async function openViewAssemblyModal(assemblyId, assemblyName) {
         if (!res.ok) throw new Error('Ошибка загрузки');
         const members = await res.json();
         if (members.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#64748b">Лопатки не добавлены</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#64748b">Лопатки не добавлены</td></tr>';
         } else {
             tbody.innerHTML = members.map(m => {
                 const blade = bladesData.find(b => b.blade_id === m.blade_id);
                 const bladeName = blade ? escapeHtml(blade.name) : (m.blade_name || `Лопатка #${m.blade_id}`);
-                return `
-                    <tr>
-                        <td>${m.blade_id}</td>
-                        <td>${bladeName}</td>
-                        <td><button class="btn-approx" onclick="goToApproximation(${m.blade_id})">К аппроксимации</button></td>
-                    </tr>
-                `;
+                return `<tr><td>${m.blade_id}</td><td>${bladeName}</td></tr>`;
             }).join('');
         }
     } catch (e) {
         console.error(e);
-        document.getElementById('viewAssemblyBlades').innerHTML = '<tr><td colspan="3" style="text-align:center;color:#ef4444">Ошибка загрузки</td></tr>';
+        document.getElementById('viewAssemblyBlades').innerHTML = '<tr><td colspan="2" style="text-align:center;color:#ef4444">Ошибка загрузки</td></tr>';
     }
 }
-
 async function deleteAssembly() {
     const assemblyId = document.getElementById('viewAssemblyId').value;
     if (!confirm('Удалить это объединение?\nЛопатки останутся в базе.')) return;
@@ -430,6 +423,15 @@ async function deleteAssembly() {
         alert('❌ Ошибка: ' + e.message);
     }
 }
+
+function goToApproximationForAssembly(assemblyId, assemblyName) {
+    if (!assemblyId) {
+        alert('ID сборки не определён');
+        return;
+    }
+    window.location.href = `/approximation?item_id=${assemblyId}&item_type=assembly`;
+}
+
 
 // ================= УТИЛИТЫ =================
 function showLoading(show) {
@@ -452,7 +454,7 @@ function goToApproximation(bladeId) {
     window.location.href = `/approximation?blade_id=${bladeId}`;
 }
 
-// Добавляем глобальные функции для HTML
+
 window.openCreateBladeModal = openCreateBladeModal;
 window.openMergeModal = openMergeModal;
 window.switchCoordTab = switchCoordTab;
@@ -465,6 +467,6 @@ window.saveMerge = saveMerge;
 window.viewBladeCoords = viewBladeCoords;
 window.exportCoords = exportCoords;
 window.openViewAssemblyModal = openViewAssemblyModal;
-window.approximateAllInAssembly = approximateAllInAssembly;
 window.deleteAssembly = deleteAssembly;
+window.goToApproximationForAssembly = goToApproximationForAssembly;
 window.closeModal = closeModal;

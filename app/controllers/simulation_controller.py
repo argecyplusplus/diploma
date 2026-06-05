@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 import threading
@@ -10,17 +11,25 @@ from ..utils.database import get_db_session
 from ..models.blade import Blade, BladeAssembly
 from ..models.simulation import *
 from ..models.material import Material, ElValue
-from ..models.material import ChemicalElement  # добавить импорт
+from ..models.material import ChemicalElement
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select, delete
 
 sim_bp = Blueprint('simulation', __name__, url_prefix='/simulation')
 ic_bp = Blueprint('initial_conditions', __name__, url_prefix='/initial-conditions')
+logger = logging.getLogger(__name__)
+
 
 def get_service():
     if 'db_session' not in g:
         g.db_session = get_db_session()
     return SimulationService(g.db_session)
+
+
+def get_sim_dir(service, sim_id: int) -> str:
+    """Возвращает путь к папке симуляции с учётом текущей БД"""
+    return os.path.join(service.upload_dir, f"sim_{sim_id}")
+
 
 # ================= МОДЕЛИРОВАНИЕ =================
 @sim_bp.route('/')
@@ -50,6 +59,7 @@ def index():
                            ics=ics,
                            sims=sims)
 
+
 @sim_bp.route('/create', methods=['POST'])
 def create():
     service = get_service()
@@ -65,13 +75,16 @@ def create():
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/<int:sim_id>/download')
 def download_result(sim_id):
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
     vtk_path = os.path.join(sim_dir, "result.vtk")
     if not os.path.exists(vtk_path):
         abort(404)
     return send_file(vtk_path, as_attachment=True, download_name=f"result_{sim_id}.vtk")
+
 
 @sim_bp.route('/<int:sim_id>/status', methods=['GET'])
 def get_status(sim_id):
@@ -81,8 +94,9 @@ def get_status(sim_id):
     return jsonify({
         "status": sim.status,
         "progress": sim.progress,
-        "error_message": sim.error_message   # новое поле
+        "error_message": sim.error_message
     })
+
 
 # ================= НАЧАЛЬНЫЕ УСЛОВИЯ =================
 @ic_bp.route('/api/list', methods=['GET'])
@@ -118,6 +132,7 @@ def ic_create():
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @ic_bp.route('/<int:ic_id>', methods=['DELETE'])
 def ic_delete(ic_id):
     service = get_service()
@@ -128,6 +143,7 @@ def ic_delete(ic_id):
     except Exception as e:
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
+
 
 @ic_bp.route('/api/<int:ic_id>', methods=['GET'])
 def get_initial_condition(ic_id):
@@ -239,16 +255,16 @@ def update_initial_condition(ic_id):
         session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/api/simulations', methods=['GET'])
 def get_simulations_api():
     from ..utils.database import get_db_session
     session = get_db_session()
     sims = session.scalars(select(Simulation).order_by(Simulation.simulation_id.desc())).all()
-    task_names = {'gas_dynamics': '1', 'thermal_field': '2', 'thermal_stress': '3'}
+    task_names = {'task1': '1', 'task2': '2', 'task3': '3', 'task4': '4'}
     result = []
     for s in sims:
         has_vtk = any(r.file_type == 'vtk' for r in s.results)
-        # Для сборки показываем имя сборки, для одиночной — имя лопатки
         object_name = '—'
         if s.blade_assembly_id:
             assembly = session.get(BladeAssembly, s.blade_assembly_id)
@@ -267,10 +283,12 @@ def get_simulations_api():
         })
     return jsonify(result)
 
+
 @sim_bp.route('/<int:sim_id>/log')
 def get_simulation_log(sim_id):
     """Возвращает содержимое console.log для симуляции"""
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
     log_path = os.path.join(sim_dir, "console.log")
     if not os.path.exists(log_path):
         return jsonify({"error": "Лог не найден"}), 404
@@ -281,15 +299,16 @@ def get_simulation_log(sim_id):
 
 @sim_bp.route('/<int:sim_id>/result/<file_type>')
 def download_result_file(sim_id, file_type):
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
 
-    # Маппинг типов файлов
     file_map = {
-        'vtk':     'result.vtk',
-        'tfout':   'TFout.csv',
+        'vtk': 'result.vtk',
+        'tfout': 'TFout.csv',
         'profout': 'Profout.csv',
-        'tsout':   'TSout.csv',
-        'tepsout': 'TEpsout.csv'
+        'tsout': 'TSout.csv',
+        'tepsout': 'TEpsout.csv',
+        'gauss_params': 'gauss_params.csv'
     }
 
     if file_type not in file_map:
@@ -303,6 +322,7 @@ def download_result_file(sim_id, file_type):
     return send_file(file_path, as_attachment=True,
                      download_name=f"{file_type}_{sim_id}{os.path.splitext(file_map[file_type])[1]}")
 
+
 # ================= УДАЛЕНИЕ СИМУЛЯЦИЙ =================
 @sim_bp.route('/<int:sim_id>', methods=['DELETE'])
 def delete_simulation(sim_id):
@@ -315,6 +335,7 @@ def delete_simulation(sim_id):
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/failed', methods=['DELETE'])
 def delete_failed_simulations():
     service = get_service()
@@ -326,6 +347,7 @@ def delete_failed_simulations():
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 # ================= СТРАНИЦА РЕЗУЛЬТАТОВ И ГРАФИКИ =================
 @sim_bp.route('/<int:sim_id>/results')
 def results_page(sim_id):
@@ -333,8 +355,8 @@ def results_page(sim_id):
     sim = service.session.get(Simulation, sim_id)
     if not sim:
         abort(404)
-    # Передаём в шаблон ID и название
     return render_template('results.html', simulation_id=sim_id, simulation_name=sim.name)
+
 
 @sim_bp.route('/<int:sim_id>/plots')
 def get_plots(sim_id):
@@ -342,23 +364,29 @@ def get_plots(sim_id):
     service = get_service()
     try:
         plots = service.generate_plots(sim_id)
+        import sys
+        size = sys.getsizeof(str(plots)) / 1024 / 1024
+        if size > 10:
+            print(f"⚠️ Внимание: графики занимают {size:.2f} MB")
         return jsonify(plots)
     except Exception as e:
+        logger.error(f"Ошибка в get_plots: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
 @sim_bp.route('/<int:sim_id>/files')
 def get_result_files(sim_id):
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
     files = []
 
-    # Определяем возможные файлы и их описания
     candidates = [
         ('result.vtk', 'Файл VTK', 'vtk'),
         ('TFout.csv', 'Температура по контуру (TFout.csv)', 'csv'),
         ('Profout.csv', 'Профиль лопатки (Profout.csv)', 'csv'),
         ('TSout.csv', 'Напряжения (TSout.csv)', 'csv'),
-        ('TEpsout.csv', 'Деформации (TEpsout.csv)', 'csv')
+        ('TEpsout.csv', 'Деформации (TEpsout.csv)', 'csv'),
+        ('gauss_params.csv', 'Параметры гауссовской аппроксимации', 'csv')
     ]
 
     for filename, description, category in candidates:
@@ -367,6 +395,7 @@ def get_result_files(sim_id):
             files.append({'name': filename, 'description': description, 'category': category})
 
     return jsonify(files)
+
 
 @sim_bp.route('/<int:sim_id>/run', methods=['POST'])
 def run_simulation(sim_id):
@@ -390,7 +419,7 @@ def run_simulation(sim_id):
 def download_edp(sim_id):
     """Скачать .edp файл"""
     service = get_service()
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    sim_dir = get_sim_dir(service, sim_id)
     edp_path = os.path.join(sim_dir, "blade_sim.edp")
     if not os.path.exists(edp_path):
         return jsonify({"error": "Файл не найден"}), 404
@@ -399,7 +428,6 @@ def download_edp(sim_id):
 
 @sim_bp.route('/<int:sim_id>/run_local', methods=['POST'])
 def run_local(sim_id):
-    """Запустить FreeFEM локально и отслеживать завершение"""
     import time
     import threading
     from ..utils.database import get_db_session, get_engine
@@ -407,7 +435,7 @@ def run_local(sim_id):
 
     service = get_service()
     try:
-        sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+        sim_dir = get_sim_dir(service, sim_id)
         edp_path = os.path.join(sim_dir, "blade_sim.edp")
 
         if not os.path.exists(edp_path):
@@ -420,50 +448,51 @@ def run_local(sim_id):
         if sim.status == 'running':
             return jsonify({"error": "Расчёт уже выполняется"}), 400
 
-        # Меняем статус на running
         sim.status = "running"
         service.session.commit()
 
-        # Открываем папку с файлом
         if os.name == 'nt':
             subprocess.Popen(f'explorer /select,"{edp_path}"', shell=True)
 
-        # Функция мониторинга с отдельной сессией
+        expected_files = service._get_expected_output_files(sim.task_type)
+
         def check_completion():
-            # Создаём отдельную сессию для фонового потока
             engine = get_engine()
             SessionLocal = sessionmaker(bind=engine)
             db_session = SessionLocal()
-
-            vtk_path = os.path.join(sim_dir, "result.vtk")
-            max_wait = 3600  # 1 час
-            waited = 0
-            while waited < max_wait:
-                time.sleep(10)  # Проверяем каждые 10 секунд
-                waited += 10
-                if os.path.exists(vtk_path):
-                    # Файл появился - расчёт завершён
-                    try:
+            try:
+                max_wait = 3600  # 1 час
+                waited = 0
+                while waited < max_wait:
+                    time.sleep(10)
+                    waited += 10
+                    all_exist = all(os.path.exists(os.path.join(sim_dir, f)) for f in expected_files)
+                    if all_exist:
                         sim_obj = db_session.get(Simulation, sim_id)
                         if sim_obj:
                             sim_obj.status = "completed"
                             sim_obj.progress = 100
                             db_session.commit()
-                            print(f"✅ Симуляция {sim_id} завершена! Файл VTK найден.")
-                    except Exception as e:
-                        print(f"Ошибка при обновлении статуса: {e}")
-                    finally:
-                        db_session.close()
-                    return
-            # Таймаут
-            try:
+                            print(f"✅ Симуляция {sim_id} завершена! Все ожидаемые файлы найдены.")
+                        return
+                    log_path = os.path.join(sim_dir, "console.log")
+                    if os.path.exists(log_path):
+                        with open(log_path, 'r', encoding='utf-8') as lf:
+                            content = lf.read()
+                            if "error" in content.lower() or "fail" in content.lower():
+                                sim_obj = db_session.get(Simulation, sim_id)
+                                if sim_obj:
+                                    sim_obj.status = "failed"
+                                    sim_obj.error_message = "Обнаружена ошибка в логе FreeFEM"
+                                    db_session.commit()
+                                return
                 sim_obj = db_session.get(Simulation, sim_id)
                 if sim_obj and sim_obj.status == 'running':
                     sim_obj.status = "failed"
                     sim_obj.error_message = "Превышено время ожидания (1 час)"
                     db_session.commit()
             except Exception as e:
-                print(f"Ошибка при установке статуса failed: {e}")
+                print(f"Ошибка в check_completion: {e}")
             finally:
                 db_session.close()
 
@@ -477,6 +506,7 @@ def run_local(sim_id):
         }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @sim_bp.route('/<int:sim_id>/reset_status', methods=['POST'])
 def reset_simulation_status(sim_id):
@@ -498,22 +528,32 @@ def reset_simulation_status(sim_id):
 
 @sim_bp.route('/<int:sim_id>/check_completion', methods=['POST'])
 def check_completion_manual(sim_id):
-    """Ручная проверка завершения расчёта по наличию result.vtk"""
+    """Ручная проверка завершения расчёта по наличию ожидаемых файлов"""
     service = get_service()
     try:
-        sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
-        vtk_path = os.path.join(sim_dir, "result.vtk")
+        sim_dir = get_sim_dir(service, sim_id)
 
         sim = service.session.get(Simulation, sim_id)
         if not sim:
             return jsonify({"error": "Симуляция не найдена"}), 404
 
-        if os.path.exists(vtk_path) and sim.status == 'running':
-            sim.status = "completed"
-            sim.progress = 100
-            service.session.commit()
-            return jsonify({"status": "completed", "message": "Расчёт завершён!"}), 200
-        elif sim.status == 'completed':
+        expected_files = service._get_expected_output_files(sim.task_type)
+
+        if not expected_files:
+            if sim.status == 'running':
+                sim.status = "completed"
+                sim.progress = 100
+                service.session.commit()
+                return jsonify({"status": "completed", "message": "Расчёт завершён!"}), 200
+        else:
+            all_exist = all(os.path.exists(os.path.join(sim_dir, f)) for f in expected_files)
+            if all_exist and sim.status == 'running':
+                sim.status = "completed"
+                sim.progress = 100
+                service.session.commit()
+                return jsonify({"status": "completed", "message": "Расчёт завершён!"}), 200
+
+        if sim.status == 'completed':
             return jsonify({"status": "completed", "message": "Расчёт уже завершён"}), 200
         else:
             return jsonify({"status": sim.status, "message": "Расчёт ещё не завершён"}), 200
@@ -521,19 +561,51 @@ def check_completion_manual(sim_id):
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/<int:sim_id>/reset', methods=['POST'])
 def reset_simulation(sim_id):
-    """Сбросить статус расчёта для перезапуска"""
     service = get_service()
     try:
         sim = service.session.get(Simulation, sim_id)
         if not sim:
             return jsonify({"error": "Симуляция не найдена"}), 404
+
+        sim_dir = get_sim_dir(service, sim_id)
+        if os.path.exists(sim_dir):
+            for fname in os.listdir(sim_dir):
+                if fname in ['out_L.csv', 'blade_sim.edp']:
+                    continue
+                if fname.endswith(('.csv', '.eps', '.vtk', '.log')):
+                    os.remove(os.path.join(sim_dir, fname))
+            plots_dir = os.path.join(sim_dir, "plots")
+            if os.path.exists(plots_dir):
+                import shutil
+                shutil.rmtree(plots_dir)
+
         sim.status = 'pending'
         sim.progress = 0
         sim.error_message = None
         service.session.commit()
-        return jsonify({"message": "Статус сброшен"}), 200
+        return jsonify({"message": "Статус сброшен, файлы результатов удалены"}), 200
     except Exception as e:
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+@sim_bp.route('/<int:sim_id>/open_folder', methods=['POST'])
+def open_simulation_folder(sim_id):
+    """Открывает папку с файлами симуляции в проводнике"""
+    import subprocess
+    import os
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
+
+    if not os.path.exists(sim_dir):
+        return jsonify({"error": "Папка не найдена"}), 404
+
+    if os.name == 'nt':  # Windows
+        subprocess.Popen(f'explorer "{sim_dir}"', shell=True)
+    elif os.name == 'posix':  # Linux/Mac
+        subprocess.Popen(['xdg-open', sim_dir])
+
+    return jsonify({"message": "Папка открыта"}), 200
