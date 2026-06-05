@@ -1,9 +1,12 @@
 import os
 import json
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from flask import g
 from ..models.base import Base
+
+logger = logging.getLogger(__name__)
 
 DB_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'databases')
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'db_config.json')
@@ -33,7 +36,6 @@ def get_db_list():
 
     config = _load_config()
     current = config.get("current_db")
-    # Проверяем, существует ли файл текущей БД
     if current and not os.path.exists(os.path.join(DB_DIR, current + '.db')):
         current = None
         config["current_db"] = None
@@ -48,7 +50,7 @@ def get_current_db():
 
 
 def create_database(name):
-    """Создаёт новый файл .db и возвращает имя без расширения"""
+    """Создаёт новый файл .db и инициализирует его данными"""
     if not name.endswith('.db'):
         name += '.db'
     os.makedirs(DB_DIR, exist_ok=True)
@@ -58,17 +60,37 @@ def create_database(name):
 
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
-    return name[:-3]  # возвращаем имя без .db
+
+    # Инициализируем БД начальными данными ТОЛЬКО при создании
+    from .init_db_data import init_database
+    SessionLocal = sessionmaker(bind=engine)
+    session = SessionLocal()
+    try:
+        init_database(session)
+        session.commit()
+        logger.info(f"База данных {name} создана и инициализирована")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Ошибка инициализации БД: {e}")
+        raise e
+    finally:
+        session.close()
+
+    return name[:-3]
 
 
 def select_database(name):
-    """Устанавливает активную БД (имя без .db)"""
+    """Устанавливает активную БД (БЕЗ автоматической инициализации)"""
     db_path = os.path.join(DB_DIR, name + '.db')
     if not os.path.exists(db_path):
         raise ValueError("База данных не найдена")
+
+    # Просто устанавливаем БД как активную, без проверки и инициализации
     config = _load_config()
     config["current_db"] = name
     _save_config(config)
+
+    logger.info(f"Выбрана база данных: {name}")
     return name
 
 
@@ -83,6 +105,8 @@ def delete_database(name):
     if config.get("current_db") == name:
         config["current_db"] = None
         _save_config(config)
+
+    logger.info(f"База данных {name} удалена")
 
 
 def get_engine():

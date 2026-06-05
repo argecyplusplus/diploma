@@ -50,11 +50,12 @@ async function showAppropriateContent() {
         plotsContainer.innerHTML = '<div class="status-message">✅ Расчёт завершён!<br>Визуализация результатов доступна через VTK файл.</div>';
     }
     else if (currentTaskType === '2') {
-        // Задача 2: загружаем график температуры по контуру из TFout.csv
         await loadMatplotlibPlots();
     }
     else if (currentTaskType === '3') {
-        // Задача 3: загружаем matplotlib графики из CSV
+        await loadMatplotlibPlots();
+    }
+    else if (currentTaskType === '4') {
         await loadMatplotlibPlots();
     }
     else {
@@ -111,9 +112,28 @@ async function loadMatplotlibPlots() {
             }
         }
 
+        // Ключи для задачи 4
+        const task4Keys = [
+            'Температура в центре покрытия во времени',
+            'Распределение температуры по профилю',
+            'Карта температурного поля (v = 1 м/с)',
+            'Карта температурного поля (v = 0.01 м/с)'
+        ];
+        for (const key of task4Keys) {
+            if (data[key]) {
+                html += `
+                    <div style="margin-bottom: 30px;">
+                        <h4>${escapeHtml(key)}</h4>
+                        <img src="data:image/png;base64,${data[key]}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                    </div>
+                `;
+                hasContent = true;
+            }
+        }
+
         // Другие возможные ключи
         for (const [key, value] of Object.entries(data)) {
-            if (key !== 'error' && !task3Keys.includes(key) && key !== 'Распределение температуры по контуру') {
+            if (key !== 'error' && !task3Keys.includes(key) && key !== 'Распределение температуры по контуру' && !task4Keys.includes(key)) {
                 html += `
                     <div style="margin-bottom: 30px;">
                         <h4>${escapeHtml(key)}</h4>
@@ -156,6 +176,8 @@ async function loadFiles() {
             else if (file.name === 'Profout.csv') fileType = 'profout';
             else if (file.name === 'TSout.csv') fileType = 'tsout';
             else if (file.name === 'TEpsout.csv') fileType = 'tepsout';
+            else if (file.name === 'TFout.csv') fileType = 'tfout';
+            else if (file.name === 'gauss_params.csv') fileType = 'gauss_params';
             else fileType = file.name.split('.')[0].toLowerCase();
 
             html += `<a href="/simulation/${simId}/result/${fileType}" class="${btnClass}">📥 ${file.description}</a>`;

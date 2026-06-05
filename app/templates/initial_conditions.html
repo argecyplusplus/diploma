@@ -141,7 +141,7 @@
 
                 <h4 style="margin:16px 0 10px;">Значения Ei</h4>
                 <div id="ei-values-list">
-                        <!-- Строки добавляются динамически через addEiRow() -->
+                    <!-- Строки добавляются динамически через addEiRow() -->
                 </div>
                 <button type="button" class="btn-secondary btn-sm" onclick="addEiRow()" style="margin:8px 0;">+ Добавить Ei</button>
             </details>
@@ -161,6 +161,81 @@
                     <div class="form-group">
                         <label>Npt</label>
                         <input type="number" step="1" name="stress_output.Npt" placeholder="100">
+                    </div>
+                </div>
+            </details>
+
+            <!-- ========== НОВЫЕ СЕКЦИИ ДЛЯ ЗАДАЧИ 4 ========== -->
+
+            <!-- Параметры газового потока -->
+            <details class="form-section">
+                <summary>🌪️ Параметры газового потока (задача 4)</summary>
+                <div class="form-grid" style="padding:0; background:transparent; margin:0;">
+                    <div class="form-group">
+                        <label>Tgas, °C</label>
+                        <input type="number" step="any" name="gas_flow.Tgas" placeholder="673" value="673">
+                    </div>
+                    <div class="form-group">
+                        <label>Tcool, °C</label>
+                        <input type="number" step="any" name="gas_flow.Tcool" placeholder="1223" value="1223">
+                    </div>
+                    <div class="form-group">
+                        <label>U0, м/с</label>
+                        <input type="number" step="any" name="gas_flow.U0" placeholder="1" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label>beta, °</label>
+                        <input type="number" step="any" name="gas_flow.beta" placeholder="-10" value="-10">
+                    </div>
+                    <div class="form-group">
+                        <label>Press0, Па</label>
+                        <input type="number" step="any" name="gas_flow.Press0" placeholder="1500000" value="1500000">
+                    </div>
+                    <div class="form-group">
+                        <label>houter, Вт/(м²·K)</label>
+                        <input type="number" step="any" name="gas_flow.houter" placeholder="15000" value="15000">
+                    </div>
+                    <div class="form-group">
+                        <label>hinner, Вт/(м²·K)</label>
+                        <input type="number" step="any" name="gas_flow.hinner" placeholder="15" value="15">
+                    </div>
+                </div>
+            </details>
+
+            <!-- Свойства материала лопатки -->
+            <details class="form-section">
+                <summary>⚙️ Свойства материала лопатки (задача 4)</summary>
+                <div class="form-grid" style="padding:0; background:transparent; margin:0;">
+                    <div class="form-group">
+                        <label>ρ, кг/м³</label>
+                        <input type="number" step="any" name="material_props.rhosteel" placeholder="8200" value="8200">
+                    </div>
+                    <div class="form-group">
+                        <label>cp, Дж/(кг·К)</label>
+                        <input type="number" step="any" name="material_props.cpsteel" placeholder="500" value="500">
+                    </div>
+                    <div class="form-group">
+                        <label>k, Вт/(м·К)</label>
+                        <input type="number" step="any" name="material_props.ksteel" placeholder="90.5" value="90.5">
+                    </div>
+                </div>
+            </details>
+
+            <!-- Свойства газа -->
+            <details class="form-section">
+                <summary>💨 Свойства газа (задача 4)</summary>
+                <div class="form-grid" style="padding:0; background:transparent; margin:0;">
+                    <div class="form-group">
+                        <label>Rgas, Дж/(кг·К)</label>
+                        <input type="number" step="any" name="gas_props.Rgas" placeholder="287" value="287">
+                    </div>
+                    <div class="form-group">
+                        <label>cp, Дж/(кг·К)</label>
+                        <input type="number" step="any" name="gas_props.cpgas" placeholder="1150" value="1150">
+                    </div>
+                    <div class="form-group">
+                        <label>k, Вт/(м·К)</label>
+                        <input type="number" step="any" name="gas_props.kgas" placeholder="0.08" value="0.08">
                     </div>
                 </div>
             </details>
@@ -190,7 +265,7 @@
                 </tr>
             </thead>
             <tbody id="icTableBody">
-                <tr><td colspan="3" class="status-message">⏳ Загрузка...</td></tr>
+                <tr><td colspan="3" class="status-message">⏳ Загрузка......</td></tr>
             </tbody>
         </table>
     </div>

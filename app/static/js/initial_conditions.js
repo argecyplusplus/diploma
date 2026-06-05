@@ -109,7 +109,11 @@ async function createIC(e) {
         boundaries: [],
         initial_temps: [],
         chords: [],
-        ei_values: []
+        ei_values: [],
+        // Новые поля для задачи 4
+        gas_flow_params: {},
+        material_properties: {},
+        gas_properties: {}
     };
 
     function setNested(obj, path, value) {
@@ -131,6 +135,12 @@ async function createIC(e) {
             const index = parseInt(idx);
             if (!payload[arrayName][index]) payload[arrayName][index] = {};
             payload[arrayName][index][field] = isNaN(value) ? value : parseFloat(value);
+        } else if (key.startsWith('gas_flow')) {
+            setNested(payload.gas_flow_params, key.replace('gas_flow.', ''), value);
+        } else if (key.startsWith('material_props')) {
+            setNested(payload.material_properties, key.replace('material_props.', ''), value);
+        } else if (key.startsWith('gas_props')) {
+            setNested(payload.gas_properties, key.replace('gas_props.', ''), value);
         } else {
             setNested(payload, key, value);
         }
@@ -198,6 +208,27 @@ async function editIC(id) {
         form.querySelector('input[name="stress_output.coef"]').value = data.stress_output.coef;
         form.querySelector('input[name="stress_output.delt"]').value = data.stress_output.delt;
         form.querySelector('input[name="stress_output.Npt"]').value = data.stress_output.Npt;
+
+        // Заполнение полей для задачи 4
+        if (data.gas_flow_params) {
+            form.querySelector('input[name="gas_flow.Tgas"]').value = data.gas_flow_params.Tgas || 673;
+            form.querySelector('input[name="gas_flow.Tcool"]').value = data.gas_flow_params.Tcool || 1223;
+            form.querySelector('input[name="gas_flow.U0"]').value = data.gas_flow_params.U0 || 1;
+            form.querySelector('input[name="gas_flow.beta"]').value = data.gas_flow_params.beta || -10;
+            form.querySelector('input[name="gas_flow.Press0"]').value = data.gas_flow_params.Press0 || 1.5e6;
+            form.querySelector('input[name="gas_flow.houter"]').value = data.gas_flow_params.houter || 15000;
+            form.querySelector('input[name="gas_flow.hinner"]').value = data.gas_flow_params.hinner || 15;
+        }
+        if (data.material_properties) {
+            form.querySelector('input[name="material_props.rhosteel"]').value = data.material_properties.rhosteel || 8200;
+            form.querySelector('input[name="material_props.cpsteel"]').value = data.material_properties.cpsteel || 500;
+            form.querySelector('input[name="material_props.ksteel"]').value = data.material_properties.ksteel || 90.5;
+        }
+        if (data.gas_properties) {
+            form.querySelector('input[name="gas_props.Rgas"]').value = data.gas_properties.Rgas || 287;
+            form.querySelector('input[name="gas_props.cpgas"]').value = data.gas_properties.cpgas || 1150;
+            form.querySelector('input[name="gas_props.kgas"]').value = data.gas_properties.kgas || 0.08;
+        }
 
         // Заполнение динамических списков
         function fillDynamicList(containerId, items, fieldMapping) {
@@ -295,7 +326,10 @@ async function updateIC(e, id) {
         boundaries: [],
         initial_temps: [],
         chords: [],
-        ei_values: []
+        ei_values: [],
+        gas_flow_params: {},
+        material_properties: {},
+        gas_properties: {}
     };
 
     function setNested(obj, path, value) {
@@ -317,6 +351,12 @@ async function updateIC(e, id) {
             const index = parseInt(idx);
             if (!payload[arrayName][index]) payload[arrayName][index] = {};
             payload[arrayName][index][field] = isNaN(value) ? value : parseFloat(value);
+        } else if (key.startsWith('gas_flow')) {
+            setNested(payload.gas_flow_params, key.replace('gas_flow.', ''), value);
+        } else if (key.startsWith('material_props')) {
+            setNested(payload.material_properties, key.replace('material_props.', ''), value);
+        } else if (key.startsWith('gas_props')) {
+            setNested(payload.gas_properties, key.replace('gas_props.', ''), value);
         } else {
             setNested(payload, key, value);
         }
@@ -327,7 +367,7 @@ async function updateIC(e, id) {
         if (payload[key]) payload[key] = payload[key].filter(item => item && Object.keys(item).length);
     });
 
-    // Дополнительно собираем ei_values из динамических строк (на случай, если они не попали в FormData)
+    // Дополнительно собираем ei_values из динамических строк
     const eiRows = document.querySelectorAll('#ei-values-list .dynamic-row');
     payload.ei_values = [];
     eiRows.forEach(row => {
