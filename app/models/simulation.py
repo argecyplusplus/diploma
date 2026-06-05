@@ -18,7 +18,7 @@ class Simulation(Base):
     status = Column(Text, nullable=False, default="created")  # created, queued, running, completed, failed
     progress = Column(Integer, nullable=False, default=0)  # 0..100, опционально
     error_message = Column(Text, nullable=True)
-    task_type = Column(Text, nullable=False, default="gas_dynamics")
+    task_type = Column(Text, nullable=False, default="task1")
 
     blade_assembly_id = Column(
         Integer,

@@ -192,7 +192,7 @@ def init_default_initial_conditions(session: Session):
         session.add(ConstructionParameter(initial_conditions_id=ic_id, NC=50, NSp=70, NSm=70, NSpn=10, NSpm=2))
         session.add(BoundaryIdentifier(initial_conditions_id=ic_id, name="S", value=99.0))
         session.add(BladeChord(initial_conditions_id=ic_id, name="Chord1", value=1.0))
-        session.add(InitialTemperature(initial_conditions_id=ic_id, material_id=1, value=0.0))  # Ni
+        session.add(InitialTemperature(initial_conditions_id=ic_id, material_id=1, value=400.0))  # Ni
         session.add(ElasticityParameter(initial_conditions_id=ic_id, b=1.0, nu=0.28, KLT=10.5e-6))
         session.add(StressOutputParameter(initial_conditions_id=ic_id, coef=100.0, delt=0.4, Npt=200.0))
         logger.info(f"Создан набор: {ic1_name}")
@@ -212,7 +212,8 @@ def init_default_initial_conditions(session: Session):
         session.add(BoundaryIdentifier(initial_conditions_id=ic_id, name="S", value=99.0))
         session.add(BladeChord(initial_conditions_id=ic_id, name="Chord1", value=21.7))
         session.add(BladeChord(initial_conditions_id=ic_id, name="Chord2", value=9.0))
-        session.add(InitialTemperature(initial_conditions_id=ic_id, material_id=1, value=250.0))  # Ni (сталь)
+        session.add(InitialTemperature(initial_conditions_id=ic_id, material_id=1, value=250.0))  # сталь
+        session.add(InitialTemperature(initial_conditions_id=ic_id, material_id=2, value=25.0))  # воздух
         if air_material:
             session.add(InitialTemperature(initial_conditions_id=ic_id, material_id=2, value=25.0))  # Al (воздух)
         session.add(ElasticityParameter(initial_conditions_id=ic_id, b=1.0, nu=0.28, KLT=10.5e-6))

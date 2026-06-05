@@ -115,15 +115,15 @@ class SimulationService:
         logger.debug(f"Записано {len(upper_vals)} коэффициентов в {path}")
 
     def create_simulation(self, data: SimulationCreateRequest):
-        if data.task_type == TaskType.GAS_DYNAMICS:
+        if data.task_type == TaskType.TASK1:
             if data.assembly_id is not None or data.blade_id is None:
                 raise ValueError(
-                    "Для газодинамики необходимо указать конкретную лопатку (blade_id); assembly_id не допускается")
+                    "Для задачи 1 необходимо указать конкретную лопатку (blade_id); assembly_id не допускается")
         else:
             if data.blade_id is None and data.assembly_id is None:
                 raise ValueError("Для этой задачи выберите лопатку или объединение")
 
-        if data.assembly_id is not None and data.task_type != TaskType.GAS_DYNAMICS:
+        if data.assembly_id is not None and data.task_type != TaskType.TASK1:
             return self._create_assembly_simulation(data)
         else:
             return self._create_single_simulation(data)
@@ -288,19 +288,20 @@ class SimulationService:
                 if os.path.exists(vtk_path):
                     repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
 
-                if sim.task_type == TaskType.THERMAL_FIELD.value:
+                # ИСПРАВЛЕНО: TaskType.TASK2.value, TaskType.TASK3.value, TaskType.TASK4.value
+                if sim.task_type == TaskType.TASK2.value:
                     for csv_file in ["TFout.csv", "Profout.csv"]:
                         csv_path = os.path.join(sim_dir, csv_file)
                         if os.path.exists(csv_path):
                             repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
 
-                if sim.task_type == TaskType.THERMAL_STRESS.value:
+                if sim.task_type == TaskType.TASK3.value:
                     for csv_file in ["Profout.csv", "TSout.csv", "TEpsout.csv"]:
                         csv_path = os.path.join(sim_dir, csv_file)
                         if os.path.exists(csv_path):
                             repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
 
-                if sim.task_type == TaskType.THERMAL_TRANSIENT.value:
+                if sim.task_type == TaskType.TASK4.value:
                     for csv_file in ["Temperatures.csv", "HeatFlux.csv"]:
                         csv_path = os.path.join(sim_dir, csv_file)
                         if os.path.exists(csv_path):
@@ -366,8 +367,9 @@ class SimulationService:
             select(MaterialProperty).where(MaterialProperty.initial_conditions_id == ic_id)
         )
 
-        if task_type == TaskType.GAS_DYNAMICS:
-            template_name = "gas_dynamics.edp.template"
+        # ИСПРАВЛЕНО: TaskType.TASK1, TASK2, TASK3, TASK4
+        if task_type == TaskType.TASK1:
+            template_name = "task1.edp.template"
             time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
             init_temp = self.session.scalar(
                 select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
@@ -381,8 +383,8 @@ class SimulationService:
                 "kair": "0.01",
             })
 
-        elif task_type == TaskType.THERMAL_FIELD:
-            template_name = "thermal_field.edp.template"
+        elif task_type == TaskType.TASK2:
+            template_name = "task2.edp.template"
             time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
             init_temp = self.session.scalar(
                 select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
@@ -409,8 +411,8 @@ class SimulationService:
             })
             os.makedirs(os.path.join(sim_dir, "plots"), exist_ok=True)
 
-        elif task_type == TaskType.THERMAL_STRESS:
-            template_name = "thermal_stress.edp.template"
+        elif task_type == TaskType.TASK3:
+            template_name = "task3.edp.template"
             time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
             init_temp = self.session.scalar(
                 select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
@@ -453,8 +455,8 @@ class SimulationService:
             })
             os.makedirs(os.path.join(sim_dir, "plots"), exist_ok=True)
 
-        elif task_type == TaskType.THERMAL_TRANSIENT:
-            template_name = "thermal_transient_single.edp.template"
+        elif task_type == TaskType.TASK4:
+            template_name = "task4.edp.template"
             time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
             init_temp = self.session.scalar(
                 select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
@@ -546,7 +548,7 @@ class SimulationService:
             "NSpm": str(NSpm),
         }
 
-        # Получаем общие данные для задач
+        # Общие данные для задач 2,3,4
         time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
         init_temp = self.session.scalar(
             select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
@@ -554,86 +556,75 @@ class SimulationService:
             select(StressOutputParameter).where(StressOutputParameter.initial_conditions_id == ic_id))
         material = sim.materials[0].material if sim.materials else None
 
-        # Получаем материал для задачи 4
+        # Данные для тепловой и упругой частей
         material_props = self.session.scalar(
-            select(MaterialProperty).where(MaterialProperty.initial_conditions_id == ic_id)
-        )
+            select(MaterialProperty).where(MaterialProperty.initial_conditions_id == ic_id))
+        a_steel = 12.54
+        a_air = 21.02
+        if material_props:
+            a_steel = material_props.a_steel if material_props.a_steel is not None else 12.54
+            a_air = material_props.a_air if material_props.a_air is not None else 21.02
 
-        if task_type == TaskType.THERMAL_FIELD:
-            template_name = "thermal_field_assembly.edp.template"
+        # Начальные температуры для стали и воздуха (берём из InitialTemperature)
+        init_temps = {t.material_id: t.value for t in
+                      self.session.scalars(
+                          select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id)).all()}
+        T_initial_steel = init_temps.get(1, 250.0)  # material_id=1 - сталь
+        T_initial_air = init_temps.get(2, 25.0)  # material_id=2 - воздух
 
-            # Получаем температуропроводность из БД
-            if material_props:
-                a_steel = material_props.a_steel if material_props.a_steel is not None else 12.54
-                a_air = material_props.a_air if material_props.a_air is not None else 21.02
-            else:
-                a_steel = 12.54
-                a_air = 21.02
+        # Параметры упругости
+        elastic = self.session.scalar(
+            select(ElasticityParameter).where(ElasticityParameter.initial_conditions_id == ic_id))
+        b = elastic.b if elastic else 1.0
+        nu = elastic.nu if elastic else 0.28
+        KLT = elastic.KLT if elastic else 10.5e-6
 
-            replacements.update({
-                "Time": str(time_params.time if time_params and time_params.time else 0.1),
-                "dt": str(time_params.dt if time_params else 0.05),
-                "Nplot": str(time_params.Nplot if time_params and time_params.Nplot else 10),
-                "T_initial": str(init_temp.value if init_temp else 250),
-                "a_steel": str(a_steel),
-                "a_air": str(a_air),
-                "delt": str(stress_out.delt if stress_out else 0.4),
-                "Npt": str(stress_out.Npt if stress_out else 200),
-            })
-            os.makedirs(os.path.join(sim_dir, "plots"), exist_ok=True)
-
-        elif task_type == TaskType.THERMAL_STRESS:
-            template_name = "thermal_stress_assembly.edp.template"
-            elastic = self.session.scalar(
-                select(ElasticityParameter).where(ElasticityParameter.initial_conditions_id == ic_id))
-            ei_value = None
-            if elastic and material:
-                ei_value = self.session.scalar(
-                    select(ElValue).where(
-                        ElValue.elasticity_parameters_id == elastic.elasticity_parameters_id,
-                        ElValue.material_id == material.material_id
-                    )
+        E_steel = 2.1e5
+        E_air = 1e-5
+        if elastic and material:
+            ei_value = self.session.scalar(
+                select(ElValue).where(
+                    ElValue.elasticity_parameters_id == elastic.elasticity_parameters_id,
+                    ElValue.material_id == material.material_id
                 )
-            E_steel = ei_value.value if ei_value else 2.1e5
+            )
+            if ei_value:
+                E_steel = ei_value.value
 
-            # Получаем температуропроводность из БД
-            if material_props:
-                a_steel = material_props.a_steel if material_props.a_steel is not None else 12.54
-                a_air = material_props.a_air if material_props.a_air is not None else 21.02
-            else:
-                a_steel = 12.54
-                a_air = 21.02
+        # Общие параметры вывода
+        delt = stress_out.delt if stress_out else 0.4
+        Npt = stress_out.Npt if stress_out else 200.0
 
+        # ========== Для задач 2 и 3 используем единый шаблон ==========
+        if task_type in (TaskType.TASK2, TaskType.TASK3):
+            template_name = "task23_assembly.edp.template"
             replacements.update({
-                "Time": str(time_params.time if time_params and time_params.time else 0.1),
+                "Time": str(time_params.time if time_params and time_params.time else 1.0),
                 "dt": str(time_params.dt if time_params else 0.05),
                 "Nplot": str(time_params.Nplot if time_params and time_params.Nplot else 10),
-                "T_initial": str(init_temp.value if init_temp else 250),
+                "T_initial_steel": str(T_initial_steel),
+                "T_initial_air": str(T_initial_air),
                 "a_steel": str(a_steel),
                 "a_air": str(a_air),
-                "b": str(elastic.b if elastic else 1.0),
-                "nu": str(elastic.nu if elastic else 0.28),
-                "KLT": str(elastic.KLT if elastic else 10.5e-6),
+                "b": str(b),
+                "nu": str(nu),
+                "KLT": str(KLT),
                 "E_steel": str(E_steel),
-                "delt": str(stress_out.delt if stress_out else 0.4),
-                "Npt": str(stress_out.Npt if stress_out else 200),
+                "E_air": str(E_air),
+                "delt": str(delt),
+                "Npt": str(Npt),
             })
             os.makedirs(os.path.join(sim_dir, "plots"), exist_ok=True)
 
-        elif task_type == TaskType.THERMAL_TRANSIENT:
-            template_name = "thermal_transient_assembly.edp.template"
+        # ========== Задача 4 использует свой шаблон ==========
+        elif task_type == TaskType.TASK4:
+            template_name = "task4_assembly.edp.template"
             gas_flow = self.session.scalar(
                 select(GasFlowParameter).where(GasFlowParameter.initial_conditions_id == ic_id))
-            gas_props = self.session.scalar(
-                select(GasProperty).where(GasProperty.initial_conditions_id == ic_id))
-
-            # Получаем смещение для задачи 4
+            gas_props = self.session.scalar(select(GasProperty).where(GasProperty.initial_conditions_id == ic_id))
             dely_offset = constr.dely_offset if constr and constr.dely_offset is not None else 0.003
-
-            # Получаем хорду для внутренней лопатки
-            all_chords = self.session.scalars(
-                select(BladeChord).where(BladeChord.initial_conditions_id == ic_id)
-            ).all()
+            replacements["delyOffset"] = str(dely_offset)
+            all_chords = self.session.scalars(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id)).all()
             chord_inner = float(all_chords[1].value) if len(all_chords) >= 2 else chord_outer * 0.8
 
             replacements.update({
@@ -659,8 +650,7 @@ class SimulationService:
             os.makedirs(os.path.join(sim_dir, "plots"), exist_ok=True)
 
         else:
-            raise ValueError(
-                f"Для сборки поддерживаются только задачи thermal_field, thermal_stress и thermal_transient")
+            raise ValueError(f"Для сборки поддерживаются только задачи task2, task3 и task4")
 
         self._render_template(template_name, replacements, edp_path)
         logger.info(f"Скрипт {task_type.value} (сборка) сохранён: {edp_path}")
@@ -776,7 +766,7 @@ class SimulationService:
             return eigMiz
 
         # ================= ЗАДАЧА 1: ГАЗОДИНАМИКА =================
-        if task_type == 'gas_dynamics':
+        if task_type == 'task1':
             eps_files = sorted(glob.glob(os.path.join(sim_dir, "plot_*.eps")))
             titles = {
                 'plot_1': 'Сетка',
@@ -826,7 +816,7 @@ class SimulationService:
                         plots['Анимация температурного поля'] = base64.b64encode(f.read()).decode('utf-8')
 
         # ================= ЗАДАЧА 2: ТЕПЛОВОЕ ПОЛЕ =================
-        elif task_type == 'thermal_field':
+        elif task_type == 'task2':
             tf_path = os.path.join(sim_dir, "TFout.csv")
             logger.info(f"[task2] Ищем TFout.csv: {tf_path}, exists={os.path.exists(tf_path)}")
             if os.path.exists(tf_path):
@@ -858,7 +848,7 @@ class SimulationService:
                     f"[task2] TFout.csv не найден — возможно FreeFEM не завершил запись или шаблон не обновлён")
 
         # ================= ЗАДАЧА 3: ТЕРМОУПРУГОСТЬ =================
-        elif task_type == 'thermal_stress':
+        elif task_type == 'task3':
             prof_path = os.path.join(sim_dir, "Profout.csv")
             if os.path.exists(prof_path):
                 try:
@@ -944,7 +934,7 @@ class SimulationService:
                         logger.warning(f"Не удалось конвертировать {eps}: {e}")
 
         # ================= ЗАДАЧА 4: ПЕРЕХОДНЫЕ ТЕПЛОВЫЕ ПРОЦЕССЫ =================
-        elif task_type == 'thermal_transient':
+        elif task_type == 'task4':
             logger.info(f"=== Генерация графиков для задачи 4, sim_id={sim_id} ===")
             plots.update(self._generate_task4_plots(sim_dir))
 

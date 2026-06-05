@@ -2,10 +2,10 @@ let currentPollInterval = null;
 let currentSimId = null;
 
 const taskHints = {
-    gas_dynamics: 'Для задачи 1 набор начальных условий должен содержать: параметры потенциального потока (beta, B), идентификатор границы (S1), хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm). Временные и тепловые параметры НЕ используются.',
-    thermal_field: 'Для задачи 2 набор начальных условий должен содержать: временные параметры (dt, nbT), начальную температуру материала, хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm, NSpn).',
-    thermal_stress: 'Для задачи 3 необходимы: временные параметры, начальная температура материала, параметры упругости (b, nu, KLT), параметры вывода напряжений (delt, Npt), конструктивные параметры сетки, хорда лопасти, идентификатор границы S1.',
-    thermal_transient: 'Для задачи 4 необходимы: временные параметры (dt, nbT), начальная температура материала, параметры покрытия (толщина, теплопроводность), хорда лопасти, параметры построения сетки (NC, NSp, NSm, NSpm, NSpn).'
+    task1: 'Для задачи 1 набор начальных условий должен содержать: параметры потенциального потока (beta, B), идентификатор границы (S1), хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm). Временные и тепловые параметры НЕ используются.',
+    task2: 'Для задачи 2 набор начальных условий должен содержать: временные параметры (dt, nbT), начальную температуру материала, хорду лопасти, параметры построения сетки (NC, NSp, NSm, NSpm, NSpn).',
+    task3: 'Для задачи 3 необходимы: временные параметры, начальная температура материала, параметры упругости (b, nu, KLT), параметры вывода напряжений (delt, Npt), конструктивные параметры сетки, хорда лопасти, идентификатор границы S1.',
+    task4: 'Для задачи 4 необходимы: временные параметры (dt, nbT), начальная температура материала, параметры покрытия (толщина, теплопроводность), хорда лопасти, параметры построения сетки (NC, NSp, NSm, NSpm, NSpn).'
 };
 
 function updateTaskHint() {
@@ -208,19 +208,39 @@ async function loadObjectSelect() {
         ]);
         const blades = bladesRes.ok ? await bladesRes.json() : [];
         const assemblies = assembliesRes.ok ? await assembliesRes.json() : [];
-        let options = '<option value="" disabled selected>Выберите объект</option>';
-        blades.forEach(b => {
-            options += `<option value="blade_${b.blade_id}" data-type="blade" data-id="${b.blade_id}">Лопатка: ${escapeHtml(b.name)}</option>`;
-        });
-        assemblies.forEach(a => {
-            options += `<option value="assembly_${a.blade_assembly_id}" data-type="assembly" data-id="${a.blade_assembly_id}">Объединение: ${escapeHtml(a.name)}</option>`;
-        });
-        select.innerHTML = options;
-        updateObjectHint();
+
+        // Сохраняем исходные данные для последующей фильтрации
+        window._allBlades = blades;
+        window._allAssemblies = assemblies;
+
+        updateObjectSelectOptions();
     } catch(e) {
         select.innerHTML = '<option value="" disabled selected>Ошибка загрузки</option>';
         console.error(e);
     }
+}
+
+function updateObjectSelectOptions() {
+    const select = document.getElementById('objectSelect');
+    const taskType = document.querySelector('input[name="task_type"]:checked');
+    if (!select || !taskType) return;
+
+    let options = '<option value="" disabled selected>Выберите объект</option>';
+    const isTask1 = taskType.value === 'task1';
+
+    if (isTask1) {
+        // Задача 1: только лопатки
+        window._allBlades.forEach(b => {
+            options += `<option value="blade_${b.blade_id}" data-type="blade" data-id="${b.blade_id}">Лопатка: ${escapeHtml(b.name)}</option>`;
+        });
+    } else {
+        // Задачи 2,3,4: только объединения (сборки)
+        window._allAssemblies.forEach(a => {
+            options += `<option value="assembly_${a.blade_assembly_id}" data-type="assembly" data-id="${a.blade_assembly_id}">Объединение: ${escapeHtml(a.name)}</option>`;
+        });
+    }
+    select.innerHTML = options;
+    updateObjectHint();
 }
 
 function updateObjectHint() {
@@ -228,21 +248,14 @@ function updateObjectHint() {
     const taskType = document.querySelector('input[name="task_type"]:checked');
     if (!taskType || !select) return;
     const small = document.getElementById('objectHint');
-    if (taskType.value === 'gas_dynamics') {
-        for (let option of select.options) {
-            if (option.value && option.value.startsWith('assembly_')) {
-                option.disabled = true;
-            } else {
-                option.disabled = false;
-            }
-        }
-        if (small) small.innerText = ' (для газодинамики доступны только лопатки)';
+    if (taskType.value === 'task1') {
+        if (small) small.innerText = ' (доступны только лопатки)';
+        // Если выбран объект-объединение – сбрасываем
         if (select.value && select.value.startsWith('assembly_')) select.value = '';
     } else {
-        for (let option of select.options) {
-            option.disabled = false;
-        }
-        if (small) small.innerText = ' (лопатка или объединение)';
+        if (small) small.innerText = ' (доступны только объединения)';
+        // Если выбран объект-лопатка – сбрасываем
+        if (select.value && select.value.startsWith('blade_')) select.value = '';
     }
 }
 
@@ -427,19 +440,19 @@ async function createSimulation(e) {
     const taskType = form.querySelector('input[name="task_type"]:checked').value;
 
     // Временная заглушка для четвёртой задачи
-    if (taskType === 'thermal_transient') {
+        if (taskType === 'task4') {
         alert('⚠️ Функционал четвёртой задачи временно недоступен. Ожидайте обновления.');
         resetBtn();
         return;
     }
 
-    if (taskType === 'gas_dynamics' && assemblyId) {
-        alert('Для газодинамики нельзя выбирать объединение, выберите конкретную лопатку');
+    if (taskType === 'task1' && assemblyId) {
+        alert('Для задачи 1 нельзя выбирать объединение, выберите конкретную лопатку');
         resetBtn();
         return;
     }
-    if (taskType !== 'gas_dynamics' && !bladeId && !assemblyId) {
-        alert('Для выбранной задачи необходимо выбрать лопатку или объединение');
+    if (taskType !== 'task1' && !bladeId && !assemblyId) {
+        alert('Для выбранной задачи необходимо выбрать объединение (сборку)');
         resetBtn();
         return;
     }
@@ -501,10 +514,9 @@ function setupEventListeners() {
         radio.addEventListener('change', () => {
             updateTaskHint();
             syncActiveTaskCard();
+            updateObjectSelectOptions();   
             const icSelect = document.getElementById('initial_conditions_id');
             if (icSelect && icSelect.value) validateInitialConditionForTask(icSelect.value);
-            const objectSelect = document.getElementById('objectSelect');
-            if (objectSelect) updateObjectHint();
         });
     });
     const icSelect = document.getElementById('initial_conditions_id');

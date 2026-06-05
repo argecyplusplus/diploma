@@ -3,10 +3,10 @@ from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 class TaskType(str, Enum):
-    GAS_DYNAMICS = "gas_dynamics"          # задача 1
-    THERMAL_FIELD = "thermal_field"        # задача 2
-    THERMAL_STRESS = "thermal_stress"      # задача 3
-    THERMAL_TRANSIENT = "thermal_transient"  # задача 4
+    TASK1 = "task1"          # газодинамика
+    TASK2 = "task2"          # тепловое поле
+    TASK3 = "task3"          # термоупругость
+    TASK4 = "task4"          # переходные тепловые процессы
 
 
 class SimulationCreateRequest(BaseModel):
