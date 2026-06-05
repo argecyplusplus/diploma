@@ -37,7 +37,6 @@
 <div class="card">
     <div class="card-header">
         <h3>Объединения лопаток</h3>
-        <p class="card-hint">Группировка профилей для массовой аппроксимации</p>
     </div>
     <div class="table-wrapper">
         <table class="data-table">
@@ -148,14 +147,20 @@
         <input type="hidden" id="viewAssemblyId">
         <div class="table-wrapper">
             <table class="data-table">
-                <thead><tr><th style="width:50px">ID</th><th>Профиль</th><th style="width:140px; text-align:right;">Действия</th></tr></thead>
+                <thead>
+                    <tr><th style="width:50px">ID</th><th>Профиль</th></tr>
+                </thead>
                 <tbody id="viewAssemblyBlades"></tbody>
             </table>
         </div>
-        <div class="info-section" style="margin:16px 0;">💡 Для аппроксимации сборки перейдите на страницу аппроксимации.</div>
-        <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeModal('assemblyViewModal')">Закрыть</button>
-            <button class="btn-danger" onclick="deleteAssembly()">Удалить</button>
+        <div class="modal-actions" style="justify-content: space-between;">
+            <div>
+                <button class="btn-secondary" onclick="closeModal('assemblyViewModal')">Закрыть</button>
+                <button class="btn-danger" onclick="deleteAssembly()">Удалить</button>
+            </div>
+            <div>
+                <button class="btn-primary" onclick="goToApproximationForAssembly(document.getElementById('viewAssemblyId').value, document.getElementById('viewAssemblyName').innerText)">Аппроксимировать</button>
+            </div>
         </div>
     </div>
 </div>

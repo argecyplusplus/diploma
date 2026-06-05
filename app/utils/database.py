@@ -1,6 +1,8 @@
 import os
 import json
 import logging
+import time
+import gc
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, scoped_session
 from flask import g
@@ -11,6 +13,8 @@ logger = logging.getLogger(__name__)
 DB_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'databases')
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'db_config.json')
 
+# Кеш движков для активной БД
+_engine_cache = None
 
 def _load_config():
     if not os.path.exists(CONFIG_FILE):
@@ -49,6 +53,40 @@ def get_current_db():
     return current
 
 
+def close_all_connections(db_name=None):
+    """
+    Закрывает все соединения к БД.
+    Если указан db_name и он совпадает с текущей активной БД, сбрасывает активную.
+    """
+    global _engine_cache
+    config = _load_config()
+    current = config.get("current_db")
+    if db_name and current == db_name:
+        config["current_db"] = None
+        _save_config(config)
+
+    # Закрываем сессию Flask, если она есть
+    try:
+        if 'db_session' in g:
+            g.db_session.close()
+            g.db_session.remove()
+            delattr(g, 'db_session')
+    except Exception as e:
+        logger.debug(f"Ошибка при закрытии сессии Flask: {e}")
+
+    # Уничтожаем кешированный движок
+    if _engine_cache:
+        try:
+            _engine_cache.dispose()
+        except Exception as e:
+            logger.debug(f"Ошибка при dispose движка: {e}")
+        _engine_cache = None
+
+    # Принудительная сборка мусора и небольшая задержка
+    gc.collect()
+    time.sleep(0.1)
+
+
 def create_database(name):
     """Создаёт новый файл .db и инициализирует его данными"""
     if not name.endswith('.db'):
@@ -75,6 +113,7 @@ def create_database(name):
         raise e
     finally:
         session.close()
+        engine.dispose()  # закрываем движок после создания
 
     return name[:-3]
 
@@ -85,7 +124,10 @@ def select_database(name):
     if not os.path.exists(db_path):
         raise ValueError("База данных не найдена")
 
-    # Просто устанавливаем БД как активную, без проверки и инициализации
+    # Закрываем соединения к старой БД
+    close_all_connections()
+
+    # Устанавливаем новую активную БД
     config = _load_config()
     config["current_db"] = name
     _save_config(config)
@@ -99,18 +141,25 @@ def delete_database(name):
     db_path = os.path.join(DB_DIR, name + '.db')
     if not os.path.exists(db_path):
         raise ValueError("База данных не найдена")
-    os.remove(db_path)
 
-    config = _load_config()
-    if config.get("current_db") == name:
-        config["current_db"] = None
-        _save_config(config)
+    # Закрываем все соединения к этой БД и сбрасываем активную
+    close_all_connections(name)
 
-    logger.info(f"База данных {name} удалена")
+    # Пытаемся удалить файл с повторами
+    for attempt in range(3):
+        try:
+            os.remove(db_path)
+            logger.info(f"База данных {name} удалена")
+            return
+        except PermissionError as e:
+            logger.warning(f"Попытка {attempt+1} удаления {db_path} не удалась: {e}")
+            time.sleep(0.5)
+    raise RuntimeError(f"Не удалось удалить файл БД после нескольких попыток: {db_path}")
 
 
 def get_engine():
-    """Возвращает SQLAlchemy engine для активной БД"""
+    """Возвращает SQLAlchemy engine для активной БД (с кешированием)"""
+    global _engine_cache
     config = _load_config()
     current = config.get("current_db")
     if not current:
@@ -118,7 +167,10 @@ def get_engine():
     db_path = os.path.join(DB_DIR, current + '.db')
     if not os.path.exists(db_path):
         raise RuntimeError("DB_FILE_MISSING")
-    return create_engine(f"sqlite:///{db_path}", echo=False)
+
+    if _engine_cache is None:
+        _engine_cache = create_engine(f"sqlite:///{db_path}", echo=False)
+    return _engine_cache
 
 
 def get_db_session():
