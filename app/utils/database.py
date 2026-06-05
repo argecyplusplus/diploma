@@ -137,24 +137,33 @@ def select_database(name):
 
 
 def delete_database(name):
-    """Удаляет файл БД и, если она была активной, сбрасывает current_db"""
     db_path = os.path.join(DB_DIR, name + '.db')
     if not os.path.exists(db_path):
         raise ValueError("База данных не найдена")
 
-    # Закрываем все соединения к этой БД и сбрасываем активную
+    # Закрываем соединения и удаляем файл БД
     close_all_connections(name)
-
-    # Пытаемся удалить файл с повторами
-    for attempt in range(3):
+    for _ in range(3):
         try:
             os.remove(db_path)
-            logger.info(f"База данных {name} удалена")
-            return
-        except PermissionError as e:
-            logger.warning(f"Попытка {attempt+1} удаления {db_path} не удалась: {e}")
+            break
+        except PermissionError:
             time.sleep(0.5)
-    raise RuntimeError(f"Не удалось удалить файл БД после нескольких попыток: {db_path}")
+    else:
+        raise RuntimeError(f"Не удалось удалить файл БД {db_path}")
+
+    # Удаляем папку симуляций этой БД
+    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', name)
+    if os.path.exists(sim_dir):
+        import shutil
+        shutil.rmtree(sim_dir)
+        logger.info(f"Удалена папка симуляций БД: {sim_dir}")
+
+    config = _load_config()
+    if config.get("current_db") == name:
+        config["current_db"] = None
+        _save_config(config)
+    logger.info(f"База данных {name} полностью удалена")
 
 
 def get_engine():

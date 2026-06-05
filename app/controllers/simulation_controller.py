@@ -10,17 +10,24 @@ from ..utils.database import get_db_session
 from ..models.blade import Blade, BladeAssembly
 from ..models.simulation import *
 from ..models.material import Material, ElValue
-from ..models.material import ChemicalElement  # добавить импорт
+from ..models.material import ChemicalElement
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select, delete
 
 sim_bp = Blueprint('simulation', __name__, url_prefix='/simulation')
 ic_bp = Blueprint('initial_conditions', __name__, url_prefix='/initial-conditions')
 
+
 def get_service():
     if 'db_session' not in g:
         g.db_session = get_db_session()
     return SimulationService(g.db_session)
+
+
+def get_sim_dir(service, sim_id: int) -> str:
+    """Возвращает путь к папке симуляции с учётом текущей БД"""
+    return os.path.join(service.upload_dir, f"sim_{sim_id}")
+
 
 # ================= МОДЕЛИРОВАНИЕ =================
 @sim_bp.route('/')
@@ -50,6 +57,7 @@ def index():
                            ics=ics,
                            sims=sims)
 
+
 @sim_bp.route('/create', methods=['POST'])
 def create():
     service = get_service()
@@ -65,13 +73,16 @@ def create():
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/<int:sim_id>/download')
 def download_result(sim_id):
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
     vtk_path = os.path.join(sim_dir, "result.vtk")
     if not os.path.exists(vtk_path):
         abort(404)
     return send_file(vtk_path, as_attachment=True, download_name=f"result_{sim_id}.vtk")
+
 
 @sim_bp.route('/<int:sim_id>/status', methods=['GET'])
 def get_status(sim_id):
@@ -81,8 +92,9 @@ def get_status(sim_id):
     return jsonify({
         "status": sim.status,
         "progress": sim.progress,
-        "error_message": sim.error_message   # новое поле
+        "error_message": sim.error_message
     })
+
 
 # ================= НАЧАЛЬНЫЕ УСЛОВИЯ =================
 @ic_bp.route('/api/list', methods=['GET'])
@@ -118,6 +130,7 @@ def ic_create():
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @ic_bp.route('/<int:ic_id>', methods=['DELETE'])
 def ic_delete(ic_id):
     service = get_service()
@@ -128,6 +141,7 @@ def ic_delete(ic_id):
     except Exception as e:
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
+
 
 @ic_bp.route('/api/<int:ic_id>', methods=['GET'])
 def get_initial_condition(ic_id):
@@ -239,6 +253,7 @@ def update_initial_condition(ic_id):
         session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/api/simulations', methods=['GET'])
 def get_simulations_api():
     from ..utils.database import get_db_session
@@ -248,7 +263,6 @@ def get_simulations_api():
     result = []
     for s in sims:
         has_vtk = any(r.file_type == 'vtk' for r in s.results)
-        # Для сборки показываем имя сборки, для одиночной — имя лопатки
         object_name = '—'
         if s.blade_assembly_id:
             assembly = session.get(BladeAssembly, s.blade_assembly_id)
@@ -267,10 +281,12 @@ def get_simulations_api():
         })
     return jsonify(result)
 
+
 @sim_bp.route('/<int:sim_id>/log')
 def get_simulation_log(sim_id):
     """Возвращает содержимое console.log для симуляции"""
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
     log_path = os.path.join(sim_dir, "console.log")
     if not os.path.exists(log_path):
         return jsonify({"error": "Лог не найден"}), 404
@@ -281,14 +297,14 @@ def get_simulation_log(sim_id):
 
 @sim_bp.route('/<int:sim_id>/result/<file_type>')
 def download_result_file(sim_id, file_type):
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
 
-    # Маппинг типов файлов
     file_map = {
-        'vtk':     'result.vtk',
-        'tfout':   'TFout.csv',
+        'vtk': 'result.vtk',
+        'tfout': 'TFout.csv',
         'profout': 'Profout.csv',
-        'tsout':   'TSout.csv',
+        'tsout': 'TSout.csv',
         'tepsout': 'TEpsout.csv',
         'gauss_params': 'gauss_params.csv'
     }
@@ -304,6 +320,7 @@ def download_result_file(sim_id, file_type):
     return send_file(file_path, as_attachment=True,
                      download_name=f"{file_type}_{sim_id}{os.path.splitext(file_map[file_type])[1]}")
 
+
 # ================= УДАЛЕНИЕ СИМУЛЯЦИЙ =================
 @sim_bp.route('/<int:sim_id>', methods=['DELETE'])
 def delete_simulation(sim_id):
@@ -316,6 +333,7 @@ def delete_simulation(sim_id):
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/failed', methods=['DELETE'])
 def delete_failed_simulations():
     service = get_service()
@@ -327,6 +345,7 @@ def delete_failed_simulations():
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 # ================= СТРАНИЦА РЕЗУЛЬТАТОВ И ГРАФИКИ =================
 @sim_bp.route('/<int:sim_id>/results')
 def results_page(sim_id):
@@ -334,8 +353,8 @@ def results_page(sim_id):
     sim = service.session.get(Simulation, sim_id)
     if not sim:
         abort(404)
-    # Передаём в шаблон ID и название
     return render_template('results.html', simulation_id=sim_id, simulation_name=sim.name)
+
 
 @sim_bp.route('/<int:sim_id>/plots')
 def get_plots(sim_id):
@@ -350,10 +369,10 @@ def get_plots(sim_id):
 
 @sim_bp.route('/<int:sim_id>/files')
 def get_result_files(sim_id):
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
     files = []
 
-    # Определяем возможные файлы и их описания
     candidates = [
         ('result.vtk', 'Файл VTK', 'vtk'),
         ('TFout.csv', 'Температура по контуру (TFout.csv)', 'csv'),
@@ -369,6 +388,7 @@ def get_result_files(sim_id):
             files.append({'name': filename, 'description': description, 'category': category})
 
     return jsonify(files)
+
 
 @sim_bp.route('/<int:sim_id>/run', methods=['POST'])
 def run_simulation(sim_id):
@@ -392,7 +412,7 @@ def run_simulation(sim_id):
 def download_edp(sim_id):
     """Скачать .edp файл"""
     service = get_service()
-    sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+    sim_dir = get_sim_dir(service, sim_id)
     edp_path = os.path.join(sim_dir, "blade_sim.edp")
     if not os.path.exists(edp_path):
         return jsonify({"error": "Файл не найден"}), 404
@@ -408,7 +428,7 @@ def run_local(sim_id):
 
     service = get_service()
     try:
-        sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+        sim_dir = get_sim_dir(service, sim_id)
         edp_path = os.path.join(sim_dir, "blade_sim.edp")
 
         if not os.path.exists(edp_path):
@@ -487,6 +507,7 @@ def run_local(sim_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/<int:sim_id>/reset_status', methods=['POST'])
 def reset_simulation_status(sim_id):
     """Сбросить статус расчёта (для перезапуска)"""
@@ -507,22 +528,33 @@ def reset_simulation_status(sim_id):
 
 @sim_bp.route('/<int:sim_id>/check_completion', methods=['POST'])
 def check_completion_manual(sim_id):
-    """Ручная проверка завершения расчёта по наличию result.vtk"""
+    """Ручная проверка завершения расчёта по наличию ожидаемых файлов"""
     service = get_service()
     try:
-        sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
-        vtk_path = os.path.join(sim_dir, "result.vtk")
+        sim_dir = get_sim_dir(service, sim_id)
 
         sim = service.session.get(Simulation, sim_id)
         if not sim:
             return jsonify({"error": "Симуляция не найдена"}), 404
 
-        if os.path.exists(vtk_path) and sim.status == 'running':
-            sim.status = "completed"
-            sim.progress = 100
-            service.session.commit()
-            return jsonify({"status": "completed", "message": "Расчёт завершён!"}), 200
-        elif sim.status == 'completed':
+        expected_files = service._get_expected_output_files(sim.task_type)
+
+        if not expected_files:
+            # Для задачи 1 считаем завершённой, если процесс не в running
+            if sim.status == 'running':
+                sim.status = "completed"
+                sim.progress = 100
+                service.session.commit()
+                return jsonify({"status": "completed", "message": "Расчёт завершён!"}), 200
+        else:
+            all_exist = all(os.path.exists(os.path.join(sim_dir, f)) for f in expected_files)
+            if all_exist and sim.status == 'running':
+                sim.status = "completed"
+                sim.progress = 100
+                service.session.commit()
+                return jsonify({"status": "completed", "message": "Расчёт завершён!"}), 200
+
+        if sim.status == 'completed':
             return jsonify({"status": "completed", "message": "Расчёт уже завершён"}), 200
         else:
             return jsonify({"status": sim.status, "message": "Расчёт ещё не завершён"}), 200
@@ -539,13 +571,16 @@ def reset_simulation(sim_id):
         if not sim:
             return jsonify({"error": "Симуляция не найдена"}), 404
 
-        sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+        sim_dir = get_sim_dir(service, sim_id)
         if os.path.exists(sim_dir):
-            # Удаляем все CSV, EPS, VTK, LOG файлы, но оставляем .edp
+            # Удаляем только файлы результатов, НЕ трогаем out_L.csv и .edp
             for fname in os.listdir(sim_dir):
+                # Исключаем out_L.csv и blade_sim.edp
+                if fname in ['out_L.csv', 'blade_sim.edp']:
+                    continue
                 if fname.endswith(('.csv', '.eps', '.vtk', '.log')):
                     os.remove(os.path.join(sim_dir, fname))
-            # Также удаляем папку plots, если она есть
+            # Удаляем папку plots, если она есть
             plots_dir = os.path.join(sim_dir, "plots")
             if os.path.exists(plots_dir):
                 import shutil

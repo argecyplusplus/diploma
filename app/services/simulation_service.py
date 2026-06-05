@@ -21,7 +21,7 @@ from ..models.blade import (
     ProfileCoordinate
 )
 from ..models.material import Material, ElValue
-from ..utils.database import get_db_session
+from ..utils.database import get_db_session, get_current_db
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,14 @@ class SimulationService:
     def __init__(self, session: Session):
         self.session = session
         self.repo = SimulationRepository(session)
-        self.upload_dir = os.path.join(os.getcwd(), 'uploads', 'simulations')
+        # Определяем имя активной БД
+        self.db_name = get_current_db()
+        if not self.db_name:
+            raise RuntimeError("База данных не выбрана")
+        # Папка для симуляций конкретной БД
+        self.upload_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', self.db_name)
         os.makedirs(self.upload_dir, exist_ok=True)
+        logger.info(f"Сервис симуляций инициализирован для БД: {self.db_name}, папка: {self.upload_dir}")
 
     def create_initial_condition(self, data: InitialConditionCreateRequest) -> int:
         ic_data = data.model_dump()
@@ -191,14 +197,13 @@ class SimulationService:
         if task_type == TaskType.TASK1.value:
             return []  # для задачи 1 нет обязательных CSV файлов
         elif task_type == TaskType.TASK2.value:
-            return ["TFout.csv", "Profout.csv"]
+            return ["Profout.csv"]  # ТОЛЬКО Profout.csv (TFout.csv не создаётся)
         elif task_type == TaskType.TASK3.value:
             return ["Profout.csv", "TSout.csv", "TEpsout.csv"]
         elif task_type == TaskType.TASK4.value:
-            # Замените на реальные имена файлов, которые создаёт ваш шаблон для задачи 4
-            return ["tlT.csv", "LT.csv"]  # или ["Temperatures.csv", "HeatFlux.csv"]
+            return ["tlT.csv", "LT.csv"]
         else:
-            return ["result.vtk"]  # запасной вариант
+            return ["result.vtk"]
 
     def _create_single_simulation(self, data: SimulationCreateRequest) -> int:
         self._ensure_approximation(data.blade_id)
@@ -324,7 +329,7 @@ class SimulationService:
                     repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
 
                 if sim.task_type == TaskType.TASK2.value:
-                    for csv_file in ["TFout.csv", "Profout.csv"]:
+                    for csv_file in ["Profout.csv"]:  # Убрать TFout.csv
                         csv_path = os.path.join(sim_dir, csv_file)
                         if os.path.exists(csv_path):
                             repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
@@ -629,7 +634,7 @@ class SimulationService:
 
         # ========== Для задач 2 и 3 используем единый шаблон ==========
         if task_type in (TaskType.TASK2, TaskType.TASK3):
-            template_name = "task23_assembly.edp.template"
+            template_name = "task23.edp.template"
             replacements.update({
                 "Time": str(time_params.time if time_params and time_params.time else 1.0),
                 "dt": str(time_params.dt if time_params else 0.05),
