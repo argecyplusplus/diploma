@@ -1,16 +1,22 @@
+import logging
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete
+
 from ..models.blade import Blade, ProfileCoordinate, Approximation, ApproximationParameter, LegendreCoefficient, TransformedCoordinate, BladeAssembly
 from ..utils.approximation_math import Lezh, calc_L, R2, transform_coordinates, inverse_transform
 import numpy as np
 
+logger = logging.getLogger(__name__)
 
 class ApproximationService:
     def __init__(self, session: Session):
         self.session = session
 
+    # В файл approximation_service.py добавить/исправить:
+
     def execute_approximation(self, blade_id: int) -> Dict[str, Any]:
+        """Аппроксимация одной лопатки (как в WGKM_L5.py)"""
         stmt = select(ProfileCoordinate).where(ProfileCoordinate.blade_id == blade_id)
         coords = self.session.scalars(stmt).all()
         if not coords:
@@ -24,12 +30,13 @@ class ApproximationService:
         x_u, y_u = np.array([p[0] for p in upper]), np.array([p[1] for p in upper])
         x_l, y_l = np.array([p[0] for p in lower]), np.array([p[1] for p in lower])
 
-        x_u_t, y_u_t, x_l_t, y_l_t, _ = transform_coordinates(x_u, y_u, x_l, y_l)
+        # Трансформация координат (как в эталоне)
+        x_u_t, y_u_t, x_l_t, y_l_t, tr_params = transform_coordinates(x_u, y_u, x_l, y_l)
 
-        approx_stmt = select(Approximation).where(Approximation.blade_id == blade_id)
-        old_approx = self.session.scalars(approx_stmt).first()
+        # Удаляем старую аппроксимацию
+        old_approx = self.session.scalar(select(Approximation).where(Approximation.blade_id == blade_id))
         if old_approx:
-            self.session.execute(delete(Approximation).where(Approximation.blade_id == blade_id))
+            self.session.delete(old_approx)
             self.session.flush()
 
         approx = Approximation(blade_id=blade_id, type='legendre_9')
@@ -37,46 +44,88 @@ class ApproximationService:
         self.session.flush()
         aid = approx.approximation_id
 
+        # Сохраняем преобразованные координаты
         for x, y in zip(x_u_t, y_u_t):
-            self.session.add(TransformedCoordinate(approximation_id=aid, profile_type='upper', x_transformed=float(x), y_transformed=float(y)))
+            self.session.add(TransformedCoordinate(
+                approximation_id=aid, profile_type='upper',
+                x_transformed=float(x), y_transformed=float(y)
+            ))
         for x, y in zip(x_l_t, y_l_t):
-            self.session.add(TransformedCoordinate(approximation_id=aid, profile_type='lower', x_transformed=float(x), y_transformed=float(y)))
+            self.session.add(TransformedCoordinate(
+                approximation_id=aid, profile_type='lower',
+                x_transformed=float(x), y_transformed=float(y)
+            ))
 
+        # Вычисляем коэффициенты Лежандра
         L_u = calc_L(x_u_t, y_u_t)
         L_l = calc_L(x_l_t, y_l_t)
         if L_u is None or L_l is None:
             raise ValueError("Ошибка вычисления коэффициентов (матрица вырождена)")
 
-        for i in range(len(L_u)):
-            self.session.add(LegendreCoefficient(approximation_id=aid, upper_value=float(L_u[i]), lower_value=float(L_l[i])))
+        # Сохраняем 10 коэффициентов для верхнего и нижнего профиля
+        for i in range(10):
+            upper_val = float(L_u[i]) if i < len(L_u) else 0.0
+            lower_val = float(L_l[i]) if i < len(L_l) else 0.0
+            self.session.add(LegendreCoefficient(
+                approximation_id=aid,
+                upper_value=upper_val,
+                lower_value=lower_val
+            ))
 
+        # Параметры аппроксимации (R², максимумы)
         y_u_calc = np.dot(L_u, Lezh(x_u_t))
-        self.session.add(ApproximationParameter(approximation_id=aid, profile_type='upper',
-            max_profile_value=float(np.max(y_u_calc)), x_coordinate_max=float(x_u_t[np.argmax(y_u_calc)]), r_squared=float(R2(y_u_calc, y_u_t))))
-
         y_l_calc = np.dot(L_l, Lezh(x_l_t))
-        self.session.add(ApproximationParameter(approximation_id=aid, profile_type='lower',
-            max_profile_value=float(np.max(y_l_calc)), x_coordinate_max=float(x_l_t[np.argmax(y_l_calc)]), r_squared=float(R2(y_l_calc, y_l_t))))
+
+        self.session.add(ApproximationParameter(
+            approximation_id=aid, profile_type='upper',
+            max_profile_value=float(np.max(y_u_calc)),
+            x_coordinate_max=float(x_u_t[np.argmax(y_u_calc)]),
+            r_squared=float(R2(y_u_calc, y_u_t))
+        ))
+        self.session.add(ApproximationParameter(
+            approximation_id=aid, profile_type='lower',
+            max_profile_value=float(np.max(y_l_calc)),
+            x_coordinate_max=float(x_l_t[np.argmax(y_l_calc)]),
+            r_squared=float(R2(y_l_calc, y_l_t))
+        ))
 
         self.session.flush()
         return {"approximation_id": aid, "message": "Аппроксимация выполнена успешно"}
 
     def execute_assembly_approximation(self, assembly_id: int) -> Dict[str, Any]:
+        """
+        Аппроксимация сборки (ровно две лопатки).
+        Первая лопатка (описание 'outer') — внешняя.
+        Вторая лопатка (описание 'inner') — внутренняя полость.
+        """
         assembly = self.session.get(BladeAssembly, assembly_id)
         if not assembly:
             raise ValueError("Сборка не найдена")
-        members = list(assembly.members)
+
+        members = sorted(
+            list(assembly.members),
+            key=lambda m: (
+                0 if (m.description or '').lower() == 'outer' else
+                1 if (m.description or '').lower() == 'inner' else
+                2,
+                m.blade_assembly_members_id
+            )
+        )
+
         if len(members) != 2:
             raise ValueError("Сборка должна содержать ровно две лопатки: внешнюю и внутреннюю")
 
         outer_blade = members[0].blade
         inner_blade = members[1].blade
-        if not outer_blade or not inner_blade:
-            raise ValueError("Не удалось загрузить лопатки сборки")
 
+        # Выполняем аппроксимацию для каждой лопатки
         outer_result = self._approx_single_blade_full(outer_blade.blade_id, outer_blade.name)
         inner_result = self._approx_single_blade_full(inner_blade.blade_id, inner_blade.name)
 
+        # Сохраняем коэффициенты в файл (как в эталоне)
+        self._save_assembly_coeffs_to_file(assembly.name, outer_result, inner_result)
+
+        # Генерируем комбинированный график
         combined_plot = self._generate_combined_plot(outer_result, inner_result, assembly.name)
 
         return {
@@ -85,6 +134,32 @@ class ApproximationService:
             "inner": inner_result,
             "plot": combined_plot
         }
+
+    def _save_assembly_coeffs_to_file(self, assembly_name: str, outer_result: Dict, inner_result: Dict):
+        """Сохраняет коэффициенты Лежандра в файл out_L_{name}.csv в формате эталона"""
+        from pathlib import Path
+
+        # Создаём директорию out_files если её нет
+        out_dir = Path(__file__).parent.parent.parent / "out_files"
+        out_dir.mkdir(exist_ok=True)
+
+        filename = out_dir / f"out_L_{assembly_name}.csv"
+
+        with open(filename, 'w', encoding='utf-8') as f:
+            # Внешняя лопатка: верхний профиль
+            upper_outer = [str(c['upper']) for c in outer_result['legendre_coeffs']]
+            f.write(" ".join(upper_outer) + "\n")
+            # Внешняя лопатка: нижний профиль
+            lower_outer = [str(c['lower']) for c in outer_result['legendre_coeffs']]
+            f.write(" ".join(lower_outer) + "\n")
+            # Внутренняя лопатка: верхний профиль
+            upper_inner = [str(c['upper']) for c in inner_result['legendre_coeffs']]
+            f.write(" ".join(upper_inner) + "\n")
+            # Внутренняя лопатка: нижний профиль
+            lower_inner = [str(c['lower']) for c in inner_result['legendre_coeffs']]
+            f.write(" ".join(lower_inner) + "\n")
+
+        logger.info(f"Сохранены коэффициенты сборки в {filename}")
 
     def _approx_single_blade_full(self, blade_id: int, blade_name: str) -> Dict[str, Any]:
         """
@@ -265,3 +340,38 @@ class ApproximationService:
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
         plt.close()
         return f"data:image/png;base64,{img_b64}"
+
+    def save_single_blade_coeffs_to_file(self, blade_id: int, blade_name: str) -> str:
+        """Сохраняет коэффициенты Лежандра для одной лопатки в файл out_L_{blade_name}.csv"""
+        from pathlib import Path
+
+        approx = self.session.scalar(
+            select(Approximation).where(Approximation.blade_id == blade_id)
+            .order_by(Approximation.approximation_id.desc())
+        )
+        if not approx:
+            raise ValueError(f"Аппроксимация для лопатки {blade_name} не найдена")
+
+        coeffs = self.session.scalars(
+            select(LegendreCoefficient).where(LegendreCoefficient.approximation_id == approx.approximation_id)
+            .order_by(LegendreCoefficient.legendre_coefficients_id)
+        ).all()
+
+        if len(coeffs) < 10:
+            raise ValueError(f"Недостаточно коэффициентов (найдено {len(coeffs)}, требуется 10)")
+
+        out_dir = Path(__file__).parent.parent.parent / "out_files"
+        out_dir.mkdir(exist_ok=True)
+
+        filename = out_dir / f"out_L_{blade_name}.csv"
+
+        with open(filename, 'w', encoding='utf-8') as f:
+            # Строка 1: верхний профиль
+            upper_vals = " ".join(f"{c.upper_value:.15f}" for c in coeffs[:10])
+            f.write(upper_vals + "\n")
+            # Строка 2: нижний профиль
+            lower_vals = " ".join(f"{c.lower_value:.15f}" for c in coeffs[:10])
+            f.write(lower_vals + "\n")
+
+        logger.info(f"Сохранены коэффициенты лопатки {blade_name} в {filename}")
+        return str(filename)

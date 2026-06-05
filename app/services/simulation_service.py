@@ -333,7 +333,7 @@ class SimulationService:
 
         coeffs = self._get_blade_legendre_coeffs(sim.blade_id)
 
-        coeffs_csv = os.path.join(sim_dir, "out_L_blade.csv")
+        coeffs_csv = os.path.join(sim_dir, "out_L.csv")
         self._write_coeffs_csv(
             coeffs_csv,
             [c.upper_value for c in coeffs],
