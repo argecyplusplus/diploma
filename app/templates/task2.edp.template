@@ -141,7 +141,7 @@ int Nplot={{Nplot}};
 int dNplot = Niter/Nplot;
 
 fespace Vh(Th, P2);
-Vh T=T0(), T00=T0(), v, Told, u1, u2, uu, vv, Sig1,Sig2,Sig12, Eps1, Eps2, Eps12;
+Vh T=T0(), T00=T0(), v, Told;
 
 problem thermic(T, v)
     = int2d(Th)( T*v/dt + a0()*(dx(T)*dx(v)+dy(T)*dy(v)) )
@@ -166,6 +166,25 @@ Vh Tsteel=T*(region==steel);
 Vh Tair=T*(region==air);
 cout<<"max T steel= "<<Tsteel[].max<<endl;
 cout<<"max T air= "<<Tair[].max<<endl;
+
+// ========== Параметры вывода ==========
+real delt={{delt}};
+real Npt={{Npt}};
+real dt1 = 1./Npt;
+
+// ========== Вывод Profout.csv (профиль лопатки) ==========
+ofstream ff0("Profout.csv");
+for(real tt = 1; tt >= 0; tt -= dt1) {
+    real x0c = ContUp(0., tt, dt1)(0);
+    real y0Up = ContUp(0., tt, dt1)(1);
+    real y0Lw = ContLw(0., tt, dt1)(1);
+    real xdc = ContUp(delt, tt, dt1)(0);
+    real ydUp = ContUp(delt, tt, dt1)(1);
+    real ydLw = ContLw(-delt, tt, dt1)(1);
+    if (ydUp > ydLw) {
+        ff0 << x0c << " " << y0Up << " " << y0Lw << " " << xdc << " " << ydUp << " " << ydLw << endl;
+    }
+}
 
 // ========== Вывод TFout.csv (температура по контуру) ==========
 ofstream ffT("TFout.csv");
