@@ -70,7 +70,6 @@ function syncActiveTaskCard() {
     });
 }
 
-// Удаление одной симуляции
 async function deleteSimulation(simId) {
     if (!confirm('Удалить расчёт и все связанные файлы?')) return;
     try {
@@ -87,7 +86,6 @@ async function deleteSimulation(simId) {
     }
 }
 
-// Очистка неудачных симуляций
 async function cleanFailedSimulations() {
     if (!confirm('Удалить все расчёты со статусом "failed"?')) return;
     try {
@@ -111,7 +109,6 @@ function viewResults(simId) {
 
 // ===== ЗАПУСК РАСЧЁТА ПО КНОПКЕ =====
 async function runSimulation(simId) {
-    // Сначала получаем тип задачи
     let taskType = null;
     try {
         const res = await fetch('/simulation/api/simulations');
@@ -209,7 +206,6 @@ async function loadObjectSelect() {
         const blades = bladesRes.ok ? await bladesRes.json() : [];
         const assemblies = assembliesRes.ok ? await assembliesRes.json() : [];
 
-        // Сохраняем исходные данные для последующей фильтрации
         window._allBlades = blades;
         window._allAssemblies = assemblies;
 
@@ -229,12 +225,10 @@ function updateObjectSelectOptions() {
     const isTask1 = taskType.value === 'task1';
 
     if (isTask1) {
-        // Задача 1: только лопатки
         window._allBlades.forEach(b => {
             options += `<option value="blade_${b.blade_id}" data-type="blade" data-id="${b.blade_id}">Лопатка: ${escapeHtml(b.name)}</option>`;
         });
     } else {
-        // Задачи 2,3,4: только объединения (сборки)
         window._allAssemblies.forEach(a => {
             options += `<option value="assembly_${a.blade_assembly_id}" data-type="assembly" data-id="${a.blade_assembly_id}">Объединение: ${escapeHtml(a.name)}</option>`;
         });
@@ -250,11 +244,9 @@ function updateObjectHint() {
     const small = document.getElementById('objectHint');
     if (taskType.value === 'task1') {
         if (small) small.innerText = ' (доступны только лопатки)';
-        // Если выбран объект-объединение – сбрасываем
         if (select.value && select.value.startsWith('assembly_')) select.value = '';
     } else {
         if (small) small.innerText = ' (доступны только объединения)';
-        // Если выбран объект-лопатка – сбрасываем
         if (select.value && select.value.startsWith('blade_')) select.value = '';
     }
 }
@@ -349,12 +341,10 @@ async function loadSimulationsList() {
             const deleteBtn = `<button class="btn-delete btn-sm" onclick="deleteSimulation(${s.simulation_id})">Удалить</button>`;
             const resetBtn = `<button class="btn-warning btn-sm" onclick="resetSimulation(${s.simulation_id})">Сбросить</button>`;
 
-            // Кнопка Моделировать показывается для статусов: pending, failed, completed (можно перезапустить)
             const canRun = (s.status === 'pending' || s.status === 'failed' || s.status === 'completed');
             const runBtn = canRun ?
                 `<button class="btn-run" onclick="runSimulation(${s.simulation_id})">Моделировать</button>` : '';
 
-            // Кнопка "В папку" ТОЛЬКО для статуса running
             const folderBtn = (s.status === 'running') ?
                 `<button class="btn-folder" onclick="openSimulationFolder(${s.simulation_id})">В папку</button>` : '';
 
@@ -475,7 +465,6 @@ async function createSimulation(e) {
         const simId = data.id;
         currentSimId = simId;
 
-        // Показываем модалку с успешным созданием
         const modal = document.createElement('div');
         modal.className = 'modal-overlay active';
         modal.innerHTML = `
@@ -555,7 +544,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.runSimulation = runSimulation;
 });
 
-// escapeHtml
 if (typeof escapeHtml !== 'function') {
     window.escapeHtml = function(text) {
         if (!text) return '';
@@ -565,7 +553,6 @@ if (typeof escapeHtml !== 'function') {
     };
 }
 
-// Добавить в конец файла
 async function resetSimulation(simId) {
     if (!confirm('Сбросить статус расчёта? Это позволит запустить его заново.')) return;
     try {

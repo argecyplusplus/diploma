@@ -324,9 +324,7 @@ class StressOutputParameter(Base):
         return f"<StressOutputParameter(id={self.stress_output_parameters_id}, coef={self.coef})>"
 
 
-# ================= НОВЫЕ ТАБЛИЦЫ ДЛЯ ЗАДАЧИ 4 =================
-
-# Таблица 29: Gas_flow_parameters (Параметры газового потока для задачи 4)
+# Таблица 29: Gas_flow_parameters
 class GasFlowParameter(Base):
     __tablename__ = 'gas_flow_parameters'
 
@@ -350,7 +348,7 @@ class GasFlowParameter(Base):
         return f"<GasFlowParameter(id={self.gas_flow_parameters_id})>"
 
 
-# Таблица 30: Material_properties (Свойства материала лопатки для задачи 4)
+# Таблица 30: Material_properties
 class MaterialProperty(Base):
     __tablename__ = 'material_properties'
 
@@ -372,7 +370,7 @@ class MaterialProperty(Base):
         return f"<MaterialProperty(id={self.material_properties_id})>"
 
 
-# Таблица 31: Gas_properties (Свойства газа для задачи 4)
+# Таблица 31: Gas_properties 
 class GasProperty(Base):
     __tablename__ = 'gas_properties'
 

@@ -202,15 +202,12 @@ def save_assembly_approx_files(assembly_name):
         ).all()
         if len(coeffs) < 10: continue
 
-        # Верхний профиль (upper) - одна строка
         upper_vals = " ".join(f"{c.upper_value:.15f}" for c in coeffs[:10])
         out_lines.append(upper_vals)
 
-        # Нижний профиль (lower) - одна строка
         lower_vals = " ".join(f"{c.lower_value:.15f}" for c in coeffs[:10])
         out_lines.append(lower_vals)
 
-        # Параметры аппроксимации
         params = session.scalars(
             select(ApproximationParameter).where(ApproximationParameter.approximation_id == approx.approximation_id)
         ).all()
@@ -219,7 +216,6 @@ def save_assembly_approx_files(assembly_name):
 
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # ИСПРАВИТЬ: out_L_{assembly_name}.csv (без слова assembly)
         zipf.writestr(f"out_L_{assembly_name}.csv", "\n".join(out_lines))
         zipf.writestr(f"params_L_{assembly_name}.csv", "\n".join(params_lines))
 

@@ -17,7 +17,6 @@ async function getSimulationInfo() {
     }
 }
 
-// Функция открытия папки
 async function openSimulationFolder() {
     try {
         const res = await fetch(`/simulation/${simId}/open_folder`, { method: 'POST' });

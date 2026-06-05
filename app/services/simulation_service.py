@@ -14,7 +14,7 @@ from ..models.simulation import (
     Simulation, InitialCondition, ConstructionParameter, PotentialFlowParameter,
     BoundaryIdentifier, BladeChord, TimeParameter, InitialTemperature,
     ElasticityParameter, StressOutputParameter,
-    GasFlowParameter, MaterialProperty, GasProperty  # добавлено для задачи 4
+    GasFlowParameter, MaterialProperty, GasProperty  
 )
 from ..models.blade import (
     Approximation, LegendreCoefficient, BladeAssembly,
@@ -30,11 +30,9 @@ class SimulationService:
     def __init__(self, session: Session):
         self.session = session
         self.repo = SimulationRepository(session)
-        # Определяем имя активной БД
         self.db_name = get_current_db()
         if not self.db_name:
             raise RuntimeError("База данных не выбрана")
-        # Папка для симуляций конкретной БД
         self.upload_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', self.db_name)
         os.makedirs(self.upload_dir, exist_ok=True)
         logger.info(f"Сервис симуляций инициализирован для БД: {self.db_name}, папка: {self.upload_dir}")
@@ -163,7 +161,7 @@ class SimulationService:
 
         sim_data = {
             'name': data.name,
-            'blade_id': outer_blade.blade_id,  # внешняя лопатка — основная ссылка
+            'blade_id': outer_blade.blade_id, 
             'blade_assembly_id': data.assembly_id,
             'initial_conditions_id': data.initial_conditions_id,
             'task_type': data.task_type.value,
@@ -195,7 +193,7 @@ class SimulationService:
     def _get_expected_output_files(self, task_type: str) -> list:
         """Возвращает список имён файлов, которые должны появиться после успешного расчёта для данной задачи."""
         if task_type == TaskType.TASK1.value:
-            return []  # для задачи 1 нет обязательных CSV файлов
+            return [] 
         elif task_type == TaskType.TASK2.value:
             return ["Profout.csv", "TFout.csv"]
         elif task_type == TaskType.TASK3.value:
@@ -293,7 +291,6 @@ class SimulationService:
 
             result = self._run_freefem(edp_path, sim_dir)
 
-            # Сохраняем лог в любом случае
             log_path = os.path.join(sim_dir, "console.log")
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.write(result.get('stdout', '') + '\n--- STDERR ---\n' + result.get('stderr', ''))
@@ -301,10 +298,8 @@ class SimulationService:
             repo = SimulationRepository(session)
             repo.add_result(sim_id, "log", log_path, "FreeFEM++ console output")
 
-            # Определяем статус на основе успешности выполнения и наличия ожидаемых файлов
             if result['success']:
                 expected_files = self._get_expected_output_files(sim.task_type)
-                # Для задачи 1 (нет ожидаемых файлов) достаточно успешного завершения
                 if not expected_files:
                     sim.status = "completed"
                     sim.progress = 100
@@ -322,7 +317,6 @@ class SimulationService:
                 sim.error_message = result.get('stderr') or result.get('error') or "FreeFEM завершился с ошибкой"
                 logger.error(f"❌ Симуляция {sim_id} ошибка: {sim.error_message}")
 
-            # Если расчёт успешен, добавляем в БД найденные файлы (VTK и CSV)
             if sim.status == "completed":
                 vtk_path = os.path.join(sim_dir, "result.vtk")
                 if os.path.exists(vtk_path):
@@ -341,8 +335,7 @@ class SimulationService:
                             repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
 
                 if sim.task_type == TaskType.TASK4.value:
-                    # Замените на реальные имена файлов, которые создаёт задача 4
-                    for csv_file in ["tlT.csv", "LT.csv"]:  # или ["Temperatures.csv", "HeatFlux.csv"]
+                    for csv_file in ["tlT.csv", "LT.csv"]:
                         csv_path = os.path.join(sim_dir, csv_file)
                         if os.path.exists(csv_path):
                             repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
@@ -399,12 +392,10 @@ class SimulationService:
             "rho": str(sim.materials[0].material.density if sim.materials else 1.0),
         }
 
-        # Получаем материал для задачи 4
         material_props = self.session.scalar(
             select(MaterialProperty).where(MaterialProperty.initial_conditions_id == ic_id)
         )
 
-        # ИСПРАВЛЕНО: TaskType.TASK1, TASK2, TASK3, TASK4
         if task_type == TaskType.TASK1:
             template_name = "task1.edp.template"
             time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
@@ -428,7 +419,6 @@ class SimulationService:
             stress_out = self.session.scalar(
                 select(StressOutputParameter).where(StressOutputParameter.initial_conditions_id == ic_id))
 
-            # Получаем температуропроводность из БД
             if material_props:
                 a_steel = material_props.a_steel if material_props.a_steel is not None else 12.54
                 a_air = material_props.a_air if material_props.a_air is not None else 21.02
@@ -468,7 +458,6 @@ class SimulationService:
                 )
             E_steel = ei_value.value if ei_value else 2.1e5
 
-            # Получаем температуропроводность из БД
             if material_props:
                 a_steel = material_props.a_steel if material_props.a_steel is not None else 12.54
                 a_air = material_props.a_air if material_props.a_air is not None else 21.02
@@ -585,7 +574,6 @@ class SimulationService:
             "NSpm": str(NSpm),
         }
 
-        # Общие данные для задач 2,3,4
         time_params = self.session.scalar(select(TimeParameter).where(TimeParameter.initial_conditions_id == ic_id))
         init_temp = self.session.scalar(
             select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id))
@@ -593,7 +581,6 @@ class SimulationService:
             select(StressOutputParameter).where(StressOutputParameter.initial_conditions_id == ic_id))
         material = sim.materials[0].material if sim.materials else None
 
-        # Данные для тепловой и упругой частей
         material_props = self.session.scalar(
             select(MaterialProperty).where(MaterialProperty.initial_conditions_id == ic_id))
         a_steel = 12.54
@@ -602,14 +589,12 @@ class SimulationService:
             a_steel = material_props.a_steel if material_props.a_steel is not None else 12.54
             a_air = material_props.a_air if material_props.a_air is not None else 21.02
 
-        # Начальные температуры для стали и воздуха (берём из InitialTemperature)
         init_temps = {t.material_id: t.value for t in
                       self.session.scalars(
                           select(InitialTemperature).where(InitialTemperature.initial_conditions_id == ic_id)).all()}
-        T_initial_steel = init_temps.get(1, 250.0)  # material_id=1 - сталь
-        T_initial_air = init_temps.get(2, 25.0)  # material_id=2 - воздух
+        T_initial_steel = init_temps.get(1, 250.0)  
+        T_initial_air = init_temps.get(2, 25.0) 
 
-        # Параметры упругости
         elastic = self.session.scalar(
             select(ElasticityParameter).where(ElasticityParameter.initial_conditions_id == ic_id))
         b = elastic.b if elastic else 1.0
@@ -628,7 +613,6 @@ class SimulationService:
             if ei_value:
                 E_steel = ei_value.value
 
-        # Общие параметры вывода
         delt = stress_out.delt if stress_out else 0.4
         Npt = stress_out.Npt if stress_out else 200.0
 
@@ -673,7 +657,7 @@ class SimulationService:
             })
             os.makedirs(os.path.join(sim_dir, "plots"), exist_ok=True)
 
-        # ========== Задача 4 использует свой шаблон ==========
+        # ========== Задача 4 ==========
         elif task_type == TaskType.TASK4:
             template_name = "task4.edp.template"
             gas_flow = self.session.scalar(
@@ -876,7 +860,6 @@ class SimulationService:
 
         # ================= ЗАДАЧА 2: ТЕПЛОВОЕ ПОЛЕ =================
         elif task_type == 'task2':
-            # График профиля лопатки (как в задаче 3)
             prof_path = os.path.join(sim_dir, "Profout.csv")
             if os.path.exists(prof_path):
                 try:
@@ -899,7 +882,6 @@ class SimulationService:
                 except Exception as e:
                     logger.error(f"Ошибка при построении профиля лопатки: {e}")
 
-            # График распределения температуры по контуру
             tf_path = os.path.join(sim_dir, "TFout.csv")
             logger.info(f"[task2] Ищем TFout.csv: {tf_path}, exists={os.path.exists(tf_path)}")
             if os.path.exists(tf_path):
@@ -908,7 +890,6 @@ class SimulationService:
                     if data.ndim == 1:
                         data = data.reshape(1, -1)
                     x_coords = data[:, 0]
-                    # В TFout.csv 3 столбца: x, T_up, T_lw
                     T_up = data[:, 1]
                     T_lw = data[:, 2]
                     plt.figure(figsize=(8, 5))
@@ -1002,19 +983,6 @@ class SimulationService:
                     plt.close()
                 except Exception as e:
                     logger.error(f"Ошибка при обработке TSout.csv: {e}")
-
-            # for sig_file, sig_name in [("sig1.eps", "Напряжение σ₁"), ("sig2.eps", "Напряжение σ₂"),
-            #                            ("sig12.eps", "Напряжение σ₁₂")]:
-            #     eps = os.path.join(sim_dir, "plots", sig_file)
-            #     if os.path.exists(eps):
-            #         try:
-            #             img = Image.open(eps)
-            #             png_file = eps.replace('.eps', '.png')
-            #             img.save(png_file, 'PNG')
-            #             with open(png_file, 'rb') as f:
-            #                 plots[sig_name] = base64.b64encode(f.read()).decode('utf-8')
-            #         except Exception as e:
-            #             logger.warning(f"Не удалось конвертировать {eps}: {e}")
 
         # ================= ЗАДАЧА 4: ПЕРЕХОДНЫЕ ТЕПЛОВЫЕ ПРОЦЕССЫ =================
         elif task_type == 'task4':
@@ -1164,10 +1132,8 @@ class SimulationService:
         logger.info(f"=== _generate_task4_plots: НАЧАЛО ===")
         logger.info(f"sim_dir = {sim_dir}")
 
-        # Сначала ищем в папке симуляции
         gauss_file = os.path.join(sim_dir, 'gauss_params.csv')
 
-        # Если нет - ищем в static/data/
         if not os.path.exists(gauss_file):
             logger.warning(f"gauss_params.csv не найден в {sim_dir}, ищем в static/data/...")
             static_gauss = Path(__file__).parent.parent / "static" / "data" / "gauss_params.csv"
@@ -1187,13 +1153,11 @@ class SimulationService:
         logger.info("✅ gauss_params.csv найден")
 
         try:
-            # --- Параметры расчёта ---
             L = 0.51
             N_l = 80
             l_grid = np.linspace(0, L, N_l)
             logger.info(f"l_grid создан, размер={len(l_grid)}")
 
-            # --- Загрузка параметров ---
             t_arr, params_metal, params_gas = self._read_gauss_params(gauss_file)
             logger.info(f"Загружены параметры: t_arr={len(t_arr)}, params_metal shape={params_metal.shape}")
 
@@ -1203,7 +1167,6 @@ class SimulationService:
             t_array = np.arange(np.min(t_unique), t_final + dt / 2, dt)
             logger.info(f"t_array создан: от {t_array[0]:.2f} до {t_array[-1]:.2f}, шаг {dt:.4f}")
 
-            # --- Начальная температура ---
             T_initial = np.full(N_l, 1223.15)
 
             params = {

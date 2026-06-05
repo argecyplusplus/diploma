@@ -110,7 +110,6 @@ async function createIC(e) {
         initial_temps: [],
         chords: [],
         ei_values: [],
-        // Новые поля для задачи 4
         gas_flow_params: {},
         material_properties: {},
         gas_properties: {}
@@ -146,7 +145,6 @@ async function createIC(e) {
         }
     }
 
-    // Очистка
     ['boundaries', 'initial_temps', 'chords'].forEach(key => {
         payload[key] = payload[key].filter(item => item && Object.keys(item).length);
     });
@@ -209,7 +207,6 @@ async function editIC(id) {
         form.querySelector('input[name="stress_output.delt"]').value = data.stress_output.delt;
         form.querySelector('input[name="stress_output.Npt"]').value = data.stress_output.Npt;
 
-        // Заполнение полей для задачи 4
         if (data.gas_flow_params) {
             form.querySelector('input[name="gas_flow.Tgas"]').value = data.gas_flow_params.Tgas || 673;
             form.querySelector('input[name="gas_flow.Tcool"]').value = data.gas_flow_params.Tcool || 1223;
@@ -262,7 +259,6 @@ async function editIC(id) {
             value: {type: 'number', step: 'any', placeholder: 'Значение', required: true, field: 'value'}
         });
 
-        // Начальные температуры
         const initTempsContainer = document.getElementById('initial-temps-list');
         initTempsContainer.innerHTML = '';
         data.initial_temps.forEach((t, idx) => {
@@ -299,7 +295,6 @@ async function editIC(id) {
         }
         updateRemoveButtons('ei-values-list');
 
-        // Меняем обработчик отправки на обновление
         form.dataset.editId = id;
         const submitBtn = form.querySelector('button[type="submit"]');
         submitBtn.textContent = '💾 Обновить набор';
@@ -362,12 +357,10 @@ async function updateIC(e, id) {
         }
     }
 
-    // Очистка массивов
     ['boundaries', 'initial_temps', 'chords', 'ei_values'].forEach(key => {
         if (payload[key]) payload[key] = payload[key].filter(item => item && Object.keys(item).length);
     });
 
-    // Дополнительно собираем ei_values из динамических строк
     const eiRows = document.querySelectorAll('#ei-values-list .dynamic-row');
     payload.ei_values = [];
     eiRows.forEach(row => {

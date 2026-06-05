@@ -13,8 +13,6 @@ class ApproximationService:
     def __init__(self, session: Session):
         self.session = session
 
-    # В файл approximation_service.py добавить/исправить:
-
     def execute_approximation(self, blade_id: int) -> Dict[str, Any]:
         """Аппроксимация одной лопатки (как в WGKM_L5.py)"""
         stmt = select(ProfileCoordinate).where(ProfileCoordinate.blade_id == blade_id)
@@ -30,10 +28,8 @@ class ApproximationService:
         x_u, y_u = np.array([p[0] for p in upper]), np.array([p[1] for p in upper])
         x_l, y_l = np.array([p[0] for p in lower]), np.array([p[1] for p in lower])
 
-        # Трансформация координат (как в эталоне)
         x_u_t, y_u_t, x_l_t, y_l_t, tr_params = transform_coordinates(x_u, y_u, x_l, y_l)
 
-        # Удаляем старую аппроксимацию
         old_approx = self.session.scalar(select(Approximation).where(Approximation.blade_id == blade_id))
         if old_approx:
             self.session.delete(old_approx)
@@ -44,7 +40,6 @@ class ApproximationService:
         self.session.flush()
         aid = approx.approximation_id
 
-        # Сохраняем преобразованные координаты
         for x, y in zip(x_u_t, y_u_t):
             self.session.add(TransformedCoordinate(
                 approximation_id=aid, profile_type='upper',
@@ -56,13 +51,11 @@ class ApproximationService:
                 x_transformed=float(x), y_transformed=float(y)
             ))
 
-        # Вычисляем коэффициенты Лежандра
         L_u = calc_L(x_u_t, y_u_t)
         L_l = calc_L(x_l_t, y_l_t)
         if L_u is None or L_l is None:
             raise ValueError("Ошибка вычисления коэффициентов (матрица вырождена)")
 
-        # Сохраняем 10 коэффициентов для верхнего и нижнего профиля
         for i in range(10):
             upper_val = float(L_u[i]) if i < len(L_u) else 0.0
             lower_val = float(L_l[i]) if i < len(L_l) else 0.0
@@ -72,7 +65,6 @@ class ApproximationService:
                 lower_value=lower_val
             ))
 
-        # Параметры аппроксимации (R², максимумы)
         y_u_calc = np.dot(L_u, Lezh(x_u_t))
         y_l_calc = np.dot(L_l, Lezh(x_l_t))
 
@@ -118,14 +110,11 @@ class ApproximationService:
         outer_blade = members[0].blade
         inner_blade = members[1].blade
 
-        # Выполняем аппроксимацию для каждой лопатки
         outer_result = self._approx_single_blade_full(outer_blade.blade_id, outer_blade.name)
         inner_result = self._approx_single_blade_full(inner_blade.blade_id, inner_blade.name)
 
-        # Сохраняем коэффициенты в файл (как в эталоне)
         self._save_assembly_coeffs_to_file(assembly.name, outer_result, inner_result)
 
-        # Генерируем комбинированный график
         combined_plot = self._generate_combined_plot(outer_result, inner_result, assembly.name)
 
         return {
@@ -139,7 +128,6 @@ class ApproximationService:
         """Сохраняет коэффициенты Лежандра в файл out_L_{name}.csv в формате эталона"""
         from pathlib import Path
 
-        # Создаём директорию out_files если её нет
         out_dir = Path(__file__).parent.parent.parent / "out_files"
         out_dir.mkdir(exist_ok=True)
 
@@ -366,10 +354,8 @@ class ApproximationService:
         filename = out_dir / f"out_L_{blade_name}.csv"
 
         with open(filename, 'w', encoding='utf-8') as f:
-            # Строка 1: верхний профиль
             upper_vals = " ".join(f"{c.upper_value:.15f}" for c in coeffs[:10])
             f.write(upper_vals + "\n")
-            # Строка 2: нижний профиль
             lower_vals = " ".join(f"{c.lower_value:.15f}" for c in coeffs[:10])
             f.write(lower_vals + "\n")
 

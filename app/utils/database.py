@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 DB_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'databases')
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'db_config.json')
 
-# Кеш движков для активной БД
 _engine_cache = None
 
 def _load_config():
@@ -65,7 +64,6 @@ def close_all_connections(db_name=None):
         config["current_db"] = None
         _save_config(config)
 
-    # Закрываем сессию Flask, если она есть
     try:
         if 'db_session' in g:
             g.db_session.close()
@@ -74,7 +72,6 @@ def close_all_connections(db_name=None):
     except Exception as e:
         logger.debug(f"Ошибка при закрытии сессии Flask: {e}")
 
-    # Уничтожаем кешированный движок
     if _engine_cache:
         try:
             _engine_cache.dispose()
@@ -82,7 +79,6 @@ def close_all_connections(db_name=None):
             logger.debug(f"Ошибка при dispose движка: {e}")
         _engine_cache = None
 
-    # Принудительная сборка мусора и небольшая задержка
     gc.collect()
     time.sleep(0.1)
 
@@ -99,7 +95,6 @@ def create_database(name):
     engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
 
-    # Инициализируем БД начальными данными ТОЛЬКО при создании
     from .init_db_data import init_database
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()
@@ -113,7 +108,7 @@ def create_database(name):
         raise e
     finally:
         session.close()
-        engine.dispose()  # закрываем движок после создания
+        engine.dispose()  
 
     return name[:-3]
 
@@ -124,10 +119,8 @@ def select_database(name):
     if not os.path.exists(db_path):
         raise ValueError("База данных не найдена")
 
-    # Закрываем соединения к старой БД
     close_all_connections()
 
-    # Устанавливаем новую активную БД
     config = _load_config()
     config["current_db"] = name
     _save_config(config)
@@ -141,7 +134,6 @@ def delete_database(name):
     if not os.path.exists(db_path):
         raise ValueError("База данных не найдена")
 
-    # Закрываем соединения и удаляем файл БД
     close_all_connections(name)
     for _ in range(3):
         try:
@@ -152,7 +144,6 @@ def delete_database(name):
     else:
         raise RuntimeError(f"Не удалось удалить файл БД {db_path}")
 
-    # Удаляем папку симуляций этой БД
     sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', name)
     if os.path.exists(sim_dir):
         import shutil

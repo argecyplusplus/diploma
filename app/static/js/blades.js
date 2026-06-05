@@ -455,7 +455,6 @@ function goToApproximation(bladeId) {
 }
 
 
-// Добавляем глобальные функции для HTML
 window.openCreateBladeModal = openCreateBladeModal;
 window.openMergeModal = openMergeModal;
 window.switchCoordTab = switchCoordTab;

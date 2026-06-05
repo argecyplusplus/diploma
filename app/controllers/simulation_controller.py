@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 import threading
@@ -16,6 +17,7 @@ from sqlalchemy import select, delete
 
 sim_bp = Blueprint('simulation', __name__, url_prefix='/simulation')
 ic_bp = Blueprint('initial_conditions', __name__, url_prefix='/initial-conditions')
+logger = logging.getLogger(__name__)
 
 
 def get_service():
@@ -446,18 +448,14 @@ def run_local(sim_id):
         if sim.status == 'running':
             return jsonify({"error": "Расчёт уже выполняется"}), 400
 
-        # Меняем статус на running
         sim.status = "running"
         service.session.commit()
 
-        # Открываем папку с файлом
         if os.name == 'nt':
             subprocess.Popen(f'explorer /select,"{edp_path}"', shell=True)
 
-        # Получаем список ожидаемых файлов через метод сервиса
         expected_files = service._get_expected_output_files(sim.task_type)
 
-        # Функция мониторинга с отдельной сессией
         def check_completion():
             engine = get_engine()
             SessionLocal = sessionmaker(bind=engine)
@@ -468,7 +466,6 @@ def run_local(sim_id):
                 while waited < max_wait:
                     time.sleep(10)
                     waited += 10
-                    # Проверяем существование всех ожидаемых файлов
                     all_exist = all(os.path.exists(os.path.join(sim_dir, f)) for f in expected_files)
                     if all_exist:
                         sim_obj = db_session.get(Simulation, sim_id)
@@ -478,7 +475,6 @@ def run_local(sim_id):
                             db_session.commit()
                             print(f"✅ Симуляция {sim_id} завершена! Все ожидаемые файлы найдены.")
                         return
-                    # Дополнительно проверяем наличие лога с ошибкой
                     log_path = os.path.join(sim_dir, "console.log")
                     if os.path.exists(log_path):
                         with open(log_path, 'r', encoding='utf-8') as lf:
@@ -490,7 +486,6 @@ def run_local(sim_id):
                                     sim_obj.error_message = "Обнаружена ошибка в логе FreeFEM"
                                     db_session.commit()
                                 return
-                # Таймаут
                 sim_obj = db_session.get(Simulation, sim_id)
                 if sim_obj and sim_obj.status == 'running':
                     sim_obj.status = "failed"
@@ -545,7 +540,6 @@ def check_completion_manual(sim_id):
         expected_files = service._get_expected_output_files(sim.task_type)
 
         if not expected_files:
-            # Для задачи 1 считаем завершённой, если процесс не в running
             if sim.status == 'running':
                 sim.status = "completed"
                 sim.progress = 100
@@ -578,14 +572,11 @@ def reset_simulation(sim_id):
 
         sim_dir = get_sim_dir(service, sim_id)
         if os.path.exists(sim_dir):
-            # Удаляем только файлы результатов, НЕ трогаем out_L.csv и .edp
             for fname in os.listdir(sim_dir):
-                # Исключаем out_L.csv и blade_sim.edp
                 if fname in ['out_L.csv', 'blade_sim.edp']:
                     continue
                 if fname.endswith(('.csv', '.eps', '.vtk', '.log')):
                     os.remove(os.path.join(sim_dir, fname))
-            # Удаляем папку plots, если она есть
             plots_dir = os.path.join(sim_dir, "plots")
             if os.path.exists(plots_dir):
                 import shutil
@@ -606,8 +597,6 @@ def open_simulation_folder(sim_id):
     """Открывает папку с файлами симуляции в проводнике"""
     import subprocess
     import os
-    from ..utils.database import get_db_session
-
     service = get_service()
     sim_dir = get_sim_dir(service, sim_id)
 

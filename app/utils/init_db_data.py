@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 def init_materials(session: Session):
     """Добавляет материалы и химические элементы, если их нет"""
 
-    # Данные материалов (элементов) из таблицы materials
     materials_data = [
         {
             "material_id": 1,
@@ -107,7 +106,6 @@ def init_materials(session: Session):
         }
     ]
 
-    # Данные химических элементов (связь с материалами)
     chemical_elements_data = [
         {"chemical_element_id": 1, "name": "Ni", "type": "Металл", "material_id": 1},
         {"chemical_element_id": 2, "name": "Al", "type": "Металл", "material_id": 2},
@@ -122,7 +120,6 @@ def init_materials(session: Session):
     added_materials = 0
     added_elements = 0
 
-    # Добавляем материалы
     for m in materials_data:
         existing = session.get(Material, m["material_id"])
         if not existing:
@@ -145,7 +142,6 @@ def init_materials(session: Session):
 
     session.flush()
 
-    # Добавляем химические элементы
     for ce in chemical_elements_data:
         existing = session.get(ChemicalElement, ce["chemical_element_id"])
         if not existing:
@@ -169,14 +165,12 @@ def init_materials(session: Session):
 def init_default_initial_conditions(session: Session):
     """Создаёт наборы начальных условий по умолчанию"""
 
-    # Убедимся, что материалы существуют
-    steel_material = session.get(Material, 1)  # Ni
+    steel_material = session.get(Material, 1) 
     if not steel_material:
         logger.error("Материал Ni (id=1) не найден! Сначала добавьте материалы.")
         return
 
-    # Для воздуха используем Al как заглушку (material_id=2)
-    air_material = session.get(Material, 2)  # Al
+    air_material = session.get(Material, 2)
 
     # ========== Задача 1: Газодинамика ==========
     ic1_name = "Task1 Default (Газодинамика)"
@@ -219,7 +213,6 @@ def init_default_initial_conditions(session: Session):
         session.add(ElasticityParameter(initial_conditions_id=ic_id, b=1.0, nu=0.28, KLT=10.5e-6))
         session.add(StressOutputParameter(initial_conditions_id=ic_id, coef=100.0, delt=0.4, Npt=200.0))
 
-        # Добавляем температуропроводность для задачи 2-3
         session.add(MaterialProperty(
             initial_conditions_id=ic_id,
             rhosteel=8200.0, cpsteel=500.0, ksteel=90.5,
@@ -240,7 +233,7 @@ def init_default_initial_conditions(session: Session):
         session.add(PotentialFlowParameter(initial_conditions_id=ic_id, beta=0.0, B=1.0))
         session.add(ConstructionParameter(
             initial_conditions_id=ic_id, NC=100, NSp=200, NSm=200, NSpn=10, NSpm=10,
-            dely_offset=0.003  # смещение для задачи 4
+            dely_offset=0.003 
         ))
         session.add(BoundaryIdentifier(initial_conditions_id=ic_id, name="S", value=99.0))
         session.add(BladeChord(initial_conditions_id=ic_id, name="outer", value=0.217))
@@ -249,7 +242,6 @@ def init_default_initial_conditions(session: Session):
         session.add(ElasticityParameter(initial_conditions_id=ic_id, b=1.0, nu=0.28, KLT=10.5e-6))
         session.add(StressOutputParameter(initial_conditions_id=ic_id, coef=1.0, delt=0.0004, Npt=180.0))
 
-        # Параметры для задачи 4
         session.add(GasFlowParameter(
             initial_conditions_id=ic_id,
             Tgas=673.0, Tcool=1223.0, U0=1.0, beta=-10.0,
