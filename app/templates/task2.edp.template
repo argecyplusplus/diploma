@@ -167,61 +167,6 @@ Vh Tair=T*(region==air);
 cout<<"max T steel= "<<Tsteel[].max<<endl;
 cout<<"max T air= "<<Tair[].max<<endl;
 
-// ========== Упругая часть ==========
-real b = {{b}};
-real nu = {{nu}};
-real[int] Ei = [{{E_steel}}, {{E_air}}] * b;
-func real E() {
-    if(Th(x,y).region == steel) return Ei[0];
-    else return Ei[1];
-}
-func K = -E()/(3*(2*nu - 1));
-real KLT = {{KLT}};
-func mu = E()/(2*(1+nu));
-func lambda = E()*nu/((1+nu)*(1-2*nu));
-
-real sqrt2 = sqrt(2.);
-macro epsilon(u1,u2) [dx(u1), dy(u2), (dy(u1)+dx(u2))/sqrt2] //
-macro div(u1,u2) (dx(u1)+dy(u2)) //
-macro sig1(u1,u2) lambda*div(u1,u2) - 3*K*KLT*(T-T00) + 2*mu*dx(u1) //
-macro sig2(u1,u2) lambda*div(u1,u2) - 3*K*KLT*(T-T00) + 2*mu*dy(u2) //
-macro sig12(u1,u2) mu*(dx(u2)+dy(u1)) //
-macro eps1(u1) dx(u1) //
-macro eps2(u2) dy(u2) //
-macro eps12(u1,u2) (dx(u2)+dy(u1))/2. //
-
-solve lame([u1,u2], [uu,vv])
-    = int2d(Th)( lambda*div(u1,u2)*div(uu,vv) + 2.*mu*(epsilon(u1,u2)'*epsilon(uu,vv)) )
-    - int2d(Th)( 3.*K*KLT*(T-T00)*div(uu,vv) )
-    + on(S1, u1=0, u2=0);
-
-Sig1 = sig1(u1,u2);
-Sig2 = sig2(u1,u2);
-Sig12 = sig12(u1,u2);
-Eps1 = eps1(u1);
-Eps2 = eps2(u2);
-Eps12 = eps12(u1,u2);
-
-plot(Sig1, wait=0, value=true, fill=true, ps="./plots/sig1.eps");
-plot(Sig2, wait=0, value=true, fill=true, ps="./plots/sig2.eps");
-plot(Sig12, wait=0, value=true, fill=true, ps="./plots/sig12.eps");
-
-real delt={{delt}};
-real Npt={{Npt}};
-ofstream ff0("Profout.csv");
-real dt1=1/Npt;
-for(real tt = 1; tt >=0; tt -= dt1) {
-    real x0c=ContUp(0.,tt,dt1)(0);
-    real y0Up=ContUp(0.,tt,dt1)(1);
-    real y0Lw=ContLw(0.,tt,dt1)(1);
-    real xdc=ContUp(delt,tt,dt1)(0);
-    real ydUp=ContUp(delt,tt,dt1)(1);
-    real ydLw=ContLw(-delt,tt,dt1)(1);
-    if (ydUp>ydLw){
-        ff0 << x0c<< " "<< y0Up<<" "<< y0Lw<<" "<< xdc<< " "<< ydUp<<" "<< ydLw<< endl;
-    }
-}
-
 // ========== Вывод TFout.csv (температура по контуру) ==========
 ofstream ffT("TFout.csv");
 for(real tt = 1; tt >= 0; tt -= dt1) {
@@ -230,25 +175,5 @@ for(real tt = 1; tt >= 0; tt -= dt1) {
     real ydLw = ContLw(0., tt, dt1)(1);
     if (ydUp > ydLw) {
         ffT << xdc << " " << T(xdc, ydUp) << " " << T(xdc, ydLw) << endl;
-    }
-}
-
-ofstream ff1("TSout.csv");
-for(real tt = 1; tt >=0; tt -= dt1) {
-    real xdc=ContUp(delt,tt,dt1)(0);
-    real ydUp=ContUp(delt,tt,dt1)(1);
-    real ydLw=ContLw(-delt,tt,dt1)(1);
-    if (ydUp>ydLw){
-        ff1 << xdc<< " "<< ydUp<<" "<< T(xdc,ydUp)<<" "<<Sig1(xdc,ydUp)<<" "<<Sig2(xdc,ydUp) <<" "<< Sig12(xdc,ydUp)<< " "<< ydLw<< " "<< T(xdc,ydLw)<<" "<<Sig1(xdc,ydLw)<<" "<<Sig2(xdc,ydLw) <<" "<< Sig12(xdc,ydLw) << endl;
-    }
-}
-
-ofstream ff2("TEpsout.csv");
-for(real tt = 1; tt >=0; tt -= dt1) {
-    real xdc=ContUp(delt,tt,dt1)(0);
-    real ydUp=ContUp(delt,tt,dt1)(1);
-    real ydLw=ContLw(-delt,tt,dt1)(1);
-    if (ydUp>ydLw){
-        ff2 << xdc<< " "<< ydUp<<" "<< T(xdc,ydUp)<<" "<<Eps1(xdc,ydUp)<<" "<<Eps2(xdc,ydUp) <<" "<< Eps12(xdc,ydUp)<< " "<< ydLw<< " "<< T(xdc,ydLw)<<" "<<Eps1(xdc,ydLw)<<" "<<Eps2(xdc,ydLw) <<" "<< Eps12(xdc,ydLw) << endl;
     }
 }

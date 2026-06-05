@@ -222,17 +222,6 @@ for(real tt = 1; tt >=0; tt -= dt1) {
     }
 }
 
-// ========== Вывод TFout.csv (температура по контуру) ==========
-ofstream ffT("TFout.csv");
-for(real tt = 1; tt >= 0; tt -= dt1) {
-    real xdc = ContUp(0., tt, dt1)(0);
-    real ydUp = ContUp(0., tt, dt1)(1);
-    real ydLw = ContLw(0., tt, dt1)(1);
-    if (ydUp > ydLw) {
-        ffT << xdc << " " << T(xdc, ydUp) << " " << T(xdc, ydLw) << endl;
-    }
-}
-
 ofstream ff1("TSout.csv");
 for(real tt = 1; tt >=0; tt -= dt1) {
     real xdc=ContUp(delt,tt,dt1)(0);
