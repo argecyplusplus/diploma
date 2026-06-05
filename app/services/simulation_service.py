@@ -186,6 +186,20 @@ class SimulationService:
 
         return sim_id
 
+    def _get_expected_output_files(self, task_type: str) -> list:
+        """Возвращает список имён файлов, которые должны появиться после успешного расчёта для данной задачи."""
+        if task_type == TaskType.TASK1.value:
+            return []  # для задачи 1 нет обязательных CSV файлов
+        elif task_type == TaskType.TASK2.value:
+            return ["TFout.csv", "Profout.csv"]
+        elif task_type == TaskType.TASK3.value:
+            return ["Profout.csv", "TSout.csv", "TEpsout.csv"]
+        elif task_type == TaskType.TASK4.value:
+            # Замените на реальные имена файлов, которые создаёт ваш шаблон для задачи 4
+            return ["tlT.csv", "LT.csv"]  # или ["Temperatures.csv", "HeatFlux.csv"]
+        else:
+            return ["result.vtk"]  # запасной вариант
+
     def _create_single_simulation(self, data: SimulationCreateRequest) -> int:
         self._ensure_approximation(data.blade_id)
 
@@ -274,6 +288,7 @@ class SimulationService:
 
             result = self._run_freefem(edp_path, sim_dir)
 
+            # Сохраняем лог в любом случае
             log_path = os.path.join(sim_dir, "console.log")
             with open(log_path, 'w', encoding='utf-8') as f:
                 f.write(result.get('stdout', '') + '\n--- STDERR ---\n' + result.get('stderr', ''))
@@ -281,14 +296,33 @@ class SimulationService:
             repo = SimulationRepository(session)
             repo.add_result(sim_id, "log", log_path, "FreeFEM++ console output")
 
+            # Определяем статус на основе успешности выполнения и наличия ожидаемых файлов
             if result['success']:
-                sim.status = "completed"
-                sim.progress = 100
+                expected_files = self._get_expected_output_files(sim.task_type)
+                # Для задачи 1 (нет ожидаемых файлов) достаточно успешного завершения
+                if not expected_files:
+                    sim.status = "completed"
+                    sim.progress = 100
+                else:
+                    all_exist = all(os.path.exists(os.path.join(sim_dir, f)) for f in expected_files)
+                    if all_exist:
+                        sim.status = "completed"
+                        sim.progress = 100
+                    else:
+                        sim.status = "failed"
+                        sim.error_message = f"Не все ожидаемые файлы созданы. Ожидались: {', '.join(expected_files)}"
+                        logger.error(f"❌ Симуляция {sim_id} ошибка: {sim.error_message}")
+            else:
+                sim.status = "failed"
+                sim.error_message = result.get('stderr') or result.get('error') or "FreeFEM завершился с ошибкой"
+                logger.error(f"❌ Симуляция {sim_id} ошибка: {sim.error_message}")
+
+            # Если расчёт успешен, добавляем в БД найденные файлы (VTK и CSV)
+            if sim.status == "completed":
                 vtk_path = os.path.join(sim_dir, "result.vtk")
                 if os.path.exists(vtk_path):
                     repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
 
-                # ИСПРАВЛЕНО: TaskType.TASK2.value, TaskType.TASK3.value, TaskType.TASK4.value
                 if sim.task_type == TaskType.TASK2.value:
                     for csv_file in ["TFout.csv", "Profout.csv"]:
                         csv_path = os.path.join(sim_dir, csv_file)
@@ -302,14 +336,12 @@ class SimulationService:
                             repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
 
                 if sim.task_type == TaskType.TASK4.value:
-                    for csv_file in ["Temperatures.csv", "HeatFlux.csv"]:
+                    # Замените на реальные имена файлов, которые создаёт задача 4
+                    for csv_file in ["tlT.csv", "LT.csv"]:  # или ["Temperatures.csv", "HeatFlux.csv"]
                         csv_path = os.path.join(sim_dir, csv_file)
                         if os.path.exists(csv_path):
                             repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
-            else:
-                sim.status = "failed"
-                sim.error_message = result.get('stderr') or result.get('error') or "FreeFEM завершился с ошибкой"
-                logger.error(f"❌ Симуляция {sim_id} ошибка: {sim.error_message}")
+
             session.commit()
         except Exception as e:
             logger.error(f"💥 Ошибка в фоновой задаче: {e}", exc_info=True)

@@ -401,7 +401,6 @@ def download_edp(sim_id):
 
 @sim_bp.route('/<int:sim_id>/run_local', methods=['POST'])
 def run_local(sim_id):
-    """Запустить FreeFEM локально и отслеживать завершение"""
     import time
     import threading
     from ..utils.database import get_db_session, get_engine
@@ -430,42 +429,50 @@ def run_local(sim_id):
         if os.name == 'nt':
             subprocess.Popen(f'explorer /select,"{edp_path}"', shell=True)
 
+        # Получаем список ожидаемых файлов через метод сервиса
+        expected_files = service._get_expected_output_files(sim.task_type)
+
         # Функция мониторинга с отдельной сессией
         def check_completion():
-            # Создаём отдельную сессию для фонового потока
             engine = get_engine()
             SessionLocal = sessionmaker(bind=engine)
             db_session = SessionLocal()
-
-            vtk_path = os.path.join(sim_dir, "result.vtk")
-            max_wait = 3600  # 1 час
-            waited = 0
-            while waited < max_wait:
-                time.sleep(10)  # Проверяем каждые 10 секунд
-                waited += 10
-                if os.path.exists(vtk_path):
-                    # Файл появился - расчёт завершён
-                    try:
+            try:
+                max_wait = 3600  # 1 час
+                waited = 0
+                while waited < max_wait:
+                    time.sleep(10)
+                    waited += 10
+                    # Проверяем существование всех ожидаемых файлов
+                    all_exist = all(os.path.exists(os.path.join(sim_dir, f)) for f in expected_files)
+                    if all_exist:
                         sim_obj = db_session.get(Simulation, sim_id)
                         if sim_obj:
                             sim_obj.status = "completed"
                             sim_obj.progress = 100
                             db_session.commit()
-                            print(f"✅ Симуляция {sim_id} завершена! Файл VTK найден.")
-                    except Exception as e:
-                        print(f"Ошибка при обновлении статуса: {e}")
-                    finally:
-                        db_session.close()
-                    return
-            # Таймаут
-            try:
+                            print(f"✅ Симуляция {sim_id} завершена! Все ожидаемые файлы найдены.")
+                        return
+                    # Дополнительно проверяем наличие лога с ошибкой
+                    log_path = os.path.join(sim_dir, "console.log")
+                    if os.path.exists(log_path):
+                        with open(log_path, 'r', encoding='utf-8') as lf:
+                            content = lf.read()
+                            if "error" in content.lower() or "fail" in content.lower():
+                                sim_obj = db_session.get(Simulation, sim_id)
+                                if sim_obj:
+                                    sim_obj.status = "failed"
+                                    sim_obj.error_message = "Обнаружена ошибка в логе FreeFEM"
+                                    db_session.commit()
+                                return
+                # Таймаут
                 sim_obj = db_session.get(Simulation, sim_id)
                 if sim_obj and sim_obj.status == 'running':
                     sim_obj.status = "failed"
                     sim_obj.error_message = "Превышено время ожидания (1 час)"
                     db_session.commit()
             except Exception as e:
-                print(f"Ошибка при установке статуса failed: {e}")
+                print(f"Ошибка в check_completion: {e}")
             finally:
                 db_session.close()
 
@@ -523,19 +530,32 @@ def check_completion_manual(sim_id):
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
 
+
 @sim_bp.route('/<int:sim_id>/reset', methods=['POST'])
 def reset_simulation(sim_id):
-    """Сбросить статус расчёта для перезапуска"""
     service = get_service()
     try:
         sim = service.session.get(Simulation, sim_id)
         if not sim:
             return jsonify({"error": "Симуляция не найдена"}), 404
+
+        sim_dir = os.path.join(os.getcwd(), 'uploads', 'simulations', f"sim_{sim_id}")
+        if os.path.exists(sim_dir):
+            # Удаляем все CSV, EPS, VTK, LOG файлы, но оставляем .edp
+            for fname in os.listdir(sim_dir):
+                if fname.endswith(('.csv', '.eps', '.vtk', '.log')):
+                    os.remove(os.path.join(sim_dir, fname))
+            # Также удаляем папку plots, если она есть
+            plots_dir = os.path.join(sim_dir, "plots")
+            if os.path.exists(plots_dir):
+                import shutil
+                shutil.rmtree(plots_dir)
+
         sim.status = 'pending'
         sim.progress = 0
         sim.error_message = None
         service.session.commit()
-        return jsonify({"message": "Статус сброшен"}), 200
+        return jsonify({"message": "Статус сброшен, файлы результатов удалены"}), 200
     except Exception as e:
         service.session.rollback()
         return jsonify({"error": str(e)}), 500

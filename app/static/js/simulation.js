@@ -338,10 +338,10 @@ async function loadSimulationsList() {
         }
         let html = '';
         sims.forEach(s => {
-            const statusBadge = s.status === 'completed' ? '<span class="badge badge-success">✅ Готово</span>' :
-                                s.status === 'running' ? '<span class="badge badge-warning">⏳ Запущен</span>' :
-                                s.status === 'failed' ? '<span class="badge badge-danger">❌ Ошибка</span>' :
-                                '<span class="badge badge-secondary">' + s.status + '</span>';
+            const statusBadge = s.status === 'completed' ? '<span class="badge badge-success">Готово</span>' :
+                    s.status === 'running' ? '<span class="badge badge-warning">Запущен</span>' :
+                    s.status === 'failed' ? '<span class="badge badge-danger">Ошибка</span>' :
+                    '<span class="badge badge-secondary">Создан</span>';
 
             const logBtn = (s.status === 'failed') ?
                 `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">Лог</button>` : '';
@@ -514,7 +514,7 @@ function setupEventListeners() {
         radio.addEventListener('change', () => {
             updateTaskHint();
             syncActiveTaskCard();
-            updateObjectSelectOptions();   
+            updateObjectSelectOptions();
             const icSelect = document.getElementById('initial_conditions_id');
             if (icSelect && icSelect.value) validateInitialConditionForTask(icSelect.value);
         });
