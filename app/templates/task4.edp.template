@@ -192,9 +192,9 @@ problem thermic(T, v)
     - int1d(Th, S1)( hinner * Tcool * v )
     + on(3, T = Tgas);
 
-real delt={{delt}};
-real Npt={{Npt}};
-real dt1=1/Npt;
+real delt = {{delt}};
+real Npt = {{Npt}};
+real dt1 = 1/Npt;
 ofstream ffBC("tlT.csv");
 
 for(int it = 0; it < Niter; it++){

@@ -599,3 +599,24 @@ def reset_simulation(sim_id):
     except Exception as e:
         service.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+@sim_bp.route('/<int:sim_id>/open_folder', methods=['POST'])
+def open_simulation_folder(sim_id):
+    """Открывает папку с файлами симуляции в проводнике"""
+    import subprocess
+    import os
+    from ..utils.database import get_db_session
+
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
+
+    if not os.path.exists(sim_dir):
+        return jsonify({"error": "Папка не найдена"}), 404
+
+    if os.name == 'nt':  # Windows
+        subprocess.Popen(f'explorer "{sim_dir}"', shell=True)
+    elif os.name == 'posix':  # Linux/Mac
+        subprocess.Popen(['xdg-open', sim_dir])
+
+    return jsonify({"message": "Папка открыта"}), 200

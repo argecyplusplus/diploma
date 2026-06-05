@@ -324,7 +324,6 @@ async function loadMaterialsCheckboxes() {
 }
 
 // ===== ИСТОРИЯ РАСЧЁТОВ =====
-// ===== ИСТОРИЯ РАСЧЁТОВ =====
 async function loadSimulationsList() {
     const tbody = document.getElementById('simulations-table-body');
     if (!tbody) return;
@@ -355,7 +354,13 @@ async function loadSimulationsList() {
             const runBtn = canRun ?
                 `<button class="btn-run" onclick="runSimulation(${s.simulation_id})">Моделировать</button>` : '';
 
-            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">${runBtn} ${resetBtn} ${logBtn} ${resultsBtn} ${deleteBtn}</div>`;
+            // Кнопка "В папку" ТОЛЬКО для статуса running
+            const folderBtn = (s.status === 'running') ?
+                `<button class="btn-folder" onclick="openSimulationFolder(${s.simulation_id})">В папку</button>` : '';
+
+            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                ${runBtn} ${folderBtn} ${resetBtn} ${logBtn} ${resultsBtn} ${deleteBtn}
+            </div>`;
 
             html += `
                 <tr>
@@ -439,13 +444,6 @@ async function createSimulation(e) {
 
     const taskType = form.querySelector('input[name="task_type"]:checked').value;
 
-    // Временная заглушка для четвёртой задачи
-        if (taskType === 'task4') {
-        alert('⚠️ Функционал четвёртой задачи временно недоступен. Ожидайте обновления.');
-        resetBtn();
-        return;
-    }
-
     if (taskType === 'task1' && assemblyId) {
         alert('Для задачи 1 нельзя выбирать объединение, выберите конкретную лопатку');
         resetBtn();
@@ -507,6 +505,19 @@ async function createSimulation(e) {
         btnLoader.style.display = 'none';
     }
 }
+
+// ===== ОТКРЫТЬ ПАПКУ С ФАЙЛОМ =====
+async function openSimulationFolder(simId) {
+    try {
+        const res = await fetch(`/simulation/${simId}/open_folder`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Ошибка');
+        alert('✅ Папка с файлом открыта!');
+    } catch(e) {
+        alert('❌ Ошибка: ' + e.message);
+    }
+}
+
 
 // ===== ОБРАБОТЧИКИ И ИНИЦИАЛИЗАЦИЯ =====
 function setupEventListeners() {

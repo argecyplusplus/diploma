@@ -17,6 +17,18 @@ async function getSimulationInfo() {
     }
 }
 
+// Функция открытия папки
+async function openSimulationFolder() {
+    try {
+        const res = await fetch(`/simulation/${simId}/open_folder`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Ошибка');
+        alert('✅ Папка с файлами открыта!');
+    } catch(e) {
+        alert('❌ Ошибка: ' + e.message);
+    }
+}
+
 async function checkAndPollStatus() {
     try {
         const res = await fetch(`/simulation/${simId}/status`);
@@ -47,7 +59,7 @@ async function showAppropriateContent() {
     const plotsContainer = document.getElementById('plotsContent');
 
     if (currentTaskType === '1') {
-        plotsContainer.innerHTML = '<div class="status-message">✅ Расчёт завершён!<br>Визуализация результатов доступна через VTK файл.</div>';
+        plotsContainer.innerHTML = '<div class="status-message">✅ Расчёт завершён!<br>Результаты доступны для скачивания.</div>';
     }
     else if (currentTaskType === '2') {
         await loadMatplotlibPlots();
@@ -69,7 +81,6 @@ async function loadMatplotlibPlots() {
 
     container.innerHTML = '<div class="status-message">⏳ Загрузка графиков...</div>';
     try {
-        // Добавляем таймаут 30 секунд
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
 
@@ -205,11 +216,11 @@ async function loadFiles() {
         }
         let html = '';
         files.forEach(file => {
+            if (file.name === 'result.vtk') return;
+
             let btnClass = 'btn-secondary';
-            if (file.name === 'result.vtk') btnClass = 'btn-primary';
             let fileType = '';
-            if (file.name === 'result.vtk') fileType = 'vtk';
-            else if (file.name === 'Profout.csv') fileType = 'profout';
+            if (file.name === 'Profout.csv') fileType = 'profout';
             else if (file.name === 'TSout.csv') fileType = 'tsout';
             else if (file.name === 'TEpsout.csv') fileType = 'tepsout';
             else if (file.name === 'TFout.csv') fileType = 'tfout';
@@ -218,7 +229,12 @@ async function loadFiles() {
 
             html += `<a href="/simulation/${simId}/result/${fileType}" class="${btnClass}">📥 ${file.description}</a>`;
         });
-        container.innerHTML = html;
+
+        if (html === '') {
+            container.innerHTML = '<div class="status-message">Нет доступных файлов</div>';
+        } else {
+            container.innerHTML = html;
+        }
     } catch(e) {
         container.innerHTML = `<div class="status-message" style="color:#ef4444;">Ошибка: ${e.message}</div>`;
     }
@@ -264,7 +280,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadFiles();
     await checkAndPollStatus();
 
-    // Если статус уже completed, показываем соответствующий контент
     const statusRes = await fetch(`/simulation/${simId}/status`);
     const statusData = await statusRes.json();
     if (statusData.status === 'completed') {

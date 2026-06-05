@@ -675,7 +675,7 @@ class SimulationService:
 
         # ========== Задача 4 использует свой шаблон ==========
         elif task_type == TaskType.TASK4:
-            template_name = "task4_assembly.edp.template"
+            template_name = "task4.edp.template"
             gas_flow = self.session.scalar(
                 select(GasFlowParameter).where(GasFlowParameter.initial_conditions_id == ic_id))
             gas_props = self.session.scalar(select(GasProperty).where(GasProperty.initial_conditions_id == ic_id))
@@ -703,6 +703,8 @@ class SimulationService:
                 "cpgas": str(gas_props.cpgas if gas_props else 1150.0),
                 "kgas": str(gas_props.kgas if gas_props else 0.08),
                 "delyOffset": str(dely_offset),
+                "delt": str(stress_out.delt if stress_out else 0.0004),
+                "Npt": str(stress_out.Npt if stress_out else 180.0),
             })
             os.makedirs(os.path.join(sim_dir, "plots"), exist_ok=True)
 
@@ -1036,130 +1038,59 @@ class SimulationService:
         logger = logging.getLogger(__name__)
         plots = {}
 
-        # Пути к файлам (ожидаемые от FreeFEM)
-        temperatures_path = os.path.join(sim_dir, "Temperatures.csv")
-        heatflux_path = os.path.join(sim_dir, "HeatFlux.csv")
+        # Пути к файлам (реальные имена из шаблона задачи 4)
+        tlT_path = os.path.join(sim_dir, "tlT.csv")
+        LT_path = os.path.join(sim_dir, "LT.csv")
 
-        # Альтернативные имена файлов (если FreeFEM пишет по-другому)
-        if not os.path.exists(temperatures_path):
-            temperatures_path = os.path.join(sim_dir, "temperature_distribution.csv")
-        if not os.path.exists(heatflux_path):
-            heatflux_path = os.path.join(sim_dir, "heatflux_distribution.csv")
+        logger.info(f"[task4] Поиск файлов: tlT.csv={os.path.exists(tlT_path)}, LT.csv={os.path.exists(LT_path)}")
 
-        logger.info(
-            f"[task4] Поиск файлов: Temperatures.csv={os.path.exists(temperatures_path)}, HeatFlux.csv={os.path.exists(heatflux_path)}")
-
-        # ========== ГРАФИК 1: Распределение температуры по контуру ==========
-        if os.path.exists(temperatures_path):
+        # ========== ГРАФИК 1: Распределение температуры по контуру (из LT.csv) ==========
+        if os.path.exists(LT_path):
             try:
-                data = np.loadtxt(temperatures_path, delimiter=',')
+                data = np.loadtxt(LT_path)
                 if data.ndim == 1:
                     data = data.reshape(1, -1)
 
-                # Ожидаемая структура:
-                # Вариант A: x, T_up_outer, T_lw_outer, T_up_inner, T_lw_inner
-                # Вариант B: x, T_up, T_lw (для одной лопатки)
-
+                # LT.csv: xdc, ydUp, T_up, ydLw, T_lw
                 x_coords = data[:, 0]
+                T_up = data[:, 2]
+                T_lw = data[:, 4]
 
                 plt.figure(figsize=(10, 6))
-
-                if data.shape[1] >= 6:
-                    # Две лопатки (сборка)
-                    plt.plot(x_coords, data[:, 1], 'r-', label='Внешняя спинка', linewidth=2)
-                    plt.plot(x_coords, data[:, 2], 'b-', label='Внешнее корытце', linewidth=2)
-                    plt.plot(x_coords, data[:, 3], 'r--', label='Внутренняя спинка', linewidth=2)
-                    plt.plot(x_coords, data[:, 4], 'b--', label='Внутреннее корытце', linewidth=2)
-                    title = 'Распределение температуры по контурам лопатки (сборка)'
-                elif data.shape[1] >= 3:
-                    # Одна лопатка
-                    plt.plot(x_coords, data[:, 1], 'r-', label='Спинка', linewidth=2)
-                    plt.plot(x_coords, data[:, 2], 'b-', label='Корытце', linewidth=2)
-                    title = 'Распределение температуры по контуру лопатки'
-                else:
-                    raise ValueError(f"Неизвестный формат Temperatures.csv: {data.shape[1]} столбцов")
-
+                plt.plot(x_coords, T_up, 'r-', label='Спинка', linewidth=2)
+                plt.plot(x_coords, T_lw, 'b-', label='Корытце', linewidth=2)
                 plt.xlabel('X, мм')
                 plt.ylabel('Температура, K')
-                plt.title(title)
+                plt.title('Распределение температуры по контуру лопатки')
                 plt.legend()
                 plt.grid(True, alpha=0.3)
 
                 buf = BytesIO()
                 plt.savefig(buf, format='png', dpi=100)
                 buf.seek(0)
-                plots['Распределение температуры по контурам'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                plots['Распределение температуры по контуру'] = base64.b64encode(buf.getvalue()).decode('utf-8')
                 plt.close()
-                logger.info(f"[task4] График температуры построен, форма данных: {data.shape}")
-
+                logger.info(f"[task4] График температуры построен из LT.csv")
             except Exception as e:
                 logger.error(f"[task4] Ошибка при построении графика температуры: {e}", exc_info=True)
         else:
-            logger.warning(f"[task4] Temperatures.csv не найден в {sim_dir}")
+            logger.warning(f"[task4] LT.csv не найден в {sim_dir}")
 
-        # ========== ГРАФИК 2: Тепловой поток по контуру ==========
-        if os.path.exists(heatflux_path):
+        # ========== ГРАФИК 2: Временная эволюция температуры (из tlT.csv) ==========
+        if os.path.exists(tlT_path):
             try:
-                data = np.loadtxt(heatflux_path, delimiter=',')
+                data = np.loadtxt(tlT_path, delimiter=',')
                 if data.ndim == 1:
                     data = data.reshape(1, -1)
 
-                x_coords = data[:, 0]
-
-                plt.figure(figsize=(10, 6))
-
-                if data.shape[1] >= 6:
-                    plt.plot(x_coords, data[:, 1], 'r-', label='Внешняя спинка', linewidth=2)
-                    plt.plot(x_coords, data[:, 2], 'b-', label='Внешнее корытце', linewidth=2)
-                    plt.plot(x_coords, data[:, 3], 'r--', label='Внутренняя спинка', linewidth=2)
-                    plt.plot(x_coords, data[:, 4], 'b--', label='Внутреннее корытце', linewidth=2)
-                    title = 'Распределение теплового потока по контурам лопатки (сборка)'
-                elif data.shape[1] >= 3:
-                    plt.plot(x_coords, data[:, 1], 'r-', label='Спинка', linewidth=2)
-                    plt.plot(x_coords, data[:, 2], 'b-', label='Корытце', linewidth=2)
-                    title = 'Распределение теплового потока по контуру лопатки'
-                else:
-                    raise ValueError(f"Неизвестный формат HeatFlux.csv: {data.shape[1]} столбцов")
-
-                plt.xlabel('X, мм')
-                plt.ylabel('Тепловой поток, Вт/м²')
-                plt.title(title)
-                plt.legend()
-                plt.grid(True, alpha=0.3)
-
-                buf = BytesIO()
-                plt.savefig(buf, format='png', dpi=100)
-                buf.seek(0)
-                plots['Распределение теплового потока'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                plt.close()
-                logger.info(f"[task4] График теплового потока построен")
-
-            except Exception as e:
-                logger.error(f"[task4] Ошибка при построении графика теплового потока: {e}", exc_info=True)
-        else:
-            logger.warning(f"[task4] HeatFlux.csv не найден в {sim_dir}")
-
-        # ========== ГРАФИК 3: Временная эволюция температуры (если есть временные ряды) ==========
-        # Ищем файлы с временными рядами (например, TemperatureHistory.csv)
-        time_series_path = os.path.join(sim_dir, "TemperatureHistory.csv")
-        if not os.path.exists(time_series_path):
-            time_series_path = os.path.join(sim_dir, "time_series.csv")
-
-        if os.path.exists(time_series_path):
-            try:
-                data = np.loadtxt(time_series_path, delimiter=',')
-                if data.ndim == 1:
-                    data = data.reshape(1, -1)
-
+                # tlT.csv: t, l, Tmetal, Tout
                 time_points = data[:, 0]
+                T_metal = data[:, 2]  # температура металла
+                T_out = data[:, 3]  # температура на поверхности
 
                 plt.figure(figsize=(10, 6))
-
-                # Каждый следующий столбец — температура в определённой точке
-                for i in range(1, min(5, data.shape[1])):
-                    label = f'Точка {i}' if data.shape[1] > 2 else 'Температура'
-                    plt.plot(time_points, data[:, i], label=label, linewidth=2)
-
+                plt.plot(time_points, T_metal, 'r-', label='Температура металла', linewidth=2)
+                plt.plot(time_points, T_out, 'b--', label='Температура на поверхности', linewidth=2)
                 plt.xlabel('Время, с')
                 plt.ylabel('Температура, K')
                 plt.title('Изменение температуры во времени')
@@ -1171,28 +1102,32 @@ class SimulationService:
                 buf.seek(0)
                 plots['Изменение температуры во времени'] = base64.b64encode(buf.getvalue()).decode('utf-8')
                 plt.close()
-                logger.info(f"[task4] График временной эволюции построен")
-
+                logger.info(f"[task4] График временной эволюции построен из tlT.csv")
             except Exception as e:
-                logger.error(f"[task4] Ошибка при построении временного графика: {e}")
+                logger.error(f"[task4] Ошибка при построении временного графика: {e}", exc_info=True)
+        else:
+            logger.warning(f"[task4] tlT.csv не найден в {sim_dir}")
 
-        # ========== ГРАФИК 4: Анимация температурного поля (из папки plots) ==========
+        # ========== ГРАФИК 3: Анимация температурного поля (из папки plots) ==========
         plots_dir = os.path.join(sim_dir, "plots")
         if os.path.exists(plots_dir):
+            # Ищем файлы ThermalDistrib_*.eps (создаются в шаблоне)
             temp_frames = sorted([f for f in os.listdir(plots_dir)
-                                  if f.startswith(("temp_", "T_")) and f.endswith((".eps", ".png"))])
+                                  if f.startswith("ThermalDistrib_") and f.endswith(".eps")])
+
+            # Если нет ThermalDistrib_, ищем temp_*
+            if not temp_frames:
+                temp_frames = sorted([f for f in os.listdir(plots_dir)
+                                      if f.startswith(("temp_", "T_")) and f.endswith((".eps", ".png"))])
 
             if temp_frames:
                 try:
                     from PIL import Image
                     frames = []
-                    for frame in temp_frames[:50]:  # ограничиваем 50 кадрами
+                    for frame in temp_frames[:50]:
                         frame_path = os.path.join(plots_dir, frame)
                         try:
-                            if frame.endswith('.eps'):
-                                img = Image.open(frame_path)
-                            else:
-                                img = Image.open(frame_path)
+                            img = Image.open(frame_path)
                             frames.append(img)
                         except Exception as e:
                             logger.warning(f"Не удалось загрузить кадр {frame}: {e}")
@@ -1205,13 +1140,11 @@ class SimulationService:
                             plots['Анимация температурного поля'] = base64.b64encode(f.read()).decode('utf-8')
                         logger.info(f"[task4] GIF анимация создана с {len(frames)} кадрами")
                     elif len(frames) == 1:
-                        # Если только один кадр — сохраняем как статичное изображение
                         buf = BytesIO()
                         frames[0].save(buf, format='PNG')
                         buf.seek(0)
                         plots['Температурное поле'] = base64.b64encode(buf.getvalue()).decode('utf-8')
                         logger.info(f"[task4] Статичное изображение сохранено")
-
                 except Exception as e:
                     logger.error(f"[task4] Ошибка при создании анимации: {e}")
 
@@ -1220,7 +1153,7 @@ class SimulationService:
             logger.warning(f"[task4] Не найдено ни одного файла для визуализации в {sim_dir}")
             plt.figure(figsize=(10, 6))
             plt.text(0.5, 0.5,
-                     'Данные для визуализации не найдены\n\nОжидаемые файлы:\n- Temperatures.csv\n- HeatFlux.csv\n- plots/temp_*.eps',
+                     'Данные для визуализации не найдены\n\nОжидаемые файлы:\n- LT.csv\n- tlT.csv\n- plots/ThermalDistrib_*.eps',
                      ha='center', va='center', fontsize=12, transform=plt.gca().transAxes)
             plt.axis('off')
             buf = BytesIO()
