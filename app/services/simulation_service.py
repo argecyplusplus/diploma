@@ -1023,9 +1023,131 @@ class SimulationService:
 
         return plots
 
+    def _gauss_extremum(self, l, A, B, sigma, C, L):
+        x = l - L / 2
+        return A + B * np.exp(-x ** 2 / (2 * sigma ** 2)) + C * (x / (L / 2)) ** 2
+
+    def _read_gauss_params(self, filepath):
+        """Читает gauss_params.csv и возвращает массивы параметров"""
+        data = np.genfromtxt(filepath, delimiter=',', names=True)
+        t_arr = data['t']
+        params_metal = np.vstack([data['A_metal'], data['B_metal'], data['sigma_metal'], data['C_metal']]).T
+        params_gas = np.vstack([data['A_gas'], data['B_gas'], data['sigma_gas'], data['C_gas']]).T
+        return t_arr, params_metal, params_gas
+
+    def _get_profile_from_params(self, l_grid, t_arr, params_arr, t_query, L):
+        idx = np.argmin(np.abs(t_arr - t_query))
+        p = params_arr[idx]
+        return self._gauss_extremum(l_grid, p[0], p[1], p[2], p[3], L)
+
+    def _safe_power_four(self, T):
+        T_safe = np.clip(np.atleast_1d(T), 1.0, 2500.0)
+        T4 = np.zeros_like(T_safe)
+        mask_low = T_safe <= 2000.0
+        T4[mask_low] = T_safe[mask_low] ** 4
+        mask_high = T_safe > 2000.0
+        if np.any(mask_high):
+            log_T4 = 4 * np.log(T_safe[mask_high])
+            log_T4_safe = np.clip(log_T4, 0, 50)
+            T4[mask_high] = np.exp(log_T4_safe)
+        return T4
+
+    def _safe_radiation_heat_flux(self, T_hot, T_cold, epsilon, sigma_SB):
+        T_hot = np.atleast_1d(T_hot)
+        T_cold = np.atleast_1d(T_cold)
+        if T_hot.size == 1 and T_cold.size > 1:
+            T_hot = np.full_like(T_cold, T_hot.item())
+        if T_cold.size == 1 and T_hot.size > 1:
+            T_cold = np.full_like(T_hot, T_cold.item())
+        T_diff = T_hot - T_cold
+        T_avg = (T_hot + T_cold) / 2
+        mask_small_diff = np.abs(T_diff) < 50.0
+        q_rad = np.zeros_like(T_hot)
+        if np.any(mask_small_diff):
+            T_avg_subset = T_avg[mask_small_diff]
+            T_avg_cubed = self._safe_power_four(T_avg_subset) / T_avg_subset
+            q_rad[mask_small_diff] = epsilon * sigma_SB * 4 * T_avg_cubed * T_diff[mask_small_diff]
+        mask_large_diff = ~mask_small_diff
+        if np.any(mask_large_diff):
+            T_hot_4 = self._safe_power_four(T_hot[mask_large_diff])
+            T_cold_4 = self._safe_power_four(T_cold[mask_large_diff])
+            q_rad[mask_large_diff] = epsilon * sigma_SB * (T_hot_4 - T_cold_4)
+        return np.clip(q_rad, -1e8, 1e8)
+
+    def _solve_transient_curved_layer(self, l_grid, t_array, T_initial, Tmetal_func, Tout_func, params):
+        xi = params.get('xi', 1.0)
+        eta = params.get('eta', 0.0005)
+        h = params.get('h', 0.0003)
+        rho = params.get('rho', 5600)
+        c_heat = params.get('c_heat', 450)
+        epsilon = params['epsilon']
+        sigma_SB = params['sigma_SB']
+        h_conv = params['h_conv']
+        h_cool = params['h_cool']
+
+        N_l = len(l_grid)
+        N_t = len(t_array)
+        L = l_grid[-1]
+        dl = L / (N_l - 1)
+        A = np.zeros((N_l, N_t))
+        B = np.zeros((N_l, N_t))
+        A[:, 0] = T_initial
+        B[:, 0] = 0
+
+        for n in range(N_t - 1):
+            t_curr = t_array[n]
+            Tmetal = Tmetal_func(t_curr)
+            Tout = Tout_func(t_curr)
+            A_curr = A[:, n]
+            B_curr = B[:, n]
+            T_cov_int = A_curr
+            T_cov_ext = A_curr + B_curr * h
+
+            q_ext = h_conv * (Tout - T_cov_ext) + self._safe_radiation_heat_flux(Tout, T_cov_ext, epsilon, sigma_SB)
+            q_int = h_cool * (Tmetal - T_cov_int)
+            q_ext = np.clip(q_ext, -1e7, 1e7)
+            q_int = np.clip(q_int, -1e7, 1e7)
+
+            lam_vec = xi + eta * T_cov_ext
+            lam_vec = np.clip(lam_vec, 0.5, 3.0)
+
+            lam_left = np.zeros(N_l)
+            lam_right = np.zeros(N_l)
+            lam_left[1:] = 2 * lam_vec[1:] * lam_vec[:-1] / (lam_vec[1:] + lam_vec[:-1])
+            lam_left[0] = lam_vec[0]
+            lam_right[:-1] = 2 * lam_vec[:-1] * lam_vec[1:] / (lam_vec[:-1] + lam_vec[1:])
+            lam_right[-1] = lam_vec[-1]
+
+            d2A_dl2 = np.zeros(N_l)
+            for i in range(1, N_l - 1):
+                d2A_dl2[i] = (lam_right[i] * (A[i + 1, n] - A[i, n]) - lam_left[i] * (A[i, n] - A[i - 1, n])) / (
+                            dl ** 2)
+            d2A_dl2[0] = (lam_right[0] * (A[1, n] - A[0, n]) - lam_left[0] * (A[0, n] - A[-1, n])) / (dl ** 2)
+            d2A_dl2[-1] = (lam_right[-1] * (A[0, n] - A[-1, n]) - lam_left[-1] * (A[-1, n] - A[-2, n])) / (dl ** 2)
+
+            max_flux = max(np.abs(q_ext).max(), np.abs(q_int).max(), 1e3)
+            dt = t_array[n + 1] - t_array[n]
+            dt_eff = min(dt, 0.1 * 1e6 / max_flux)
+            dA_dt = (d2A_dl2 + (q_ext - q_int) / lam_vec) / (rho * c_heat * h)
+            dA_dt = np.clip(dA_dt, -1000.0, 1000.0)
+            A[:, n + 1] = A[:, n] + dA_dt * dt_eff
+            A[:, n + 1] = np.clip(A[:, n + 1], 100.0, 2500.0)
+            B_new = -q_ext / lam_vec
+            B_new = np.clip(B_new, -1e4, 1e4)
+            B[:, n + 1] = B_new
+            A[0, n + 1] = A[-1, n + 1]
+            B[0, n + 1] = B[-1, n + 1]
+
+            if n % max(1, N_t // 20) == 0:
+                T_avg = np.mean(A[:, n])
+                T_max = np.max(A[:, n] + B[:, n] * h)
+                logger.info(f"t = {t_curr:.2f} с, T_avg = {T_avg:.1f} K, T_max = {T_max:.1f} K")
+
+        return A, B
+
     def _generate_task4_plots(self, sim_dir: str) -> dict:
-        """Генерация графиков для задачи 4 (переходные тепловые процессы)
-        на основе CSV-файлов от FreeFEM"""
+        """Генерация графиков для задачи 4 на основе gauss_params.csv"""
+        import traceback
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
@@ -1034,133 +1156,170 @@ class SimulationService:
         import base64
         import os
         import logging
+        from pathlib import Path
 
         logger = logging.getLogger(__name__)
         plots = {}
 
-        # Пути к файлам (реальные имена из шаблона задачи 4)
-        tlT_path = os.path.join(sim_dir, "tlT.csv")
-        LT_path = os.path.join(sim_dir, "LT.csv")
+        logger.info(f"=== _generate_task4_plots: НАЧАЛО ===")
+        logger.info(f"sim_dir = {sim_dir}")
 
-        logger.info(f"[task4] Поиск файлов: tlT.csv={os.path.exists(tlT_path)}, LT.csv={os.path.exists(LT_path)}")
+        # Сначала ищем в папке симуляции
+        gauss_file = os.path.join(sim_dir, 'gauss_params.csv')
 
-        # ========== ГРАФИК 1: Распределение температуры по контуру (из LT.csv) ==========
-        if os.path.exists(LT_path):
-            try:
-                data = np.loadtxt(LT_path)
-                if data.ndim == 1:
-                    data = data.reshape(1, -1)
+        # Если нет - ищем в static/data/
+        if not os.path.exists(gauss_file):
+            logger.warning(f"gauss_params.csv не найден в {sim_dir}, ищем в static/data/...")
+            static_gauss = Path(__file__).parent.parent / "static" / "data" / "gauss_params.csv"
+            if static_gauss.exists():
+                gauss_file = str(static_gauss)
+                logger.info(f"✅ Найден в static/data/: {gauss_file}")
+            else:
+                logger.error(f"❌ gauss_params.csv не найден ни в {sim_dir}, ни в {static_gauss}")
+                return plots
 
-                # LT.csv: xdc, ydUp, T_up, ydLw, T_lw
-                x_coords = data[:, 0]
-                T_up = data[:, 2]
-                T_lw = data[:, 4]
+        logger.info(f"Используем gauss_file = {gauss_file}")
 
-                plt.figure(figsize=(10, 6))
-                plt.plot(x_coords, T_up, 'r-', label='Спинка', linewidth=2)
-                plt.plot(x_coords, T_lw, 'b-', label='Корытце', linewidth=2)
-                plt.xlabel('X, мм')
-                plt.ylabel('Температура, K')
-                plt.title('Распределение температуры по контуру лопатки')
-                plt.legend()
-                plt.grid(True, alpha=0.3)
+        if not os.path.exists(gauss_file):
+            logger.error(f"❌ gauss_params.csv не существует по пути {gauss_file}")
+            return plots
 
-                buf = BytesIO()
-                plt.savefig(buf, format='png', dpi=100)
-                buf.seek(0)
-                plots['Распределение температуры по контуру'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                plt.close()
-                logger.info(f"[task4] График температуры построен из LT.csv")
-            except Exception as e:
-                logger.error(f"[task4] Ошибка при построении графика температуры: {e}", exc_info=True)
-        else:
-            logger.warning(f"[task4] LT.csv не найден в {sim_dir}")
+        logger.info("✅ gauss_params.csv найден")
 
-        # ========== ГРАФИК 2: Временная эволюция температуры (из tlT.csv) ==========
-        if os.path.exists(tlT_path):
-            try:
-                data = np.loadtxt(tlT_path, delimiter=',')
-                if data.ndim == 1:
-                    data = data.reshape(1, -1)
+        try:
+            # --- Параметры расчёта ---
+            L = 0.51
+            N_l = 80
+            l_grid = np.linspace(0, L, N_l)
+            logger.info(f"l_grid создан, размер={len(l_grid)}")
 
-                # tlT.csv: t, l, Tmetal, Tout
-                time_points = data[:, 0]
-                T_metal = data[:, 2]  # температура металла
-                T_out = data[:, 3]  # температура на поверхности
+            # --- Загрузка параметров ---
+            t_arr, params_metal, params_gas = self._read_gauss_params(gauss_file)
+            logger.info(f"Загружены параметры: t_arr={len(t_arr)}, params_metal shape={params_metal.shape}")
 
-                plt.figure(figsize=(10, 6))
-                plt.plot(time_points, T_metal, 'r-', label='Температура металла', linewidth=2)
-                plt.plot(time_points, T_out, 'b--', label='Температура на поверхности', linewidth=2)
-                plt.xlabel('Время, с')
-                plt.ylabel('Температура, K')
-                plt.title('Изменение температуры во времени')
-                plt.legend()
-                plt.grid(True, alpha=0.3)
+            t_unique = np.unique(t_arr)
+            dt = np.min(np.diff(t_unique))
+            t_final = np.max(t_unique)
+            t_array = np.arange(np.min(t_unique), t_final + dt / 2, dt)
+            logger.info(f"t_array создан: от {t_array[0]:.2f} до {t_array[-1]:.2f}, шаг {dt:.4f}")
 
-                buf = BytesIO()
-                plt.savefig(buf, format='png', dpi=100)
-                buf.seek(0)
-                plots['Изменение температуры во времени'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                plt.close()
-                logger.info(f"[task4] График временной эволюции построен из tlT.csv")
-            except Exception as e:
-                logger.error(f"[task4] Ошибка при построении временного графика: {e}", exc_info=True)
-        else:
-            logger.warning(f"[task4] tlT.csv не найден в {sim_dir}")
+            # --- Начальная температура ---
+            T_initial = np.full(N_l, 1223.15)
 
-        # ========== ГРАФИК 3: Анимация температурного поля (из папки plots) ==========
-        plots_dir = os.path.join(sim_dir, "plots")
-        if os.path.exists(plots_dir):
-            # Ищем файлы ThermalDistrib_*.eps (создаются в шаблоне)
-            temp_frames = sorted([f for f in os.listdir(plots_dir)
-                                  if f.startswith("ThermalDistrib_") and f.endswith(".eps")])
+            params = {
+                'h_conv': 800.0,
+                'h_cool': 400.0,
+                'epsilon': 0.85,
+                'sigma_SB': 5.67e-8,
+                'xi': 1.0,
+                'eta': 0.0005,
+                'h': 0.0003,
+                'rho': 5600,
+                'c_heat': 450
+            }
 
-            # Если нет ThermalDistrib_, ищем temp_*
-            if not temp_frames:
-                temp_frames = sorted([f for f in os.listdir(plots_dir)
-                                      if f.startswith(("temp_", "T_")) and f.endswith((".eps", ".png"))])
+            # --- Расчёт для скорости 1 м/с ---
+            U0_1 = 1.0
+            params_1 = params.copy()
+            params_1['h_conv'] = 800.0 * (U0_1 / 0.01) ** 0.8
+            logger.info("Начинаем расчёт для скорости 1 м/с...")
 
-            if temp_frames:
-                try:
-                    from PIL import Image
-                    frames = []
-                    for frame in temp_frames[:50]:
-                        frame_path = os.path.join(plots_dir, frame)
-                        try:
-                            img = Image.open(frame_path)
-                            frames.append(img)
-                        except Exception as e:
-                            logger.warning(f"Не удалось загрузить кадр {frame}: {e}")
+            def Tmetal_func_1(t_query):
+                return self._get_profile_from_params(l_grid, t_arr, params_metal, t_query, L)
 
-                    if len(frames) >= 2:
-                        gif_path = os.path.join(sim_dir, "temperature_field_animation.gif")
-                        frames[0].save(gif_path, save_all=True, append_images=frames[1:],
-                                       duration=200, loop=0, format='GIF')
-                        with open(gif_path, 'rb') as f:
-                            plots['Анимация температурного поля'] = base64.b64encode(f.read()).decode('utf-8')
-                        logger.info(f"[task4] GIF анимация создана с {len(frames)} кадрами")
-                    elif len(frames) == 1:
-                        buf = BytesIO()
-                        frames[0].save(buf, format='PNG')
-                        buf.seek(0)
-                        plots['Температурное поле'] = base64.b64encode(buf.getvalue()).decode('utf-8')
-                        logger.info(f"[task4] Статичное изображение сохранено")
-                except Exception as e:
-                    logger.error(f"[task4] Ошибка при создании анимации: {e}")
+            def Tout_func_1(t_query):
+                return self._get_profile_from_params(l_grid, t_arr, params_gas, t_query, L)
 
-        # ========== Если нет ни одного графика — создаём заглушку ==========
-        if not plots:
-            logger.warning(f"[task4] Не найдено ни одного файла для визуализации в {sim_dir}")
+            A_1, B_1 = self._solve_transient_curved_layer(l_grid, t_array, T_initial, Tmetal_func_1, Tout_func_1,
+                                                          params_1)
+            logger.info(f"Расчёт для скорости 1 м/с завершён, A_1 shape={A_1.shape}")
+
+            # --- Расчёт для скорости 0.01 м/с ---
+            U0_001 = 0.01
+            params_001 = params.copy()
+            params_001['h_conv'] = 800.0 * (U0_001 / 0.01) ** 0.8
+            logger.info("Начинаем расчёт для скорости 0.01 м/с...")
+
+            def Tmetal_func_001(t_query):
+                return self._get_profile_from_params(l_grid, t_arr, params_metal, t_query, L)
+
+            def Tout_func_001(t_query):
+                return self._get_profile_from_params(l_grid, t_arr, params_gas, t_query, L)
+
+            A_001, B_001 = self._solve_transient_curved_layer(l_grid, t_array, T_initial, Tmetal_func_001,
+                                                              Tout_func_001, params_001)
+            logger.info(f"Расчёт для скорости 0.01 м/с завершён, A_001 shape={A_001.shape}")
+
+            # --- ГРАФИК 1: Температура в центре покрытия во времени ---
+            center_idx = len(l_grid) // 2
             plt.figure(figsize=(10, 6))
-            plt.text(0.5, 0.5,
-                     'Данные для визуализации не найдены\n\nОжидаемые файлы:\n- LT.csv\n- tlT.csv\n- plots/ThermalDistrib_*.eps',
-                     ha='center', va='center', fontsize=12, transform=plt.gca().transAxes)
-            plt.axis('off')
+            plt.plot(t_array, A_001[center_idx, :], color='red', label='v = 0.01 м/с')
+            plt.plot(t_array, A_1[center_idx, :], color='blue', label='v = 1 м/с')
+            plt.xlabel('Время, с')
+            plt.ylabel('Температура в центре покрытия, К')
+            plt.title('Температура в центре покрытия (середина профиля) во времени')
+            plt.legend()
+            plt.grid(True)
             buf = BytesIO()
             plt.savefig(buf, format='png', dpi=100)
             buf.seek(0)
-            plots['Нет данных'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plots['Температура в центре покрытия во времени'] = base64.b64encode(buf.getvalue()).decode('utf-8')
             plt.close()
+            logger.info("✅ График 1 создан")
 
-        logger.info(f"[task4] Сгенерировано графиков: {len(plots)}")
+            # --- ГРАФИК 2: Распределение температуры по профилю в разные моменты времени ---
+            times_to_plot = [0, len(t_array) // 4, len(t_array) // 2, -1]
+            plt.figure(figsize=(12, 7))
+            for t_idx in times_to_plot:
+                plt.plot(l_grid, A_001[:, t_idx], '-', label=f'v=0.01 м/с, t={t_array[t_idx]:.2f} с')
+                plt.plot(l_grid, A_1[:, t_idx], '--', label=f'v=1 м/с, t={t_array[t_idx]:.2f} с')
+            plt.xlabel('Координата вдоль профиля, м')
+            plt.ylabel('Температура в центре покрытия, К')
+            plt.title('Распределение температуры по профилю в разные моменты времени')
+            plt.legend(fontsize=9)
+            plt.grid(True)
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['Распределение температуры по профилю'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+            logger.info("✅ График 2 создан")
+
+            # --- ГРАФИК 3: Карта температурного поля (v = 1 м/с) ---
+            plt.figure(figsize=(10, 6))
+            plt.imshow(A_1, aspect='auto', extent=[t_array[0], t_array[-1], l_grid[0], l_grid[-1]], origin='lower',
+                       cmap='hot')
+            plt.colorbar(label='Температура, К')
+            plt.xlabel('Время, с')
+            plt.ylabel('Координата вдоль профиля, м')
+            plt.title('Карта температурного поля (скорость 1 м/с, центр покрытия)')
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['Карта температурного поля (v = 1 м/с)'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+            logger.info("✅ График 3 создан")
+
+            # --- ГРАФИК 4: Карта температурного поля (v = 0.01 м/с) ---
+            plt.figure(figsize=(10, 6))
+            plt.imshow(A_001, aspect='auto', extent=[t_array[0], t_array[-1], l_grid[0], l_grid[-1]], origin='lower',
+                       cmap='hot')
+            plt.colorbar(label='Температура, К')
+            plt.xlabel('Время, с')
+            plt.ylabel('Координата вдоль профиля, м')
+            plt.title('Карта температурного поля (скорость 0.01 м/с, центр покрытия)')
+            buf = BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plots['Карта температурного поля (v = 0.01 м/с)'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+            plt.close()
+            logger.info("✅ График 4 создан")
+
+            logger.info(f"=== _generate_task4_plots: УСПЕШНО сгенерировано {len(plots)} графиков ===")
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка в _generate_task4_plots: {e}")
+            logger.error(traceback.format_exc())
+            plots['Ошибка'] = f"Ошибка генерации графиков: {str(e)}"
+
         return plots
