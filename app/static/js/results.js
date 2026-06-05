@@ -69,7 +69,15 @@ async function loadMatplotlibPlots() {
 
     container.innerHTML = '<div class="status-message">⏳ Загрузка графиков...</div>';
     try {
-        const res = await fetch(`/simulation/${simId}/plots`);
+        // Добавляем таймаут 30 секунд
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        const res = await fetch(`/simulation/${simId}/plots`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         if (!res.ok) {
             throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
@@ -87,7 +95,18 @@ async function loadMatplotlibPlots() {
         let html = '';
         let hasContent = false;
 
-        // Ключи для задачи 2
+        // ========== ПРОФИЛЬ ЛОПАТКИ (для задач 2 и 3) ==========
+        if (data['Профиль лопатки']) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h4>Профиль лопатки</h4>
+                    <img src="data:image/png;base64,${data['Профиль лопатки']}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+            `;
+            hasContent = true;
+        }
+
+        // ========== ЗАДАЧА 2: ТЕМПЕРАТУРА ==========
         if (data['Распределение температуры по контуру']) {
             html += `
                 <div style="margin-bottom: 30px;">
@@ -98,26 +117,38 @@ async function loadMatplotlibPlots() {
             hasContent = true;
         }
 
-        // Ключи для задачи 3
-        const task3Keys = ['Профиль лопатки', 'Деформация Мизеса', 'Температура (поверхность)', 'Напряжение Мизеса'];
-        for (const key of task3Keys) {
-            if (data[key]) {
-                html += `
-                    <div style="margin-bottom: 30px;">
-                        <h4>${escapeHtml(key)}</h4>
-                        <img src="data:image/png;base64,${data[key]}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
-                    </div>
-                `;
-                hasContent = true;
-            }
+        // ========== ЗАДАЧА 3: ДЕФОРМАЦИЯ И НАПРЯЖЕНИЕ ==========
+        if (data['Деформация Мизеса']) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h4>Деформация Мизеса</h4>
+                    <img src="data:image/png;base64,${data['Деформация Мизеса']}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+            `;
+            hasContent = true;
         }
 
-        // Ключи для задачи 4
+        if (data['Напряжение Мизеса']) {
+            html += `
+                <div style="margin-bottom: 30px;">
+                    <h4>Напряжение Мизеса</h4>
+                    <img src="data:image/png;base64,${data['Напряжение Мизеса']}" style="max-width:100%; border:1px solid #e2e8f0; border-radius:8px;">
+                </div>
+            `;
+            hasContent = true;
+        }
+
+        // ========== ЗАДАЧА 4: ПЕРЕХОДНЫЕ ПРОЦЕССЫ ==========
         const task4Keys = [
             'Температура в центре покрытия во времени',
             'Распределение температуры по профилю',
             'Карта температурного поля (v = 1 м/с)',
-            'Карта температурного поля (v = 0.01 м/с)'
+            'Карта температурного поля (v = 0.01 м/с)',
+            'Распределение температуры по контурам',
+            'Распределение теплового потока',
+            'Изменение температуры во времени',
+            'Анимация температурного поля',
+            'Температурное поле'
         ];
         for (const key of task4Keys) {
             if (data[key]) {
@@ -131,9 +162,10 @@ async function loadMatplotlibPlots() {
             }
         }
 
-        // Другие возможные ключи
+        // ========== ОСТАЛЬНЫЕ КЛЮЧИ (для совместимости) ==========
+        const excludeKeys = ['Профиль лопатки', 'Распределение температуры по контуру', 'Деформация Мизеса', 'Напряжение Мизеса', ...task4Keys];
         for (const [key, value] of Object.entries(data)) {
-            if (key !== 'error' && !task3Keys.includes(key) && key !== 'Распределение температуры по контуру' && !task4Keys.includes(key)) {
+            if (key !== 'error' && !excludeKeys.includes(key)) {
                 html += `
                     <div style="margin-bottom: 30px;">
                         <h4>${escapeHtml(key)}</h4>
@@ -151,7 +183,11 @@ async function loadMatplotlibPlots() {
         }
     } catch(e) {
         console.error('Load matplotlib plots error:', e);
-        container.innerHTML = `<div class="status-message" style="color:#ef4444;">Ошибка загрузки графиков: ${e.message}</div>`;
+        if (e.name === 'AbortError') {
+            container.innerHTML = '<div class="status-message" style="color:#ef4444;">⏰ Превышено время ожидания (30 сек). Попробуйте обновить страницу.</div>';
+        } else {
+            container.innerHTML = `<div class="status-message" style="color:#ef4444;">Ошибка загрузки графиков: ${e.message}</div>`;
+        }
     }
 }
 

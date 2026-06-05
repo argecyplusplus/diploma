@@ -197,7 +197,7 @@ class SimulationService:
         if task_type == TaskType.TASK1.value:
             return []  # для задачи 1 нет обязательных CSV файлов
         elif task_type == TaskType.TASK2.value:
-            return ["Profout.csv"]  # ТОЛЬКО Profout.csv (TFout.csv не создаётся)
+            return ["Profout.csv", "TFout.csv"]
         elif task_type == TaskType.TASK3.value:
             return ["Profout.csv", "TSout.csv", "TEpsout.csv"]
         elif task_type == TaskType.TASK4.value:
@@ -329,7 +329,7 @@ class SimulationService:
                     repo.add_result(sim_id, "vtk", vtk_path, "Mesh & Field data")
 
                 if sim.task_type == TaskType.TASK2.value:
-                    for csv_file in ["Profout.csv"]:  # Убрать TFout.csv
+                    for csv_file in ["Profout.csv", "TFout.csv"]:
                         csv_path = os.path.join(sim_dir, csv_file)
                         if os.path.exists(csv_path):
                             repo.add_result(sim_id, "csv", csv_path, f"Output {csv_file}")
@@ -632,9 +632,29 @@ class SimulationService:
         delt = stress_out.delt if stress_out else 0.4
         Npt = stress_out.Npt if stress_out else 200.0
 
-        # ========== Для задач 2 и 3 используем единый шаблон ==========
-        if task_type in (TaskType.TASK2, TaskType.TASK3):
-            template_name = "task23.edp.template"
+        # ========== Задачи 2 и 3 ==========
+        if task_type == TaskType.TASK2:
+            template_name = "task2.edp.template"
+            replacements.update({
+                "Time": str(time_params.time if time_params and time_params.time else 1.0),
+                "dt": str(time_params.dt if time_params else 0.05),
+                "Nplot": str(time_params.Nplot if time_params and time_params.Nplot else 10),
+                "T_initial_steel": str(T_initial_steel),
+                "T_initial_air": str(T_initial_air),
+                "a_steel": str(a_steel),
+                "a_air": str(a_air),
+                "b": str(b),
+                "nu": str(nu),
+                "KLT": str(KLT),
+                "E_steel": str(E_steel),
+                "E_air": str(E_air),
+                "delt": str(delt),
+                "Npt": str(Npt),
+            })
+            os.makedirs(os.path.join(sim_dir, "plots"), exist_ok=True)
+
+        elif task_type == TaskType.TASK3:
+            template_name = "task3.edp.template"
             replacements.update({
                 "Time": str(time_params.time if time_params and time_params.time else 1.0),
                 "dt": str(time_params.dt if time_params else 0.05),
@@ -854,6 +874,30 @@ class SimulationService:
 
         # ================= ЗАДАЧА 2: ТЕПЛОВОЕ ПОЛЕ =================
         elif task_type == 'task2':
+            # График профиля лопатки (как в задаче 3)
+            prof_path = os.path.join(sim_dir, "Profout.csv")
+            if os.path.exists(prof_path):
+                try:
+                    data = np.loadtxt(prof_path)
+                    plt.figure(figsize=(8, 5))
+                    plt.plot(data[:, 0], data[:, 1], 'b-', label='Спинка (исх.)')
+                    plt.plot(data[:, 0], data[:, 2], 'b-', label='Корытце (исх.)')
+                    plt.plot(data[:, 3], data[:, 4], 'r-', label='Спинка (деф.)')
+                    plt.plot(data[:, 3], data[:, 5], 'r-', label='Корытце (деф.)')
+                    plt.xlabel('X, мм')
+                    plt.ylabel('Y, мм')
+                    plt.title('Профиль лопатки')
+                    plt.legend(loc='best')
+                    plt.grid(True, alpha=0.3)
+                    buf = BytesIO()
+                    plt.savefig(buf, format='png', dpi=100)
+                    buf.seek(0)
+                    plots['Профиль лопатки'] = base64.b64encode(buf.getvalue()).decode('utf-8')
+                    plt.close()
+                except Exception as e:
+                    logger.error(f"Ошибка при построении профиля лопатки: {e}")
+
+            # График распределения температуры по контуру
             tf_path = os.path.join(sim_dir, "TFout.csv")
             logger.info(f"[task2] Ищем TFout.csv: {tf_path}, exists={os.path.exists(tf_path)}")
             if os.path.exists(tf_path):
@@ -862,14 +906,15 @@ class SimulationService:
                     if data.ndim == 1:
                         data = data.reshape(1, -1)
                     x_coords = data[:, 0]
-                    T_up = data[:, 2]
-                    T_lw = data[:, 4]
+                    # В TFout.csv 3 столбца: x, T_up, T_lw
+                    T_up = data[:, 1]
+                    T_lw = data[:, 2]
                     plt.figure(figsize=(8, 5))
                     plt.plot(x_coords, T_up, 'rx', label='Спинка', markersize=5)
                     plt.plot(x_coords, T_lw, 'bx', label='Корытце', markersize=5)
                     plt.xlabel('X, мм')
                     plt.ylabel('Температура, °C')
-                    plt.title('Распределение температуры по внешнему контуру лопатки после охлаждения')
+                    plt.title('Распределение температуры по внешнему контуру лопатки')
                     plt.legend()
                     plt.grid(True, alpha=0.3)
                     buf = BytesIO()
@@ -881,8 +926,7 @@ class SimulationService:
                 except Exception as e:
                     logger.error(f"[task2] Ошибка при построении графика температуры: {e}", exc_info=True)
             else:
-                logger.warning(
-                    f"[task2] TFout.csv не найден — возможно FreeFEM не завершил запись или шаблон не обновлён")
+                logger.warning(f"[task2] TFout.csv не найден в {sim_dir}")
 
         # ================= ЗАДАЧА 3: ТЕРМОУПРУГОСТЬ =================
         elif task_type == 'task3':
@@ -957,18 +1001,18 @@ class SimulationService:
                 except Exception as e:
                     logger.error(f"Ошибка при обработке TSout.csv: {e}")
 
-            for sig_file, sig_name in [("sig1.eps", "Напряжение σ₁"), ("sig2.eps", "Напряжение σ₂"),
-                                       ("sig12.eps", "Напряжение σ₁₂")]:
-                eps = os.path.join(sim_dir, "plots", sig_file)
-                if os.path.exists(eps):
-                    try:
-                        img = Image.open(eps)
-                        png_file = eps.replace('.eps', '.png')
-                        img.save(png_file, 'PNG')
-                        with open(png_file, 'rb') as f:
-                            plots[sig_name] = base64.b64encode(f.read()).decode('utf-8')
-                    except Exception as e:
-                        logger.warning(f"Не удалось конвертировать {eps}: {e}")
+            # for sig_file, sig_name in [("sig1.eps", "Напряжение σ₁"), ("sig2.eps", "Напряжение σ₂"),
+            #                            ("sig12.eps", "Напряжение σ₁₂")]:
+            #     eps = os.path.join(sim_dir, "plots", sig_file)
+            #     if os.path.exists(eps):
+            #         try:
+            #             img = Image.open(eps)
+            #             png_file = eps.replace('.eps', '.png')
+            #             img.save(png_file, 'PNG')
+            #             with open(png_file, 'rb') as f:
+            #                 plots[sig_name] = base64.b64encode(f.read()).decode('utf-8')
+            #         except Exception as e:
+            #             logger.warning(f"Не удалось конвертировать {eps}: {e}")
 
         # ================= ЗАДАЧА 4: ПЕРЕХОДНЫЕ ТЕПЛОВЫЕ ПРОЦЕССЫ =================
         elif task_type == 'task4':

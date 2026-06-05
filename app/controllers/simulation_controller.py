@@ -362,8 +362,13 @@ def get_plots(sim_id):
     service = get_service()
     try:
         plots = service.generate_plots(sim_id)
+        import sys
+        size = sys.getsizeof(str(plots)) / 1024 / 1024
+        if size > 10:
+            print(f"⚠️ Внимание: графики занимают {size:.2f} MB")
         return jsonify(plots)
     except Exception as e:
+        logger.error(f"Ошибка в get_plots: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 
