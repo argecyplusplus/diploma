@@ -113,31 +113,33 @@
 </div>
 
 <!-- ================= ИСТОРИЯ РАСЧЁТОВ ================= -->
-<div class="section-header section-header-top">
-    <h2 class="page-title">История расчётов</h2>
-    <div class="header-actions">
-        <button class="btn-outline" onclick="cleanFailedSimulations()">Очистить от неудачных</button>
-        <button class="btn-secondary" onclick="refreshSimulationsList()">Обновить</button>
+<!-- ================= ИСТОРИЯ РАСЧЁТОВ ================= -->
+<div class="history-section">
+    <div class="section-header section-header-top">
+        <h2 class="page-title">История расчётов</h2>
+        <div class="header-actions">
+            <button class="btn-outline" onclick="cleanFailedSimulations()">Очистить от неудачных</button>
+            <button class="btn-secondary" onclick="refreshSimulationsList()">Обновить</button>
+        </div>
     </div>
-</div>
-<div class="card">
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th style="width:70px">ID</th>
-                    <th>Название</th>
-                    <th style="width:60px">Задача</th>
-                    <th>Объект</th>
-                    <th style="width:140px">Дата</th>
-                    <th style="width:130px">Статус</th>
-                    <th style="width:160px; text-align:right;">Результат</th>
-                </tr>
-            </thead>
-            <tbody id="simulations-table-body">
-                <tr><td colspan="6" class="status-message">⏳ Загрузка истории...</td></tr>
-            </tbody>
-        </table>
+    <div class="card">
+        <div class="table-wrapper">
+            <table class="data-table history-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px">ID</th>
+                        <th>Название</th>
+                        <th style="width:60px">Задача</th>
+                        <th>Объект</th>
+                        <th style="width:100px">Статус</th>
+                        <th style="text-align:right;">Результат</th>
+                    </tr>
+                </thead>
+                <tbody id="simulations-table-body">
+                    <tr><td colspan="6" class="status-message">Загрузка истории...<\/td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

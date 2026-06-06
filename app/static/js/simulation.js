@@ -316,7 +316,7 @@ async function loadSimulationsList() {
         if (!res.ok) throw new Error('Ошибка загрузки');
         const sims = await res.json();
         if (sims.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Расчеты еще не выполнялись</td></tr>';
+            tbody.innerHTML = '<td><td colspan="6" class="text-center">Расчеты еще не выполнялись<\/td></tr>';
             return;
         }
         let html = '';
@@ -326,23 +326,21 @@ async function loadSimulationsList() {
                     s.status === 'failed' ? '<span class="badge badge-danger">Ошибка</span>' :
                     '<span class="badge badge-secondary">Создан</span>';
 
-            const logBtn = (s.status === 'failed') ?
-                `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">Лог</button>` : '';
-
-            const resultsBtn = `<button class="btn-secondary btn-sm" onclick="viewResults(${s.simulation_id})">Результаты</button>`;
-            const deleteBtn = `<button class="btn-delete btn-sm" onclick="deleteSimulation(${s.simulation_id})">Удалить</button>`;
-            const resetBtn = `<button class="btn-warning btn-sm" onclick="resetSimulation(${s.simulation_id})">Сбросить</button>`;
-
-            const canRun = (s.status === 'pending' || s.status === 'failed' || s.status === 'completed');
-            const runBtn = canRun ?
-                `<button class="btn-run" onclick="runSimulation(${s.simulation_id})">Моделировать</button>` : '';
-
-            const folderBtn = (s.status === 'running') ?
-                `<button class="btn-folder" onclick="openSimulationFolder(${s.simulation_id})">В папку</button>` : '';
-
-            const actionsHtml = `<div class="table-actions" style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                ${runBtn} ${folderBtn} ${resetBtn} ${logBtn} ${resultsBtn} ${deleteBtn}
-            </div>`;
+            // Кнопки: лог (если есть) + остальные, выровненные по правому краю
+            const actionsHtml = `
+                <div class="history-actions">
+                    <div class="actions-left">
+                        ${s.status === 'failed' ? `<button class="btn-log" onclick="fetchAndShowLog(${s.simulation_id})">Лог</button>` : ''}
+                    </div>
+                    <div class="actions-right">
+                        ${(s.status === 'pending' || s.status === 'failed' || s.status === 'completed') ? `<button class="action-btn run-btn" onclick="runSimulation(${s.simulation_id})">Моделировать</button>` : ''}
+                        ${s.status === 'running' ? `<button class="action-btn folder-btn" onclick="openSimulationFolder(${s.simulation_id})">В папку</button>` : ''}
+                        <button class="action-btn reset-btn" onclick="resetSimulation(${s.simulation_id})">Сбросить</button>
+                        <button class="action-btn results-btn" onclick="viewResults(${s.simulation_id})">Результаты</button>
+                        <button class="action-btn delete-btn" onclick="deleteSimulation(${s.simulation_id})">Удалить</button>
+                    </div>
+                </div>
+            `;
 
             html += `
                 <tr>
@@ -350,15 +348,14 @@ async function loadSimulationsList() {
                     <td><strong>${escapeHtml(s.name)}</strong></td>
                     <td>${s.task_display}</td>
                     <td>${escapeHtml(s.blade_name)}</td>
-                    <td>${s.created_at}</td>
                     <td>${statusBadge}</td>
-                    <td>${actionsHtml}</td>
+                    <td style="text-align:right;">${actionsHtml}</td>
                 </tr>
             `;
         });
         tbody.innerHTML = html;
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="color:#ef4444">Ошибка загрузки</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="color:#ef4444">Ошибка загрузки<\/td></tr>';
         console.error(e);
     }
 }

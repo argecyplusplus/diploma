@@ -1228,3 +1228,147 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* Компактные кнопки в таблице истории расчётов */
+.table-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+.table-actions button {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.btn-run {
+    background: #10b981;
+    color: white;
+    border: none;
+}
+.btn-run:hover {
+    background: #059669;
+}
+
+.btn-log {
+    background: #fff1f0;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+}
+.btn-log:hover {
+    background: #fee2e2;
+}
+
+.btn-warning.btn-sm {
+    background: var(--status-warn);
+    color: white;
+    border: none;
+}
+.btn-warning.btn-sm:hover {
+    background: #d97706;
+}
+
+.data-table td:last-child,
+.data-table th:last-child {
+    min-width: auto;
+    white-space: normal;
+}
+
+/* История расчётов */
+.history-section {
+    margin-top: 32px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+}
+
+.history-table th:last-child,
+.history-table td:last-child {
+    text-align: right;
+    min-width: auto;
+}
+
+.history-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+}
+
+.actions-left {
+    display: flex;
+    gap: 6px;
+}
+
+.actions-right {
+    display: flex;
+    gap: 6px;
+}
+
+/* Единый стиль для кнопок действий */
+.action-btn {
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.action-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: #eff6ff;
+}
+
+/* Кнопка удаления */
+.delete-btn:hover {
+    border-color: var(--status-err);
+    color: var(--status-err);
+    background: #fef2f2;
+}
+
+/* Кнопка лога (оставляем как есть) */
+.btn-log {
+    background: #fff1f0;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.btn-log:hover {
+    background: #fee2e2;
+    border-color: #f87171;
+    color: #991b1b;
+}
+
+/* Переопределяем старые стили для совместимости */
+.btn-run, .btn-warning.btn-sm, .btn-secondary.btn-sm {
+    all: unset;
+}
+
+.btn-run, .reset-btn, .results-btn, .folder-btn {
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-run:hover, .reset-btn:hover, .results-btn:hover, .folder-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: #eff6ff;
+}
