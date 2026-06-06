@@ -27,14 +27,26 @@
     <button class="btn-secondary" onclick="checkCompletionManually()">Проверить завершение</button>
     <button class="btn-secondary" onclick="openSimulationFolder()">Открыть папку с файлами</button>
 </div>
+
 <div class="card">
     <div class="card-header">
-        <h3>Графики расчёта</h3>
+        <h3>Графики расчёта (Python)</h3>
     </div>
     <div id="plotsContent" style="padding: 20px;"></div>
+</div>
+
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>Графики FreeFEM++</h3>
+        <button class="btn-primary" onclick="loadFreeFemPlots()">🖼️ Просмотреть графики FreeFEM++</button>
+    </div>
+    <div id="freefemPlotsContent" style="padding: 20px; min-height: 200px;">
+        <div class="status-message">Нажмите кнопку для загрузки графиков</div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/results.js') }}"></script>
+<script src="{{ url_for('static', filename='js/freefem_plots.js') }}"></script>
 {% endblock %}

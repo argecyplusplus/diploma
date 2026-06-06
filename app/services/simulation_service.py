@@ -702,6 +702,76 @@ class SimulationService:
         self._render_template(template_name, replacements, edp_path)
         logger.info(f"Скрипт {task_type.value} (сборка) сохранён: {edp_path}")
 
+    def get_freefem_plots(self, sim_id: int) -> dict:
+        """Возвращает список конвертированных графиков FreeFEM для симуляции"""
+        from ..utils.eps_converter import EPSConverter
+
+        sim_dir = os.path.join(self.upload_dir, f"sim_{sim_id}")
+
+        if not os.path.exists(sim_dir):
+            return {"error": "Папка симуляции не найдена"}
+
+        converter = EPSConverter(sim_dir)
+
+        # Сначала получаем статус (сколько уже есть)
+        status = converter.get_conversion_status()
+        logger.info(f"get_freefem_plots: статус конвертации = {status}")
+
+        if status["total"] == 0:
+            return {
+                "success": False,
+                "message": "Для данной задачи графики FreeFEM не найдены",
+                "plots": [],
+                "progress": status
+            }
+
+        # Всегда возвращаем прогресс, даже если всё сконвертировано
+        if status["converted"] == status["total"] and status["total"] > 0:
+            eps_files = converter.get_available_plots()
+            plots_for_web = []
+            for eps_path in eps_files:
+                eps_filename = os.path.basename(eps_path)
+                png_filename = eps_filename.replace('.eps', '.png')
+                png_path = converter.png_dir / png_filename
+                if png_path.exists():
+                    rel_path = os.path.relpath(str(png_path), sim_dir).replace('\\', '/')
+                    plots_for_web.append({
+                        "name": converter._get_plot_name(eps_path),
+                        "url": f"/simulation/{sim_id}/plot_file/{rel_path}",
+                        "filename": png_filename
+                    })
+            return {
+                "success": True,
+                "message": f"Графики уже сконвертированы ({status['converted']} из {status['total']})",
+                "plots": plots_for_web,
+                "total": len(plots_for_web),
+                "progress": status  # Всегда включаем прогресс
+            }
+
+        # Если нужно конвертировать
+        result = converter.convert_all_plots()
+
+        plots_for_web = []
+        for p in result.get("plots", []):
+            rel_path = os.path.relpath(p["png"], sim_dir).replace('\\', '/')
+            plots_for_web.append({
+                "name": p["name"],
+                "url": f"/simulation/{sim_id}/plot_file/{rel_path}",
+                "filename": os.path.basename(p["png"])
+            })
+
+        # Убеждаемся что прогресс есть в ответе
+        final_progress = result.get("progress", status)
+
+        return {
+            "success": result["success"],
+            "message": result["message"],
+            "plots": plots_for_web,
+            "total": len(plots_for_web),
+            "progress": final_progress
+        }
+
+
     def _get_profile_source_chord(self, blade_id: int):
         coords = self.session.scalars(
             select(ProfileCoordinate).where(ProfileCoordinate.blade_id == blade_id)

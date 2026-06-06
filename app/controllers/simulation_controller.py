@@ -609,3 +609,29 @@ def open_simulation_folder(sim_id):
         subprocess.Popen(['xdg-open', sim_dir])
 
     return jsonify({"message": "Папка открыта"}), 200
+
+
+@sim_bp.route('/<int:sim_id>/freefem_plots', methods=['GET'])
+def get_freefem_plots(sim_id):
+    """Возвращает список конвертированных графиков FreeFEM"""
+    service = get_service()
+    try:
+        result = service.get_freefem_plots(sim_id)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Ошибка получения графиков FreeFEM: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@sim_bp.route('/<int:sim_id>/plot_file/<path:filepath>')
+def serve_plot_file(sim_id, filepath):
+    """Отдаёт PNG файл графика"""
+    service = get_service()
+    sim_dir = get_sim_dir(service, sim_id)
+    full_path = os.path.join(sim_dir, filepath)
+
+    # Проверка безопасности - файл должен быть внутри папки симуляции
+    if not os.path.exists(full_path) or not full_path.startswith(sim_dir):
+        abort(404)
+
+    return send_file(full_path, mimetype='image/png')
