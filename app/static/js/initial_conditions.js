@@ -169,7 +169,6 @@ async function createIC(e) {
         });
         const data = await res.json();
         if (res.ok) {
-            alert('✅ Набор сохранён!');
             location.reload();
         } else {
             alert('❌ Ошибка: ' + JSON.stringify(data.error || 'Неизвестная'));
@@ -381,7 +380,6 @@ async function updateIC(e, id) {
             body: JSON.stringify(payload)
         });
         if (res.ok) {
-            alert('Набор обновлён');
             location.reload();
         } else {
             const err = await res.json();
@@ -424,7 +422,6 @@ async function deleteIC(id) {
     try {
         const res = await fetch(`/initial-conditions/${id}`, { method: 'DELETE' });
         if (res.ok) {
-            alert('✅ Удалено');
             location.reload();
         } else {
             alert('❌ Ошибка удаления');

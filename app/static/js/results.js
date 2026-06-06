@@ -22,7 +22,6 @@ async function openSimulationFolder() {
         const res = await fetch(`/simulation/${simId}/open_folder`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Ошибка');
-        alert('✅ Папка с файлами открыта!');
     } catch(e) {
         alert('❌ Ошибка: ' + e.message);
     }
@@ -264,7 +263,6 @@ async function checkCompletionManually() {
         const res = await fetch(`/simulation/${simId}/check_completion`, { method: 'POST' });
         const data = await res.json();
         if (data.status === 'completed') {
-            alert('✅ Расчёт завершён! Страница будет обновлена.');
             location.reload();
         } else {
             alert(`Статус расчёта: ${data.status}\n${data.message || ''}`);

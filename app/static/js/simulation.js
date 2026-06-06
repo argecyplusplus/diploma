@@ -75,7 +75,6 @@ async function deleteSimulation(simId) {
     try {
         const res = await fetch(`/simulation/${simId}`, { method: 'DELETE' });
         if (res.ok) {
-            alert('Расчёт удалён');
             loadSimulationsList();
         } else {
             const err = await res.json();
@@ -92,7 +91,6 @@ async function cleanFailedSimulations() {
         const res = await fetch('/simulation/failed', { method: 'DELETE' });
         if (res.ok) {
             const data = await res.json();
-            alert(data.message);
             loadSimulationsList();
         } else {
             const err = await res.json();
@@ -130,12 +128,6 @@ async function runSimulation(simId) {
         const res = await fetch(`/simulation/${simId}/run_local`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Ошибка запуска');
-
-        if (data.instruction) {
-            alert('✅ Папка с файлом открыта!\n\nНайдите файл simulation_' + simId + '.edp и дважды кликните по нему, чтобы запустить FreeFEM++.\n\nПосле завершения расчёта нажмите "Обновить результаты" на этой странице.');
-        } else {
-            alert('✅ FreeFEM++ запущен! После завершения расчёта обновите страницу.');
-        }
 
         window.location.href = `/simulation/${simId}/results`;
     } catch(e) {
@@ -501,7 +493,6 @@ async function openSimulationFolder(simId) {
         const res = await fetch(`/simulation/${simId}/open_folder`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Ошибка');
-        alert('✅ Папка с файлом открыта!');
     } catch(e) {
         alert('❌ Ошибка: ' + e.message);
     }
@@ -558,7 +549,6 @@ async function resetSimulation(simId) {
     try {
         const res = await fetch(`/simulation/${simId}/reset`, { method: 'POST' });
         if (!res.ok) throw new Error('Ошибка сброса');
-        alert('✅ Статус сброшен');
         loadSimulationsList();
     } catch(e) {
         alert('❌ Ошибка: ' + e.message);

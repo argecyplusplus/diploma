@@ -182,7 +182,6 @@ async function loadCoordsFromFile(profileType, fileInput) {
             }
         }
         renderCoordTable(profileType);
-        alert(`✅ Загружено ${loadedCount} точек для ${profileType === 'upper' ? 'верхнего' : 'нижнего'} профиля`);
     } catch (e) {
         alert(`❌ Ошибка чтения файла: ${e.message}`);
         console.error(e);
@@ -239,7 +238,6 @@ async function saveBlade() {
         }
         closeModal('bladeModal');
         await loadBlades();
-        alert('Лопатка сохранена!');
     } catch (e) {
         alert(`Ошибка: ${e.message}`);
     }
@@ -261,7 +259,6 @@ async function deleteBlade(bladeId) {
         if (!res.ok) throw new Error('Ошибка удаления');
         closeModal('bladeModal');
         await loadBlades();
-        alert('Лопатка удалена');
     } catch (e) {
         alert(`Ошибка: ${e.message}`);
     }
@@ -366,7 +363,6 @@ async function saveMerge() {
         }
         closeModal('mergeModal');
         await loadAssemblies();
-        alert('Сборка сохранена!');
     } catch (e) {
         alert(`Ошибка: ${e.message}`);
     }
@@ -380,7 +376,6 @@ async function deleteMerge(assemblyId) {
         if (!res.ok) throw new Error('Ошибка удаления');
         closeModal('mergeModal');
         await loadAssemblies();
-        alert('Сборка удалена');
     } catch (e) {
         alert(`Ошибка: ${e.message}`);
     }
@@ -418,7 +413,6 @@ async function deleteAssembly() {
         if (!res.ok) throw new Error('Ошибка удаления');
         closeModal('assemblyViewModal');
         await loadAssemblies();
-        alert('✅ Объединение удалено');
     } catch (e) {
         alert('❌ Ошибка: ' + e.message);
     }

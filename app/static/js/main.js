@@ -105,7 +105,6 @@ async function saveSettings() {
         body: JSON.stringify({ freefem_path: freefemPath })
     });
     if (res.ok) {
-        alert('Настройки сохранены');
         closeModal('settingsModal');
     } else {
         const err = await res.json();

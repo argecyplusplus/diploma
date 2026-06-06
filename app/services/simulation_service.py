@@ -371,7 +371,7 @@ class SimulationService:
             [c.lower_value for c in coeffs]
         )
 
-        self._hack_override_coeffs(sim_dir, task_type)
+        self._override_coeffs(sim_dir, task_type)
 
         chord = self.session.scalar(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id))
         constr = self.session.scalar(
@@ -542,7 +542,7 @@ class SimulationService:
             f.write(" ".join(fmt(c.upper_value) for c in inner_coeffs) + "\n")
             f.write(" ".join(fmt(c.lower_value) for c in inner_coeffs) + "\n")
 
-        self._hack_override_coeffs(sim_dir, task_type)
+        self._override_coeffs(sim_dir, task_type)
 
         chord = self.session.scalar(select(BladeChord).where(BladeChord.initial_conditions_id == ic_id))
         constr = self.session.scalar(
