@@ -51,44 +51,69 @@
 <!-- ================= МОДАЛКА: ЛОПАТКА ================= -->
 <div class="modal-overlay" id="bladeModal">
     <div class="modal modal-lg">
-        <h3 id="bladeModalTitle">Создать лопатку</h3>
-        <input type="hidden" id="bladeId">
-        <div class="form-group">
-            <label>Наименование *</label>
-            <input type="text" id="bladeName" placeholder="Например: НС-1-5">
+        <div class="modal-header">
+            <h3 id="bladeModalTitle">Создать лопатку</h3>
+            <button class="modal-close" onclick="closeModal('bladeModal')">&times;</button>
         </div>
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchCoordTab('upper', event)">Верхний профиль</button>
-            <button class="tab-btn" onclick="switchCoordTab('lower', event)">Нижний профиль</button>
-        </div>
-        <div id="upperTab" class="tab-content active">
-            <div class="coords-actions">
-                <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">Загрузить файл
-                    <input type="file" hidden onchange="loadCoordsFromFile('upper', this)">
-                </label>
-                <button class="btn-secondary btn-sm" onclick="addCoordPointToTable('upper')">+ Точка</button>
+        <div class="modal-body">
+            <input type="hidden" id="bladeId">
+            <div class="form-group">
+                <label>Наименование *</label>
+                <input type="text" id="bladeName" placeholder="Например: НС-1-5">
             </div>
-            <table class="data-table coords-table">
-                <thead><tr><th style="width:40px">#</th><th>X</th><th>Y</th><th style="width:50px"></th></tr></thead>
-                <tbody id="upperCoordsTableBody"></tbody>
-            </table>
-        </div>
-        <div id="lowerTab" class="tab-content">
-            <div class="coords-actions">
-                <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">Загрузить файл
-                    <input type="file" hidden onchange="loadCoordsFromFile('lower', this)">
-                </label>
-                <button class="btn-secondary btn-sm" onclick="addCoordPointToTable('lower')">+ Точка</button>
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchCoordTab('upper', event)">Верхний профиль</button>
+                <button class="tab-btn" onclick="switchCoordTab('lower', event)">Нижний профиль</button>
             </div>
-            <table class="data-table coords-table">
-                <thead><tr><th style="width:40px">#</th><th>X</th><th>Y</th><th style="width:50px"></th></tr></thead>
-                <tbody id="lowerCoordsTableBody"></tbody>
-            </table>
+            <div id="upperTab" class="tab-content active">
+                <div class="coords-actions">
+                    <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">Загрузить из файла
+                        <input type="file" hidden onchange="loadCoordsFromFile('upper', this)">
+                    </label>
+                    <button class="btn-secondary btn-sm" onclick="addCoordPointToTable('upper')">+ Добавить точку</button>
+                </div>
+                <div class="coords-table-wrapper">
+                    <table class="data-table coords-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40px">#</th>
+                                <th>X</th>
+                                <th>Y</th>
+                                <th style="width:50px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="upperCoordsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="lowerTab" class="tab-content">
+                <div class="coords-actions">
+                    <label class="btn-secondary btn-sm" style="display:inline-flex;cursor:pointer;">Загрузить из файла
+                        <input type="file" hidden onchange="loadCoordsFromFile('lower', this)">
+                    </label>
+                    <button class="btn-secondary btn-sm" onclick="addCoordPointToTable('lower')">+ Добавить точку</button>
+                </div>
+                <div class="coords-table-wrapper">
+                    <table class="data-table coords-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40px">#</th>
+                                <th>X</th>
+                                <th>Y</th>
+                                <th style="width:50px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="lowerCoordsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        <div class="modal-actions">
-            <button class="btn-danger" id="deleteBladeBtn" style="display:none; margin-right:auto;" onclick="confirmDeleteBlade(document.getElementById('bladeId').value)">Удалить</button>
-            <button class="btn-secondary" onclick="closeModal('bladeModal')">Отмена</button>
-            <button class="btn-primary" onclick="saveBlade()">Сохранить</button>
+        <div class="modal-footer">
+            <button class="btn-danger" id="deleteBladeBtn" style="display:none;" onclick="confirmDeleteBlade(document.getElementById('bladeId').value)">Удалить</button>
+            <div class="modal-footer-actions">
+                <button class="btn-secondary" onclick="closeModal('bladeModal')">Отмена</button>
+                <button class="btn-primary" onclick="saveBlade()">Сохранить</button>
+            </div>
         </div>
     </div>
 </div>

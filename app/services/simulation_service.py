@@ -713,7 +713,6 @@ class SimulationService:
 
         converter = EPSConverter(sim_dir)
 
-        # Получаем список EPS файлов
         eps_files = converter.get_available_plots()
         logger.info(f"Найдено EPS файлов: {len(eps_files)}")
 
@@ -727,7 +726,6 @@ class SimulationService:
 
         total = len(eps_files)
 
-        # Проверяем, сколько уже сконвертировано
         converted = 0
         not_converted = []
         for eps_path in eps_files:
@@ -741,15 +739,12 @@ class SimulationService:
 
         logger.info(f"Уже сконвертировано: {converted} из {total}")
 
-        # Если не всё сконвертировано - конвертируем ОДИН файл
         if converted < total and not_converted:
-            # Берём первый не сконвертированный файл
             eps_to_convert = not_converted[0]
             logger.info(f"Конвертируем: {os.path.basename(eps_to_convert)}")
             converter.convert_eps_to_png(eps_to_convert)
             converted += 1
 
-            # Возвращаем прогресс
             return {
                 "success": False,
                 "message": f"Конвертация графиков FreeFEM...",
@@ -761,7 +756,6 @@ class SimulationService:
                 }
             }
 
-        # Всё сконвертировано - возвращаем графики
         plots_for_web = []
         for eps_path in eps_files:
             eps_filename = os.path.basename(eps_path)

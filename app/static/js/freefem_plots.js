@@ -1,4 +1,3 @@
-// static/js/freefem_plots.js
 let currentPlots = [];
 let currentPlotIndex = 0;
 let pollingInterval = null;
@@ -9,13 +8,11 @@ async function loadFreeFemPlots() {
 
     if (!container) return;
 
-    // Очищаем предыдущий интервал
     if (pollingInterval) {
         clearInterval(pollingInterval);
         pollingInterval = null;
     }
 
-    // Показываем начальный статус
     container.innerHTML = `
         <div class="status-message">
             <div class="conversion-status">
@@ -38,21 +35,16 @@ async function fetchPlots(simId) {
 
         if (!res.ok) throw new Error(data.error || 'Ошибка загрузки');
 
-        // Если есть прогресс и не всё готово
         if (data.progress && data.progress.total > 0 && data.progress.converted < data.progress.total) {
-            // Показываем прогресс
             showConversionProgress(data.progress.converted, data.progress.total);
 
-            // Запускаем опрос, если ещё не запущен
             if (!pollingInterval) {
                 pollingInterval = setInterval(() => fetchPlots(simId), 1000);
             }
             return;
         }
 
-        // Если всё готово и есть графики
         if (data.success && data.plots && data.plots.length > 0) {
-            // Останавливаем опрос
             if (pollingInterval) {
                 clearInterval(pollingInterval);
                 pollingInterval = null;
@@ -67,7 +59,6 @@ async function fetchPlots(simId) {
             return;
         }
 
-        // Если нет графиков
         if (pollingInterval) {
             clearInterval(pollingInterval);
             pollingInterval = null;

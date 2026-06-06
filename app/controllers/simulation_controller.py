@@ -630,7 +630,6 @@ def serve_plot_file(sim_id, filepath):
     sim_dir = get_sim_dir(service, sim_id)
     full_path = os.path.join(sim_dir, filepath)
 
-    # Проверка безопасности - файл должен быть внутри папки симуляции
     if not os.path.exists(full_path) or not full_path.startswith(sim_dir):
         abort(404)
 

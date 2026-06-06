@@ -1,4 +1,3 @@
-# utils/eps_converter.py
 import os
 import logging
 from pathlib import Path
@@ -21,14 +20,11 @@ class EPSConverter:
         """Возвращает список всех EPS файлов для конвертации"""
         eps_files = []
 
-        # Ищем в корне симуляции
         eps_files.extend(glob.glob(str(self.sim_dir / "*.eps")))
 
-        # Ищем в папке plots
         if self.plots_dir.exists():
             eps_files.extend(glob.glob(str(self.plots_dir / "*.eps")))
 
-        # Убираем дубликаты и сортируем
         eps_files = sorted(list(set(eps_files)))
 
         logger.info(f"Найдено EPS файлов: {len(eps_files)}")
@@ -78,7 +74,6 @@ class EPSConverter:
         try:
             logger.info(f"Конвертация: {eps_filename}")
             img = Image.open(eps_path)
-            # Сохраняем напрямую в plots_png
             img.save(png_path, 'PNG', dpi=(100, 100))
             logger.info(f"  -> сохранён: {png_path}")
             return png_path
@@ -109,7 +104,6 @@ class EPSConverter:
             else:
                 failed.append(eps_path)
 
-            # Вызываем callback для обновления прогресса
             if progress_callback:
                 progress_callback(i, total, len(converted), len(failed))
 
