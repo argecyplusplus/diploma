@@ -39,23 +39,23 @@ async function loadAlloys() {
 function renderMaterialsTable() {
     const tbody = document.getElementById('elementsTable');
     if (!materials.length) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center">Нет материалов</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center">Нет материалов<\/td></tr>`;
         return;
     }
     tbody.innerHTML = materials.map(m => `
         <tr class="clickable-row" data-material-id="${m.material_id}" onclick="editMaterial(${m.material_id})">
             <td>${m.material_id}</td>
             <td>${escapeHtml(m.name)}</td>
-            <td>${m.type || '—'}</td>
-            <td>${m.density?.toFixed(1) || '—'}</td>
-            <td>${m.thermal_conductivity?.toFixed(2) || '—'}</td>
-            <td>${m.heat_capacity?.toFixed(1) || '—'}</td>
+            <td style="text-align:right;">${m.type || '—'}</td>
+            <td style="text-align:right;">${m.density?.toFixed(1) || '—'}</td>
+            <td style="text-align:right;">${m.thermal_conductivity?.toFixed(2) || '—'}</td>
+            <td style="text-align:right;">${m.heat_capacity?.toFixed(1) || '—'}</td>
             <td>
                 <div class="table-actions">
-                    <button class="btn-edit" onclick="event.stopPropagation(); editMaterial(${m.material_id})">✏️</button>
-                    <button class="btn-delete" onclick="event.stopPropagation(); deleteMaterialById(${m.material_id})">🗑️</button>
+                    <button class="btn-edit" onclick="event.stopPropagation(); editMaterial(${m.material_id})">Редактировать</button>
+                    <button class="btn-delete" onclick="event.stopPropagation(); deleteMaterialById(${m.material_id})">Удалить</button>
                 </div>
-             </td>
+            </td>
         </tr>
     `).join('');
 }
@@ -63,21 +63,22 @@ function renderMaterialsTable() {
 function renderAlloysTable() {
     const tbody = document.getElementById('alloysTable');
     if (!alloys.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center">Нет сплавов</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center">Нет сплавов<\/td></tr>`;
         return;
     }
     tbody.innerHTML = alloys.map(a => `
         <tr class="clickable-row" data-alloy-id="${a.material_id}" onclick="viewAlloy(${a.material_id})">
             <td>${a.material_id}</td>
             <td>${escapeHtml(a.name)}</td>
-            <td>${a.density?.toFixed(1) || '—'}</td>
-            <td>${a.melting_point?.toFixed(0) || '—'}</td>
+            <td style="text-align:right;">${a.density?.toFixed(1) || '—'}</td>
+            <td style="text-align:right;">${a.thermal_conductivity?.toFixed(2) || '—'}</td>
+            <td style="text-align:right;">${a.heat_capacity?.toFixed(1) || '—'}</td>
             <td>
                 <div class="table-actions">
-                    <button class="btn-edit" onclick="event.stopPropagation(); editAlloy(${a.material_id})">✏️</button>
-                    <button class="btn-delete" onclick="event.stopPropagation(); deleteAlloyById(${a.material_id})">🗑️</button>
+                    <button class="btn-edit" onclick="event.stopPropagation(); editAlloy(${a.material_id})">Редактировать</button>
+                    <button class="btn-delete" onclick="event.stopPropagation(); deleteAlloyById(${a.material_id})">Удалить</button>
                 </div>
-             </td>
+            </td>
         </tr>
     `).join('');
 }

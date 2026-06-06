@@ -24,15 +24,15 @@
                 <tr>
                     <th style="width:60px">ID</th>
                     <th>Название</th>
-                    <th style="width:100px">Тип</th>
+                    <th style="width:100px; text-align:right;">Тип</th>
                     <th style="width:100px; text-align:right;">Плотность, кг/м³</th>
                     <th style="width:100px; text-align:right;">Теплопроводность, Вт/м·К</th>
                     <th style="width:100px; text-align:right;">Теплоёмкость, Дж/кг·К</th>
-                    <th style="width:180px; text-align:right;">Действия</th>
+                    <th style="width:1%; white-space:nowrap; text-align:right;">Действия</th>
                 </tr>
             </thead>
             <tbody id="elementsTable">
-                <tr><td colspan="7" class="status-message">⏳ Загрузка...<\/td></tr>
+                <tr><td colspan="7" class="status-message">Загрузка...<\/td></tr>
             </tbody>
         </table>
     </div>
@@ -55,12 +55,13 @@
                     <th style="width:60px">ID</th>
                     <th>Название</th>
                     <th style="width:100px; text-align:right;">Плотность, кг/м³</th>
-                    <th style="width:100px; text-align:right;">Температура плавления, °C</th>
-                    <th style="width:180px; text-align:right;">Действия</th>
+                    <th style="width:100px; text-align:right;">Теплопроводность, Вт/м·К</th>
+                    <th style="width:100px; text-align:right;">Теплоёмкость, Дж/кг·К</th>
+                    <th style="width:1%; white-space:nowrap; text-align:right;">Действия</th>
                 </tr>
             </thead>
             <tbody id="alloysTable">
-                <tr><td colspan="5" class="status-message">⏳ Загрузка...<\/td></tr>
+                <tr><td colspan="6" class="status-message">Загрузка...<\/td></tr>
             </tbody>
         </table>
     </div>
@@ -98,34 +99,28 @@
 
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>Плотность ρ, кг/м³ *</label>
+                        <label>Плотность, кг/м³ *</label>
                         <input type="number" step="any" id="matDensity" placeholder="Плотность" required>
-                        <small>Масса единицы объёма</small>
                     </div>
                     <div class="form-group">
                         <label>Твёрдость, HV</label>
                         <input type="number" step="any" id="matHardness" placeholder="Твёрдость по Виккерсу">
-                        <small>Необязательно</small>
                     </div>
                     <div class="form-group">
-                        <label>Теплопроводность λ, Вт/м·К *</label>
+                        <label>Теплопроводность, Вт/м·К *</label>
                         <input type="number" step="any" id="matLambda" placeholder="Теплопроводность" required>
-                        <small>Способность проводить тепло</small>
                     </div>
                     <div class="form-group">
-                        <label>Теплоёмкость Cp, Дж/кг·К *</label>
+                        <label>Теплоёмкость, Дж/кг·К *</label>
                         <input type="number" step="any" id="matCp" placeholder="Удельная теплоёмкость" required>
-                        <small>Энергия для нагрева 1 кг на 1°C</small>
                     </div>
                     <div class="form-group">
-                        <label>Температура плавления Tпл, °C</label>
+                        <label>Температура плавления, °C</label>
                         <input type="number" step="any" id="matTmelt" placeholder="Температура плавления">
-                        <small>Необязательно</small>
                     </div>
                     <div class="form-group">
-                        <label>КТР α, 10⁻⁶/К *</label>
+                        <label>КТР, 10⁻⁶/К *</label>
                         <input type="number" step="any" id="matKLT" placeholder="Коэффициент теплового расширения" required>
-                        <small>Относительное удлинение при нагреве</small>
                     </div>
                 </div>
 
@@ -163,7 +158,7 @@
                         <!-- Динамические строки компонентов -->
                     </div>
                     <button type="button" class="btn-secondary btn-sm" onclick="addAlloyComponentRow()">+ Добавить компонент</button>
-                    <div class="error-msg" id="massSumError" style="margin-top:8px; display:none;">⚠️ Сумма должна быть 100% (сейчас: <span id="massSum">0</span>%)</div>
+                    <div class="error-msg" id="massSumError" style="margin-top:8px; display:none;">Сумма должна быть 100% (сейчас: <span id="massSum">0</span>%)</div>
                 </div>
 
                 <div class="modal-footer" style="margin-top: 20px;">
@@ -213,11 +208,11 @@
                 </div>
             </div>
 
-            <h4 style="margin: 20px 0 12px;">📊 Химический состав:</h4>
+            <h4 style="margin: 20px 0 12px;">Химический состав:</h4>
             <div class="table-wrapper">
                 <table class="data-table">
                     <thead>
-                        <tr><th>Компонент</th><th style="width:140px; text-align:right;">Массовая доля, %</th></tr>
+                        <tr><th>Компонент</th><th style="width:140px;">Массовая доля, %</th></tr>
                     </thead>
                     <tbody id="viewAlloyComps"></tbody>
                 </table>

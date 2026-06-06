@@ -109,7 +109,7 @@ body {
     flex-wrap: wrap;
     justify-content: flex-start;
 }
-.table-actions button { padding: 4px 8px; font-size: 0.6875rem; border-radius: 3px; border: 1px solid var(--border); background: transparent; cursor: pointer; transition: all 0.15s; }
+.table-actions button { padding: 4px 8px; font-size: 0.75rem; border-radius: 3px; border: 1px solid var(--border); background: transparent; cursor: pointer; transition: all 0.15s; }
 .table-actions button:hover { background: var(--bg-surface); border-color: var(--accent); color: var(--accent); }
 .btn-edit:hover { background: #eff6ff; border-color: var(--accent) !important; }
 .btn-view:hover { background: #ecfdf5; border-color: var(--status-ok) !important; color: var(--status-ok) !important; }
