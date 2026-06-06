@@ -1370,6 +1370,6 @@ body {
     color: #991b1b;
 }
 
-.history-card { margin: 5px; }
+.history-card { margin-top: -15px; }
 .history-card .card-header { display: flex; justify-content: space-between; align-items: center; }
 .history-card .card-header h3 { margin-bottom: 0; }
