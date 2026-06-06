@@ -223,6 +223,8 @@ async function loadFiles() {
             else if (file.name === 'TEpsout.csv') fileType = 'tepsout';
             else if (file.name === 'TFout.csv') fileType = 'tfout';
             else if (file.name === 'gauss_params.csv') fileType = 'gauss_params';
+            else if (file.name === 'tlT.csv') fileType = 'tlt';
+            else if (file.name === 'LT.csv') fileType = 'lt';
             else fileType = file.name.split('.')[0].toLowerCase();
 
             html += `<a href="/simulation/${simId}/result/${fileType}" class="${btnClass}">📥 ${file.description}</a>`;

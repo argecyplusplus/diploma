@@ -308,7 +308,9 @@ def download_result_file(sim_id, file_type):
         'profout': 'Profout.csv',
         'tsout': 'TSout.csv',
         'tepsout': 'TEpsout.csv',
-        'gauss_params': 'gauss_params.csv'
+        'gauss_params': 'gauss_params.csv',
+        'tlt': 'tlT.csv',
+        'lt': 'LT.csv'
     }
 
     if file_type not in file_map:
@@ -386,7 +388,9 @@ def get_result_files(sim_id):
         ('Profout.csv', 'Профиль лопатки (Profout.csv)', 'csv'),
         ('TSout.csv', 'Напряжения (TSout.csv)', 'csv'),
         ('TEpsout.csv', 'Деформации (TEpsout.csv)', 'csv'),
-        ('gauss_params.csv', 'Параметры гауссовской аппроксимации', 'csv')
+        ('gauss_params.csv', 'Параметры гауссовской аппроксимации', 'csv'),
+        ('tlT.csv', 'Температура по времени (tlT.csv)', 'csv'),
+        ('LT.csv', 'Тепловой поток (LT.csv)', 'csv')
     ]
 
     for filename, description, category in candidates:
