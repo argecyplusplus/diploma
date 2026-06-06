@@ -713,62 +713,78 @@ class SimulationService:
 
         converter = EPSConverter(sim_dir)
 
-        # Сначала получаем статус (сколько уже есть)
-        status = converter.get_conversion_status()
-        logger.info(f"get_freefem_plots: статус конвертации = {status}")
+        # Получаем список EPS файлов
+        eps_files = converter.get_available_plots()
+        logger.info(f"Найдено EPS файлов: {len(eps_files)}")
 
-        if status["total"] == 0:
+        if not eps_files:
             return {
                 "success": False,
                 "message": "Для данной задачи графики FreeFEM не найдены",
                 "plots": [],
-                "progress": status
+                "progress": {"total": 0, "converted": 0, "percent": 100}
             }
 
-        # Всегда возвращаем прогресс, даже если всё сконвертировано
-        if status["converted"] == status["total"] and status["total"] > 0:
-            eps_files = converter.get_available_plots()
-            plots_for_web = []
-            for eps_path in eps_files:
-                eps_filename = os.path.basename(eps_path)
-                png_filename = eps_filename.replace('.eps', '.png')
-                png_path = converter.png_dir / png_filename
-                if png_path.exists():
-                    rel_path = os.path.relpath(str(png_path), sim_dir).replace('\\', '/')
-                    plots_for_web.append({
-                        "name": converter._get_plot_name(eps_path),
-                        "url": f"/simulation/{sim_id}/plot_file/{rel_path}",
-                        "filename": png_filename
-                    })
+        total = len(eps_files)
+
+        # Проверяем, сколько уже сконвертировано
+        converted = 0
+        not_converted = []
+        for eps_path in eps_files:
+            eps_filename = os.path.basename(eps_path)
+            png_filename = eps_filename.replace('.eps', '.png')
+            png_path = converter.png_dir / png_filename
+            if png_path.exists():
+                converted += 1
+            else:
+                not_converted.append(eps_path)
+
+        logger.info(f"Уже сконвертировано: {converted} из {total}")
+
+        # Если не всё сконвертировано - конвертируем ОДИН файл
+        if converted < total and not_converted:
+            # Берём первый не сконвертированный файл
+            eps_to_convert = not_converted[0]
+            logger.info(f"Конвертируем: {os.path.basename(eps_to_convert)}")
+            converter.convert_eps_to_png(eps_to_convert)
+            converted += 1
+
+            # Возвращаем прогресс
             return {
-                "success": True,
-                "message": f"Графики уже сконвертированы ({status['converted']} из {status['total']})",
-                "plots": plots_for_web,
-                "total": len(plots_for_web),
-                "progress": status  # Всегда включаем прогресс
+                "success": False,
+                "message": f"Конвертация графиков FreeFEM...",
+                "plots": [],
+                "progress": {
+                    "total": total,
+                    "converted": converted,
+                    "percent": int((converted / total) * 100)
+                }
             }
 
-        # Если нужно конвертировать
-        result = converter.convert_all_plots()
-
+        # Всё сконвертировано - возвращаем графики
         plots_for_web = []
-        for p in result.get("plots", []):
-            rel_path = os.path.relpath(p["png"], sim_dir).replace('\\', '/')
-            plots_for_web.append({
-                "name": p["name"],
-                "url": f"/simulation/{sim_id}/plot_file/{rel_path}",
-                "filename": os.path.basename(p["png"])
-            })
-
-        # Убеждаемся что прогресс есть в ответе
-        final_progress = result.get("progress", status)
+        for eps_path in eps_files:
+            eps_filename = os.path.basename(eps_path)
+            png_filename = eps_filename.replace('.eps', '.png')
+            png_path = converter.png_dir / png_filename
+            if png_path.exists():
+                rel_path = os.path.relpath(str(png_path), sim_dir).replace('\\', '/')
+                plots_for_web.append({
+                    "name": converter._get_plot_name(eps_path),
+                    "url": f"/simulation/{sim_id}/plot_file/{rel_path}",
+                    "filename": png_filename
+                })
 
         return {
-            "success": result["success"],
-            "message": result["message"],
+            "success": True,
+            "message": f"Графики сконвертированы ({total} шт.)",
             "plots": plots_for_web,
             "total": len(plots_for_web),
-            "progress": final_progress
+            "progress": {
+                "total": total,
+                "converted": total,
+                "percent": 100
+            }
         }
 
 

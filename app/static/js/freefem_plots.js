@@ -1,13 +1,19 @@
 // static/js/freefem_plots.js
 let currentPlots = [];
 let currentPlotIndex = 0;
-let conversionInterval = null;
+let pollingInterval = null;
 
 async function loadFreeFemPlots() {
     const simId = parseInt(window.location.pathname.split('/').slice(-2)[0]);
     const container = document.getElementById('freefemPlotsContent');
 
     if (!container) return;
+
+    // Очищаем предыдущий интервал
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+    }
 
     // Показываем начальный статус
     container.innerHTML = `
@@ -19,82 +25,70 @@ async function loadFreeFemPlots() {
         </div>
     `;
 
+    await fetchPlots(simId);
+}
+
+async function fetchPlots(simId) {
+    const container = document.getElementById('freefemPlotsContent');
+    if (!container) return;
+
     try {
         const res = await fetch(`/simulation/${simId}/freefem_plots`);
         const data = await res.json();
 
         if (!res.ok) throw new Error(data.error || 'Ошибка загрузки');
 
-        if (!data.success || data.plots.length === 0) {
-            container.innerHTML = `<div class="status-message">${data.message || 'Графики FreeFEM не найдены'}</div>`;
-            return;
-        }
-
-        // Если есть прогресс и не всё сконвертировано - показываем прогресс
+        // Если есть прогресс и не всё готово
         if (data.progress && data.progress.total > 0 && data.progress.converted < data.progress.total) {
-            showConversionProgress(data.progress);
-            // Проверяем статус конвертации каждые 2 секунды
-            if (conversionInterval) clearInterval(conversionInterval);
-            conversionInterval = setInterval(() => checkConversionStatus(simId), 2000);
+            // Показываем прогресс
+            showConversionProgress(data.progress.converted, data.progress.total);
+
+            // Запускаем опрос, если ещё не запущен
+            if (!pollingInterval) {
+                pollingInterval = setInterval(() => fetchPlots(simId), 1000);
+            }
             return;
         }
 
-        // Всё готово - показываем галерею
-        currentPlots = data.plots;
-        currentPlotIndex = 0;
+        // Если всё готово и есть графики
+        if (data.success && data.plots && data.plots.length > 0) {
+            // Останавливаем опрос
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
 
-        // Предзагрузка изображений
-        container.innerHTML = '<div class="status-message">🖼️ Загрузка изображений...</div>';
-        await preloadAllImages(currentPlots);
-        renderPlotGallery();
+            currentPlots = data.plots;
+            currentPlotIndex = 0;
 
-        if (conversionInterval) clearInterval(conversionInterval);
+            container.innerHTML = '<div class="status-message">🖼️ Загрузка изображений...</div>';
+            await preloadAllImages(currentPlots);
+            renderPlotGallery();
+            return;
+        }
+
+        // Если нет графиков
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+        container.innerHTML = `<div class="status-message">${data.message || 'Графики FreeFEM не найдены'}</div>`;
 
     } catch(e) {
+        console.error('Error:', e);
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
         container.innerHTML = `<div class="status-message" style="color:#ef4444;">❌ Ошибка: ${e.message}</div>`;
     }
 }
 
-async function checkConversionStatus(simId) {
-    try {
-        const res = await fetch(`/simulation/${simId}/freefem_plots`);
-        const data = await res.json();
-
-        if (!res.ok) return;
-
-        if (data.progress && data.progress.converted >= data.progress.total) {
-            // Конвертация завершена
-            if (conversionInterval) clearInterval(conversionInterval);
-
-            // Перезагружаем графики
-            const finalRes = await fetch(`/simulation/${simId}/freefem_plots`);
-            const finalData = await finalRes.json();
-
-            if (finalData.success && finalData.plots.length > 0) {
-                currentPlots = finalData.plots;
-                currentPlotIndex = 0;
-                await preloadAllImages(currentPlots);
-                renderPlotGallery();
-            } else {
-                document.getElementById('freefemPlotsContent').innerHTML =
-                    `<div class="status-message">${finalData.message || 'Графики не найдены'}</div>`;
-            }
-        } else if (data.progress) {
-            // Обновляем прогресс
-            showConversionProgress(data.progress);
-        }
-    } catch(e) {
-        console.error('Error checking conversion status:', e);
-    }
-}
-
-function showConversionProgress(progress) {
+function showConversionProgress(converted, total) {
     const container = document.getElementById('freefemPlotsContent');
     if (!container) return;
 
-    const percent = progress.percent || 0;
-    const converted = progress.converted || 0;
-    const total = progress.total || 0;
+    const percent = total > 0 ? Math.round((converted / total) * 100) : 0;
 
     container.innerHTML = `
         <div class="status-message">
