@@ -102,7 +102,6 @@
                 </div>
             </div>
 
-        <!-- Кнопка запуска с индикатором -->
         <div class="form-actions">
             <button type="submit" id="submitBtn" class="btn-primary btn-lg" style="min-width:240px;">
                 <span class="btn-text">▶ Запустить моделирование</span>
@@ -113,37 +112,37 @@
 </div>
 
 <!-- ================= ИСТОРИЯ РАСЧЁТОВ ================= -->
-<!-- ================= ИСТОРИЯ РАСЧЁТОВ ================= -->
-<div class="history-section">
-    <div class="section-header section-header-top">
-        <h2 class="page-title">История расчётов</h2>
+<div class="card history-card">
+    <div class="card-header history-card-header">
+        <div>
+            <h3>История расчётов</h3>
+            <p class="card-hint">Все запущенные задачи моделирования</p>
+        </div>
         <div class="header-actions">
-            <button class="btn-outline" onclick="cleanFailedSimulations()">Очистить от неудачных</button>
-            <button class="btn-secondary" onclick="refreshSimulationsList()">Обновить</button>
+            <button class="btn-outline" onclick="cleanFailedSimulations()">Очистить неудачные</button>
+            <button class="btn-secondary" onclick="refreshSimulationsList()">↻ Обновить</button>
         </div>
     </div>
-    <div class="card">
-        <div class="table-wrapper">
-            <table class="data-table history-table">
-                <thead>
-                    <tr>
-                        <th style="width:60px">ID</th>
-                        <th>Название</th>
-                        <th style="width:60px">Задача</th>
-                        <th>Объект</th>
-                        <th style="width:100px">Статус</th>
-                        <th style="text-align:right;">Результат</th>
-                    </tr>
-                </thead>
-                <tbody id="simulations-table-body">
-                    <tr><td colspan="6" class="status-message">Загрузка истории...<\/td></tr>
-                </tbody>
-            </table>
-        </div>
+    <div class="table-wrapper" style="margin-bottom:0; border:none; border-radius:0;">
+        <table class="data-table history-table">
+            <thead>
+                <tr>
+                    <th style="width:52px">ID</th>
+                    <th>Название</th>
+                    <th style="width:56px; text-align:center">Задача</th>
+                    <th>Объект</th>
+                    <th style="width:110px">Статус</th>
+                    <th style="text-align:right">Действия</th>
+                </tr>
+            </thead>
+            <tbody id="simulations-table-body">
+                <tr><td colspan="6" class="status-message">Загрузка истории...</td></tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
-<!-- Статусная панель (опционально, для расширенного UX) -->
+<!-- Статус-панель -->
 <div id="simulationStatusPanel" class="card" style="display:none;">
     <div class="card-header">
         <h3>Статус текущего расчёта</h3>
