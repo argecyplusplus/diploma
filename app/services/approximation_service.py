@@ -125,7 +125,7 @@ class ApproximationService:
         }
 
     def _save_assembly_coeffs_to_file(self, assembly_name: str, outer_result: Dict, inner_result: Dict):
-        """Сохраняет коэффициенты Лежандра в файл out_L_{name}.csv в формате эталона"""
+        """Сохраняет коэффициенты Лежандра в файл out_L_{name}.csv"""
         from pathlib import Path
 
         out_dir = Path(__file__).parent.parent.parent / "out_files"
