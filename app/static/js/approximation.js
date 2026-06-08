@@ -50,6 +50,32 @@ async function onItemSelect(id, type) {
     await executeApproximation();
 }
 
+function updateTableHeaders(isAssembly) {
+    // Координаты
+    const coordsHead = document.getElementById('coordsHead');
+    if (isAssembly) {
+        coordsHead.innerHTML = '<tr><th>Лопатка</th><th>Тип профиля</th><th>X</th><th>Y</th></tr>';
+    } else {
+        coordsHead.innerHTML = '<tr><th>Тип профиля</th><th>X</th><th>Y</th></tr>';
+    }
+
+    // Коэффициенты Лежандра
+    const coeffsHead = document.getElementById('coeffsHead');
+    if (isAssembly) {
+        coeffsHead.innerHTML = '<tr><th>Лопатка</th><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr>';
+    } else {
+        coeffsHead.innerHTML = '<tr><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr>';
+    }
+
+    // Параметры
+    const paramsHead = document.getElementById('paramsHead');
+    if (isAssembly) {
+        paramsHead.innerHTML = '<tr><th>Лопатка</th><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R² (точность)</th></tr>';
+    } else {
+        paramsHead.innerHTML = '<tr><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R² (точность)</th></tr>';
+    }
+}
+
 async function executeApproximation() {
     if (!currentItemId || !currentItemType) return;
     setLoading(true);
@@ -104,7 +130,10 @@ async function loadResults(bladeId) {
 }
 
 function displayResults(data) {
-    if (data.outer && data.inner) {
+    const isAssembly = !!(data.outer && data.inner);
+    updateTableHeaders(isAssembly);
+
+    if (isAssembly) {
         document.getElementById('plotImg').src = data.plot;
         const combinedCoords = [];
         const combinedCoeffs = [];
@@ -146,14 +175,17 @@ function displayResults(data) {
     } else {
         document.getElementById('plotImg').src = data.plot;
         document.getElementById('coordsBody').innerHTML = (data.transformed_coords || []).map(c =>
-            `<tr><td>${c.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${c.x.toFixed(6)}</td><td>${c.y.toFixed(6)}</td><tr>`
+            `<tr><td>${c.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${c.x.toFixed(6)}</td><td>${c.y.toFixed(6)}</td></tr>`
         ).join('') || '<tr><td colspan="3" class="status-message">Нет данных</td></tr>';
+
         document.getElementById('coeffsBody').innerHTML = (data.legendre_coeffs || []).map((c, idx) =>
             `<tr><td>${idx}</td><td>${c.upper.toFixed(6)}</td><td>${c.lower.toFixed(6)}</td></tr>`
         ).join('') || '<tr><td colspan="3" class="status-message">Нет данных</td></tr>';
+
         document.getElementById('paramsBody').innerHTML = (data.approximation_params || []).map(p =>
             `<tr><td>${p.type === 'upper' ? 'Верхний' : 'Нижний'}</td><td>${p.max_val?.toFixed(4) || '—'}</td><td>${p.x_max?.toFixed(4) || '—'}</td><td>${p.r2?.toFixed(4) || '—'}</td></tr>`
         ).join('') || '<tr><td colspan="4" class="status-message">Нет данных</td></tr>';
+
         currentData.coords = data.transformed_coords || [];
         currentData.coeffs = data.legendre_coeffs || [];
         currentData.params = data.approximation_params || [];
@@ -197,14 +229,19 @@ function savePlot() {
 }
 
 function saveTable(type) {
-    const headers = type === 'coords' ? ['Type','X','Y'] :
-                    type === 'coeffs' ? ['Index','Upper','Lower'] :
-                    ['Type','Max_Y','X_at_Max','R2'];
-    const data = currentData[type];
+    let headers = [];
+    let data = currentData[type];
+    if (type === 'coords') {
+        headers = currentData.coords.length > 0 && currentData.coords[0].blade_name ? ['Blade','Type','X','Y'] : ['Type','X','Y'];
+    } else if (type === 'coeffs') {
+        headers = currentData.coeffs.length > 0 && currentData.coeffs[0].blade_name ? ['Blade','Index','Upper','Lower'] : ['Index','Upper','Lower'];
+    } else if (type === 'params') {
+        headers = currentData.params.length > 0 && currentData.params[0].blade_name ? ['Blade','Profile','Max_Y','X_at_Max','R2'] : ['Profile','Max_Y','X_at_Max','R2'];
+    }
     let csv = headers.join(',') + '\n';
-    if (type === 'coords') data.forEach(r => csv += `${r.type},${r.x},${r.y}\n`);
-    if (type === 'coeffs') data.forEach(r => csv += `${r.idx},${r.upper},${r.lower}\n`);
-    if (type === 'params') data.forEach(r => csv += `${r.type},${r.max_val??''},${r.x_max??''},${r.r2??''}\n`);
+    if (type === 'coords') data.forEach(r => csv += `${r.blade_name ? r.blade_name+',' : ''}${r.type},${r.x},${r.y}\n`);
+    if (type === 'coeffs') data.forEach(r => csv += `${r.blade_name ? r.blade_name+',' : ''}${r.idx},${r.upper},${r.lower}\n`);
+    if (type === 'params') data.forEach(r => csv += `${r.blade_name ? r.blade_name+',' : ''}${r.profile},${r.max_y ?? r.max_val},${r.x_at_max ?? r.x_max},${r.r2}\n`);
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);

@@ -61,10 +61,10 @@
                 <button class="btn-secondary btn-sm" onclick="saveTable('coords')">Сохранить CSV</button>
             </div>
             <div class="table-wrapper">
-                <table class="data-table">
-                    <thead><tr><th>Тип профиля</th><th style="width:30%">X</th><th style="width:30%">Y</th></tr></thead>
+                <table class="data-table" id="coordsTable">
+                    <thead id="coordsHead"></thead>
                     <tbody id="coordsBody">
-                        <tr><td colspan="3" class="status-message">Нет данных</td></tr>
+                        <tr><td colspan="4" class="status-message">Нет данных</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -79,10 +79,10 @@
                 <button class="btn-secondary btn-sm" onclick="saveTable('coeffs')">Сохранить CSV</button>
             </div>
             <div class="table-wrapper">
-                <table class="data-table">
-                    <thead><tr><th>Степень (n)</th><th>Верхний профиль</th><th>Нижний профиль</th></tr></thead>
+                <table class="data-table" id="coeffsTable">
+                    <thead id="coeffsHead"></thead>
                     <tbody id="coeffsBody">
-                        <tr><td colspan="3" class="status-message">Нет данных</td></tr>
+                        <tr><td colspan="4" class="status-message">Нет данных</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -97,10 +97,10 @@
                 <button class="btn-secondary btn-sm" onclick="saveTable('params')">Сохранить CSV</button>
             </div>
             <div class="table-wrapper">
-                <table class="data-table">
-                    <thead><tr><th>Профиль</th><th>Max Y</th><th>X при Max</th><th>R² (точность)</th></tr></thead>
+                <table class="data-table" id="paramsTable">
+                    <thead id="paramsHead"></thead>
                     <tbody id="paramsBody">
-                        <tr><td colspan="4" class="status-message">Нет данных</td></tr>
+                        <tr><td colspan="5" class="status-message">Нет данных</td></tr>
                     </tbody>
                 </table>
             </div>
